@@ -15,7 +15,7 @@ public final class Repository {
   public static void init(Context c){app=c.getApplicationContext();userAgent=android.webkit.WebSettings.getDefaultUserAgent(c);HakoParser.ORIGIN=c.getSharedPreferences("settings",0).getString("origin","https://docln.sbs");}
   public static volatile String activeBook="";
   private static long lastNetwork=0;
-  public static void cooldown(Context c,long ms){c.getSharedPreferences("settings",0).edit().putLong("cooldownUntil",System.currentTimeMillis()+ms).apply();}
+  public static void cooldown(Context c,long ms){long capped=Math.min(ms,3*60*1000L);c.getSharedPreferences("settings",0).edit().putLong("cooldownUntil",System.currentTimeMillis()+capped).apply();}
   public static void allowed(Context c)throws IOException {if(System.currentTimeMillis()<c.getSharedPreferences("settings",0).getLong("cooldownUntil",0))throw new IOException("Đang nghỉ sau giới hạn truy cập. Thử lại sau 30 phút.");}
   public static final String EVENT = "vn.nanase.hako.STATUS";
   public static final AtomicBoolean busy = new AtomicBoolean(false),
@@ -204,12 +204,22 @@ public final class Repository {
         Store.Book b=todo.remove(0);if(b.dropped||(!b.followed&&!b.id.equals(activeBook)))continue;
         catalog(ctx,b);b=s.book(b.id);List<Store.Chapter> chapters=s.chapters(b.id);int current=0;
         for(Store.Chapter ch:chapters)if(ch.id.equals(b.current))current=ch.ord;
+        // Priority 1: Current reading chapter to +15 ahead
         for(Store.Chapter ch:chapters){
           if(ch.ord<current||ch.ord>current+FetchPolicy.AHEAD||s.readable(ch.id))continue;
           int distance=ch.ord-current;
           if(!waitFor(ctx,FetchPolicy.delayMillis(distance),b.id,charging))break;
-          notify(ctx,"Tải trước "+distance+"/15 • "+ch.title);
-          try{download(ctx,ch);}catch(Exception e){s.state(ch.id,false,e.getMessage());throw e;}
+          notify(ctx,"Đang đọc: tải trước "+distance+"/15 • "+ch.title);
+          try{download(ctx,ch);}catch(Exception e){s.state(ch.id,false,e.getMessage());notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());Thread.sleep(1500);}
+        }
+        // Priority 2: If downloading full book (all=true), download remainder
+        if(all && !cancel.get()){
+          for(Store.Chapter ch:chapters){
+            if(s.readable(ch.id))continue;
+            if(!waitFor(ctx,3000,b.id,charging))break;
+            notify(ctx,"Tải toàn bộ • "+ch.title);
+            try{download(ctx,ch);}catch(Exception e){s.state(ch.id,false,e.getMessage());notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());Thread.sleep(1500);}
+          }
         }
         Store.Book latest=s.book(b.id);if(latest!=null)s.prune(latest);
       }

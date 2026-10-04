@@ -25,7 +25,17 @@ public final class HakoParser {
     }
   }
 
-  public static boolean isOrigin(String url) { try {URI u=URI.create(url);return "https".equals(u.getScheme()) && URI.create(ORIGIN).getHost().equalsIgnoreCase(u.getHost()) && (u.getPort()==-1||u.getPort()==443);}catch(Exception e){return false;} }
+  public static boolean isOrigin(String url) {
+    try {
+      URI u = URI.create(url);
+      if (!"https".equals(u.getScheme()) && !"http".equals(u.getScheme())) return false;
+      String host = u.getHost() == null ? "" : u.getHost().toLowerCase();
+      String originHost = URI.create(ORIGIN).getHost() == null ? "" : URI.create(ORIGIN).getHost().toLowerCase();
+      return host.equalsIgnoreCase(originHost) || host.endsWith("hako.vn") || host.endsWith("hako.vip") || host.endsWith("docln.sbs") || host.endsWith("docln.net");
+    } catch (Exception e) {
+      return false;
+    }
+  }
 
   public static String normalize(String input) {
     try {

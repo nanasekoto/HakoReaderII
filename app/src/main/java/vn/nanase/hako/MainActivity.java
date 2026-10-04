@@ -319,9 +319,9 @@ public class MainActivity extends Activity {
     list.post(() -> {
       int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
       if (listH > 0) {
-        int cardsPerPage = 3;
-        int divH = dp(8);
-        itemH[0] = Math.max(dp(95), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        int cardsPerPage = 5;
+        int divH = dp(6);
+        itemH[0] = Math.max(dp(75), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
         list.invalidateViews();
       }
     });
@@ -338,30 +338,31 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
         cardBg.setStroke(dp(2),Color.BLACK);
-        cardBg.setCornerRadius(dp(8));
+        cardBg.setCornerRadius(dp(6));
         card.setBackground(cardBg);
-        card.setPadding(dp(12),dp(10),dp(12),dp(10));
+        card.setPadding(dp(10),dp(6),dp(10),dp(6));
 
         LinearLayout top=new LinearLayout(MainActivity.this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView titleView=text(b.title,18);
+        TextView titleView=text(b.title,15);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
+        titleView.setMaxLines(2);
         top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
 
         int newCount=newChapterCount(b);
         if(newCount>0){
           TextView badge=new TextView(MainActivity.this);
           badge.setText("+"+newCount+" mới");
-          badge.setTextSize(14);
+          badge.setTextSize(12);
           badge.setTextColor(Color.WHITE);
           badge.setBackgroundColor(Color.BLACK);
           badge.setTypeface(Typeface.DEFAULT_BOLD);
-          badge.setPadding(dp(8),dp(3),dp(8),dp(3));
+          badge.setPadding(dp(6),dp(2),dp(6),dp(2));
           LinearLayout.LayoutParams lpBadge=new LinearLayout.LayoutParams(-2,-2);
-          lpBadge.setMargins(dp(8),0,0,0);
+          lpBadge.setMargins(dp(6),0,0,0);
           top.addView(badge,lpBadge);
         }
         card.addView(top);
@@ -384,9 +385,9 @@ public class MainActivity extends Activity {
         }
 
         if(sub.length()>0){
-          TextView subView=text(sub.toString(),13);
+          TextView subView=text(sub.toString(),12);
           subView.setTextColor(Color.BLACK);
-          subView.setPadding(0,dp(6),0,0);
+          subView.setPadding(0,dp(3),0,0);
           card.addView(subView);
         }
 
@@ -412,9 +413,9 @@ public class MainActivity extends Activity {
     list.post(() -> {
       int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
       if (listH > 0) {
-        int cardsPerPage = 3;
-        int divH = dp(8);
-        itemH[0] = Math.max(dp(95), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        int cardsPerPage = 5;
+        int divH = dp(6);
+        itemH[0] = Math.max(dp(75), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
         list.invalidateViews();
       }
     });
@@ -433,9 +434,9 @@ public class MainActivity extends Activity {
         cardBg.setStroke(dp(2),Color.BLACK);
         cardBg.setCornerRadius(dp(8));
         card.setBackground(cardBg);
-        card.setPadding(dp(12),dp(10),dp(12),dp(10));
+        card.setPadding(dp(10),dp(6),dp(10),dp(6));
 
-        TextView titleView=text((b.pinned?"★ ":"")+b.title,18);
+        TextView titleView=text((b.pinned?"★ ":"")+b.title,15);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
         card.addView(titleView);
@@ -580,8 +581,19 @@ public class MainActivity extends Activity {
     }
     int targetIdx = resolveTargetIndex(b, chs);
     Store.Chapter target = chs.get(targetIdx);
-    navStack.push(() -> contents(b));
-    openChapter(b.id, target.id);
+    if (store.readable(target.id)) {
+      navStack.push(() -> contents(b));
+      openChapter(b.id, target.id);
+    } else {
+      // If chapter not yet downloaded, enter TOC immediately and prioritize downloading target chapter
+      contents(b);
+      task("Đang tải " + target.title + "…", () -> {
+        Repository.download(this, target);
+        return null;
+      }, () -> {
+        contents(store.book(b.id));
+      });
+    }
   }
 
   private void contents(Store.Book b) {
