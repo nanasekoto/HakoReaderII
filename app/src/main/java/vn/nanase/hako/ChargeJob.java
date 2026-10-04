@@ -1,1 +1,50 @@
-package vn.nanase.hako; import android.app.job.*; import android.content.*; import android.os.*; public class ChargeJob extends JobService { public static void schedule(Context c, boolean enabled) { JobScheduler s = c.getSystemService(JobScheduler.class); if (!enabled) { s.cancel(40); return; } s.schedule( new JobInfo.Builder(40, new ComponentName(c, ChargeJob.class)) .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY) .setRequiresCharging(true) .setPersisted(true) .setPeriodic(60 * 60 * 1000) .build()); } public static boolean isCharging(Context c) { Intent b = c.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED)); return b != null && b.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0; } public boolean onStartJob(JobParameters p) { if (Repository.busy.get()) return false; new Thread( () -> { boolean retry = false; try { Repository.run(this, \"\", true, true); } catch (Exception e) { retry = false; Repository.notify(this, \"Tải khi sạc: \" + e.getMessage()); } jobFinished(p, retry); }, \"Hako charging\") .start(); return true; } public boolean onStopJob(JobParameters p) { if (!Repository.manualOverride) Repository.cancel.set(true); return false; } } 
+package vn.nanase.hako;
+
+import android.app.job.*;
+import android.content.*;
+import android.os.*;
+
+public class ChargeJob extends JobService {
+  public static void schedule(Context c, boolean enabled) {
+    JobScheduler s = c.getSystemService(JobScheduler.class);
+    if (!enabled) {
+      s.cancel(40);
+      return;
+    }
+    s.schedule(
+        new JobInfo.Builder(40, new ComponentName(c, ChargeJob.class))
+            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            .setRequiresCharging(true)
+            .setPersisted(true)
+            .setPeriodic(60 * 60 * 1000)
+            .build());
+  }
+
+  public static boolean isCharging(Context c) {
+    Intent b = c.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+    return b != null && b.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
+  }
+
+  public boolean onStartJob(JobParameters p) {
+    if (Repository.busy.get()) return false;
+    new Thread(
+            () -> {
+              boolean retry = false;
+              try {
+                Repository.run(this, "", true, true);
+              } catch (Exception e) {
+                retry = false;
+                Repository.notify(this, "Tải khi sạc: " + e.getMessage());
+              }
+              jobFinished(p, retry);
+            },
+            "Hako charging")
+        .start();
+    return true;
+  }
+
+  public boolean onStopJob(JobParameters p) {
+    if (!Repository.manualOverride) Repository.cancel.set(true);
+    return false;
+  }
+}

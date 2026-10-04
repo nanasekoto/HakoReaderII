@@ -5,10 +5,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
-        android:icon="@android:drawable/ic_menu_agenda"
+        android:icon="@drawable/icon"
         android:label="Hako Pocket"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
@@ -25,6 +26,7 @@
 
         <service
             android:name="vn.nanase.hako.DownloadService"
+            android:foregroundServiceType="dataSync"
             android:exported="false" />
 
         <service
