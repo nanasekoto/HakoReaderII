@@ -23,7 +23,7 @@ public final class NativeReader extends View {
  private final Map<String,String> notes=new HashMap<>();
  private final Map<Drawable,int[]> imageSizes=new IdentityHashMap<>();
  private StaticLayout layout;
- private int page=0,margin=10,pendingParagraph=0;private float pendingFraction=0,line=1.00f;private int paraSpaceDp=4,indentDp=12;private String rawHtml="";
+ private int page=0,margin=10,pendingParagraph=0;private float pendingFraction=0,line=1.30f;private int paraSpaceDp=8,indentDp=9;private String rawHtml="";
  private boolean taps=true,swiped=false;private float downX,downY;
  public NativeReader(Context c,File dir,Listener listener){super(c);this.chapterDir=dir;this.listener=listener;setBackgroundColor(Color.WHITE);setFocusable(true);paint.setColor(Color.BLACK);}
  public void content(String html,int paragraph,float fraction){
