@@ -147,17 +147,17 @@ public class MainActivity extends Activity {
   private void library() {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
-    root.addView(text("HAKO POCKET",18));
+    root.addView(text("HAKO POCKET",20));
     root.addView(text("Đọc nhẹ • Xteink S4",11));
-    ScrollView scroll=new ScrollView(this);currentScroll=scroll;
-    LinearLayout grid=new LinearLayout(this);grid.setOrientation(1);scroll.addView(grid);
+    LinearLayout grid=new LinearLayout(this);
+    grid.setOrientation(1);
     String[] names={
       "Đọc tiếp","Vừa đọc","Tủ sách",
       "Mới cập nhật","Thường đọc","Tìm kiếm",
-      "Cài đặt","Tài khoản","Mở liên kết",
-      "Thoát"
+      "Cài đặt","Tài khoản","Đổi tên miền",
+      "Đọc mẫu","Dán link","Thoát"
     };
-    int[] iconKinds={12,7,1,8,9,10,13,11,14,6};
+    int[] iconKinds={12,7,2,8,9,10,13,11,14,3,1,6};
     Runnable[] actions={
       ()->{Store.Book b=store.book(prefs.getString("lastBook",""));if(b!=null)openBook(b);else bookList(false);},
       ()->{navStack.push(this::library);bookList(false);},
@@ -167,27 +167,31 @@ public class MainActivity extends Activity {
       this::searchDialog,
       this::settings,
       ()->browse(HakoParser.ORIGIN+"/login"),
+      this::domain,
+      this::demo,
       this::addDialog,
       this::exitApp
     };
     int cols=3;
     for(int n=0;n<names.length;n+=cols){
       LinearLayout line=new LinearLayout(this);
+      line.setOrientation(0);
       for(int j=n;j<n+cols&&j<names.length;j++){
         final int x=j;
         LinearLayout cell=new LinearLayout(this);
         cell.setOrientation(1);cell.setGravity(Gravity.CENTER);
         IconButton icon=new IconButton(this,iconKinds[j],names[j],actions[j]);
-        cell.addView(icon,new LinearLayout.LayoutParams(dp(30),dp(30)));
-        TextView label=text(names[j],11);
+        cell.addView(icon,new LinearLayout.LayoutParams(dp(36),dp(36)));
+        TextView label=text(names[j],12);
         label.setGravity(Gravity.CENTER);
+        label.setPadding(0,dp(4),0,0);
         cell.addView(label);
         cell.setOnClickListener(v->actions[x].run());
-        line.addView(cell,new LinearLayout.LayoutParams(0,dp(58),1));
+        line.addView(cell,new LinearLayout.LayoutParams(0,-1,1f));
       }
-      grid.addView(line);
+      grid.addView(line,new LinearLayout.LayoutParams(-1,0,1f));
     }
-    root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
     status();
   }
     private void onlineList(String title, String url) {
@@ -258,7 +262,7 @@ public class MainActivity extends Activity {
     EditText field=new EditText(this);field.setSingleLine(true);field.setHint("Nhập tên truyện hoặc tác giả…");
     new AlertDialog.Builder(this).setTitle("Tìm kiếm HAKO").setView(field).setPositiveButton("Tìm",(d,w)->{
       String q=field.getText().toString().trim();
-      if(!q.isEmpty()){try{String u=HakoParser.ORIGIN+"/tim-kiem?keywords="+java.net.URLEncoder.encode(q,"UTF-8");onlineList("Tìm: "+q,u);}catch(Exception ignored){}}
+      if(!q.isEmpty()){try{String u=HakoParser.ORIGIN+"/tim-kiem?keywords="+java.net.URLEncoder.encode(q,"UTF-8");navStack.push(this::library);onlineList("Tìm: "+q,u);}catch(Exception ignored){}}
     }).setNegativeButton("Hủy",null).show();
   }
 
@@ -401,6 +405,8 @@ public class MainActivity extends Activity {
       rowBtns.add("Đọc tiếp");
       rowActs.add(() -> openChapter(b.id, curCh.id));
     }
+    rowBtns.add(b.followed ? "♥ Đã lưu" : "♡ Tủ sách");
+    rowActs.add(() -> { saveBook(); contents(store.book(b.id)); });
     rowBtns.add(desc ? "Cũ nhất ▲" : "Mới nhất ▼");
     rowActs.add(() -> { prefs.edit().putBoolean("tocDesc", !desc).apply(); contents(b); });
     rowBtns.add("⋯ Menu");rowActs.add(() -> bookMenu(b));
@@ -464,26 +470,77 @@ public class MainActivity extends Activity {
     int pos=b.current.equals(cid)?b.pos:0;float fraction=b.current.equals(cid)?b.fraction:0;
     reset();bookId=bid;chapterId=cid;lastPos=pos;lastFraction=fraction;prefs.edit().putString("lastBook",bid).apply();
     if(!visitSession.equals(bid)){store.visited(bid);visitSession=bid;}
+
+    final LinearLayout topBar=new LinearLayout(this);
+    topBar.setOrientation(1);
+    topBar.setBackgroundColor(Color.WHITE);
+    title=text(b.title+" · "+c.title,11);
+    title.setSingleLine(true);
+    title.setPadding(dp(8),dp(3),dp(8),dp(3));
+    topBar.addView(title);
+
+    LinearLayout topIcons=new LinearLayout(this);
+    topIcons.setOrientation(0);
+    topIcons.addView(new IconButton(this,2,b.followed?"Đã lưu tủ sách":"Thêm tủ sách",()->{
+      saveBook();
+      Toast.makeText(this,store.book(bid).followed?"Đã lưu vào tủ sách":"Chưa lưu",Toast.LENGTH_SHORT).show();
+    }),new LinearLayout.LayoutParams(0,dp(36),1));
+    topIcons.addView(new IconButton(this,8,"Tải lại chương này",()->{
+      store.state(cid,false,"");
+      task("Tải lại chương…",()->{
+        Repository.cancel.set(false);
+        Repository.download(this,store.chapter(bid,cid));
+        return null;
+      },()->showReader(bid,cid));
+    }),new LinearLayout.LayoutParams(0,dp(36),1));
+    topIcons.addView(new IconButton(this,16,"Bật/Tắt chạm lật (phím cứng)",()->{
+      boolean nxt=!prefs.getBoolean("taps",true);
+      prefs.edit().putBoolean("taps",nxt).apply();
+      if(nativeReader!=null)nativeReader.taps(nxt);
+      Toast.makeText(this,nxt?"Chạm lật: BẬT":"Chạm lật: TẮT (Chỉ dùng phím)",Toast.LENGTH_SHORT).show();
+    }),new LinearLayout.LayoutParams(0,dp(36),1));
+    topIcons.addView(new IconButton(this,14,"Mở trên web HAKO",()->{
+      saveThen(()->browse(c.url));
+    }),new LinearLayout.LayoutParams(0,dp(36),1));
+    topBar.addView(topIcons);
+    root.addView(topBar);
+
     nativeReader=new NativeReader(this,store.dir(cid),new NativeReader.Listener(){
-      public void position(int p,float f,int page,int count){if(isFinishing()||isDestroyed()||!bid.equals(bookId)||!cid.equals(chapterId))return;lastPos=p;lastFraction=f;store.position(bid,cid,p,f);store.readChapter(cid);if(title!=null)title.setText(c.title+" · "+(page+1)+"/"+count);
-        if(!readerReady){readerReady=true;io.execute(()->store.prune(store.book(bid)));if(!bid.equals("demo"))startDownloads(bid,false);}}
-      public void boundary(int dir){if(!readerReady)return;if(nativeReader!=null&&nativeReader.getPageCount()<=1&&!store.readable(cid)){android.widget.Toast.makeText(MainActivity.this,"Chương chưa tải xong hoặc không có nội dung.",android.widget.Toast.LENGTH_SHORT).show();return;}new AlertDialog.Builder(MainActivity.this).setMessage(dir>0?"Hết chương. Sang chương tiếp?":"Đầu chương. Mở chương trước?").setPositiveButton("Chuyển",(d,w)->adjacent(dir)).setNegativeButton("Ở lại",null).show();}
-      public void toolbar(){if(bar!=null)bar.setVisibility(bar.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);}
-    });root.addView(nativeReader,new LinearLayout.LayoutParams(-1,0,1));
-    bar=new LinearLayout(this);bar.setOrientation(1);LinearLayout icons=new LinearLayout(this);
-    String[] labels={"◀ Quay lại","Trước","Mục lục","Tiếp","Chữ","Menu","Thoát"};
+      public void position(int p,float f,int page,int count){
+        if(isFinishing()||isDestroyed()||!bid.equals(bookId)||!cid.equals(chapterId))return;
+        lastPos=p;lastFraction=f;store.position(bid,cid,p,f);store.readChapter(cid);
+        if(title!=null)title.setText(c.title+" · "+(page+1)+"/"+count);
+        if(!readerReady){readerReady=true;io.execute(()->store.prune(store.book(bid)));if(!bid.equals("demo"))startDownloads(bid,false);}
+      }
+      public void boundary(int dir){
+        if(!readerReady)return;
+        if(nativeReader!=null&&nativeReader.getPageCount()<=1&&!store.readable(cid)){
+          android.widget.Toast.makeText(MainActivity.this,"Chương chưa tải xong hoặc không có nội dung.",android.widget.Toast.LENGTH_SHORT).show();
+          return;
+        }
+        new AlertDialog.Builder(MainActivity.this).setMessage(dir>0?"Hết chương. Sang chương tiếp?":"Đầu chương. Mở chương trước?").setPositiveButton("Chuyển",(d,w)->adjacent(dir)).setNegativeButton("Ở lại",null).show();
+      }
+      public void toolbar(){
+        int vis=(bar!=null&&bar.getVisibility()==View.VISIBLE)?View.GONE:View.VISIBLE;
+        if(bar!=null)bar.setVisibility(vis);
+        topBar.setVisibility(vis);
+      }
+    });
+    root.addView(nativeReader,new LinearLayout.LayoutParams(-1,0,1));
+
+    bar=new LinearLayout(this);bar.setOrientation(0);bar.setBackgroundColor(Color.WHITE);
+    String[] labels={"◀ Quay lại","Trước","Mục lục","Tiếp","Chữ","Thoát"};
     Runnable[] actions={
       ()->goBack(),
       ()->saveThen(()->adjacent(-1)),
-      ()->contents(store.book(bid)),
+      ()->{navStack.push(()->showReader(bid,cid));contents(store.book(bid));},
       ()->saveThen(()->adjacent(1)),
       this::settings,
-      this::readerMenu,
       this::exitApp
     };
-    int[] iconKinds = {0, 4, 1, 5, 3, 15, 6};
-    for(int n=0;n<labels.length;n++)icons.addView(new IconButton(this,iconKinds[n],labels[n],actions[n]),new LinearLayout.LayoutParams(0,dp(40),1));
-    title=text(c.title,11);title.setSingleLine(true);title.setPadding(dp(6),0,dp(6),0);bar.addView(title);bar.addView(icons);root.addView(bar);
+    int[] iconKinds = {0, 4, 1, 5, 3, 6};
+    for(int n=0;n<labels.length;n++)bar.addView(new IconButton(this,iconKinds[n],labels[n],actions[n]),new LinearLayout.LayoutParams(0,dp(40),1));
+    root.addView(bar);
     try{applyReaderStyle();nativeReader.content(Store.read(store.html(cid)),pos,fraction);}catch(Exception e){message(e.getMessage());}
   }
 
