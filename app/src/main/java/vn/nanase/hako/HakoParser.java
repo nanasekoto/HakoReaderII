@@ -62,6 +62,31 @@ public final class HakoParser {
     return chapterId(u).isEmpty() ? u : u.substring(0, u.lastIndexOf('/'));
   }
 
+    public static List<Link> storyList(String html, String base) {
+    Document d = Jsoup.parse(html, base);
+    List<Link> out = new ArrayList<>();
+    Set<String> seen = new HashSet<>();
+    for (Element a : d.select("a[href]")) {
+      String href = a.attr("href");
+      String id = storyId(href);
+      if (!id.isEmpty() && seen.add(id)) {
+        String title = a.text().trim();
+        if (title.length() < 2) continue;
+        String abs = a.absUrl("href");
+        Link l = new Link(id, title, abs);
+        Element container = a.closest(".thumb-item-flow, .search-item, tr, .row, .col-12, .sect-item");
+        if (container != null) {
+          Element ch = container.selectFirst("a[href*='/c']");
+          if (ch != null && !ch.text().trim().isEmpty() && !ch.equals(a)) {
+            l.info = ch.text().trim();
+          }
+        }
+        out.add(l);
+      }
+    }
+    return out;
+  }
+
   public static List<Link> shelf(String html, String base) {
     Document d = Jsoup.parse(html, base);
     List<Link> out = new ArrayList<>();

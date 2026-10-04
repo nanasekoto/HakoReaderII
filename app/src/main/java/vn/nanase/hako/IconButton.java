@@ -9,6 +9,8 @@ public final class IconButton extends View {
   else if(kind==1){for(int y=5;y<=19;y+=7){c.drawLine(3,y,5,y,p);c.drawLine(9,y,22,y,p);}}
   else if(kind==2){Path q=new Path();q.moveTo(5,3);q.lineTo(19,3);q.lineTo(19,22);q.lineTo(12,17);q.lineTo(5,22);q.close();c.drawPath(q,p);c.drawLine(9,9,15,9,p);c.drawLine(12,6,12,12,p);}
   else if(kind==3){p.setStyle(Paint.Style.FILL);p.setTextSize(18);p.setTypeface(Typeface.SERIF);c.drawText("Aa",0,19,p);}
+  else if(kind==4){Path q=new Path();q.moveTo(16,4);q.lineTo(6,12);q.lineTo(16,20);q.close();c.drawPath(q,p);}
+  else if(kind==5){Path q=new Path();q.moveTo(8,4);q.lineTo(18,12);q.lineTo(8,20);q.close();c.drawPath(q,p);}
   else if(kind==6){c.drawLine(12,1,12,12,p);c.drawArc(3,4,21,23,-55,290,false,p);}
   else if(kind==7){c.drawCircle(12,12,9,p);c.drawLine(12,5,12,12,p);c.drawLine(12,12,17,15,p);}
   else if(kind==8){c.drawArc(3,3,21,21,40,280,false,p);c.drawLine(19,2,21,8,p);c.drawLine(21,8,15,7,p);}

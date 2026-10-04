@@ -32,8 +32,28 @@ public final class NativeReader extends View {
   for(Element e:new ArrayList<Element>(body.select("details"))){String key="hako-note:"+(note++);Element summary=e.selectFirst("summary");if(summary!=null)summary.remove();notes.put(key,e.text());e.replaceWith(new Element("a").attr("href",key).text(" [✎] "));}
   // Stable block anchors are rebuilt from the same sanitized chapter on each opening.
   // Html offsets differ from markup offsets: convert block by block to retain actual character anchors.
-  anchors.clear();text.clear();for(Element e:body.children()){anchors.add(text.length());text.append(Html.fromHtml(e.outerHtml(),Html.FROM_HTML_MODE_LEGACY,source->image(source),null));text.append("\n\n");}
-  if(anchors.isEmpty()){anchors.add(0);text.append(body.text());}
+  anchors.clear();text.clear();
+  boolean lastWasEmpty=true;
+  for(Element e:body.children()){
+   CharSequence parsed=Html.fromHtml(e.html(),Html.FROM_HTML_MODE_LEGACY,source->image(source),null);
+   int len=parsed.length();
+   while(len>0&&(parsed.charAt(len-1)=='\n'||parsed.charAt(len-1)=='\r'||parsed.charAt(len-1)==' '))len--;
+   int start=0;
+   while(start<len&&(parsed.charAt(start)=='\n'||parsed.charAt(start)=='\r'))start++;
+   CharSequence trimmed=len>start?parsed.subSequence(start,len):"";
+   if(trimmed.length()>0){
+    if(!lastWasEmpty&&text.length()>0)text.append("\n\n");
+    anchors.add(text.length());
+    text.append(trimmed);
+    lastWasEmpty=false;
+   }else{
+    if(!lastWasEmpty&&text.length()>0){
+     text.append("\n\n");
+     lastWasEmpty=true;
+    }
+   }
+  }
+  if(anchors.isEmpty()){anchors.add(0);text.append(body.text().trim().isEmpty()?"Chương chưa có nội dung hoặc đang tải...":body.text());}
   for(URLSpan span:text.getSpans(0,text.length(),URLSpan.class)){String n=notes.get(span.getURL());if(n!=null){int a=text.getSpanStart(span),b=text.getSpanEnd(span);text.removeSpan(span);text.setSpan(new Note(n),a,b,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);}}
   requestLayout();invalidate();
  }
