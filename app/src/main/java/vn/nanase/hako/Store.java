@@ -98,14 +98,22 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public synchronized Book book(String id) {
-    try (Cursor c = getReadableDatabase().rawQuery("SELECT id,title,url,current,pos,fraction,stamp,dropped,visits,pinned,shelfRank,shelfInfo,followed FROM books WHERE id=?", new String[]{id})) {
+    try (Cursor c = getReadableDatabase().rawQuery("SELECT id,title,url,current,pos,fraction,stamp,followed,dropped,shelf_rank,visits,pinned,shelf_info FROM books WHERE id=?", new String[]{id})) {
       if (c.moveToNext()) {
         Book b = new Book();
-        b.id = c.getString(0); b.title = c.getString(1); b.url = c.getString(2);
-        b.current = c.getString(3); b.pos = c.getInt(4); b.fraction = c.getFloat(5);
-        b.stamp = c.getLong(6); b.dropped = c.getInt(7) == 1; b.visits = c.getInt(8);
-        b.pinned = c.getInt(9) == 1; b.shelfRank = c.getInt(10); b.shelfInfo = c.getString(11);
-        b.followed = c.getInt(12) == 1;
+        b.id = c.getString(0);
+        b.title = c.getString(1);
+        b.url = c.getString(2);
+        b.current = c.getString(3);
+        b.pos = c.getInt(4);
+        b.fraction = c.getFloat(5);
+        b.stamp = c.getLong(6);
+        b.followed = c.getInt(7) != 0;
+        b.dropped = c.getInt(8) != 0;
+        b.shelfRank = c.getInt(9);
+        b.visits = c.getInt(10);
+        b.pinned = c.getInt(11) != 0;
+        b.shelfInfo = c.getString(12);
         return b;
       }
     } catch (Exception ignored) {}

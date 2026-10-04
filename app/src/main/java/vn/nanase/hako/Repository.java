@@ -201,8 +201,12 @@ public final class Repository {
         if(pendingAll){pendingAll=false;for(Store.Book b:s.books())if(b.followed&&!b.dropped&&!b.id.equals("demo")){boolean exists=false;for(Store.Book t:todo)if(t.id.equals(b.id))exists=true;if(!exists)todo.add(b);}}
         if(!pendingBook.isEmpty()){Store.Book p=s.book(pendingBook);pendingBook="";if(p!=null){todo.removeIf(x->x.id.equals(p.id));todo.add(0,p);}}
         if(todo.isEmpty()||(charging&&!ChargeJob.isCharging(ctx)))break;
-        Store.Book b=todo.remove(0);if(b.dropped||(!b.followed&&!b.id.equals(activeBook)))continue;
-        catalog(ctx,b);b=s.book(b.id);List<Store.Chapter> chapters=s.chapters(b.id);int current=0;
+        Store.Book b=todo.remove(0);
+        if(b==null||b.id==null||b.id.isEmpty()||b.dropped||(!b.followed&&!b.id.equals(activeBook)))continue;
+        catalog(ctx,b);
+        Store.Book refreshed=s.book(b.id);
+        if(refreshed!=null)b=refreshed;
+        List<Store.Chapter> chapters=s.chapters(b.id);int current=0;
         for(Store.Chapter ch:chapters)if(ch.id.equals(b.current))current=ch.ord;
         // Priority 1: Current reading chapter to +15 ahead
         for(Store.Chapter ch:chapters){
