@@ -23,16 +23,18 @@ public final class NativeReader extends View {
  private final Map<String,String> notes=new HashMap<>();
  private final Map<Drawable,int[]> imageSizes=new IdentityHashMap<>();
  private StaticLayout layout;
- private int page=0,margin=10,pendingParagraph=0;private float pendingFraction=0,line=1.5f;
+ private int page=0,margin=10,pendingParagraph=0;private float pendingFraction=0,line=1.00f;private int paraSpaceDp=4,indentDp=12;private String rawHtml="";
  private boolean taps=true,swiped=false;private float downX,downY;
  public NativeReader(Context c,File dir,Listener listener){super(c);this.chapterDir=dir;this.listener=listener;setBackgroundColor(Color.WHITE);setFocusable(true);paint.setColor(Color.BLACK);}
  public void content(String html,int paragraph,float fraction){
-  pendingParagraph=paragraph;pendingFraction=fraction;anchors.clear();notes.clear();imageSizes.clear();
+  rawHtml=html;pendingParagraph=paragraph;pendingFraction=fraction;anchors.clear();notes.clear();imageSizes.clear();
   Element body=Jsoup.parseBodyFragment(html).body();int note=0;
   for(Element e:new ArrayList<Element>(body.select("details"))){String key="hako-note:"+(note++);Element summary=e.selectFirst("summary");if(summary!=null)summary.remove();notes.put(key,e.text());e.replaceWith(new Element("a").attr("href",key).text(" [✎] "));}
   // Stable block anchors are rebuilt from the same sanitized chapter on each opening.
   // Html offsets differ from markup offsets: convert block by block to retain actual character anchors.
   anchors.clear();text.clear();
+  int paraSpacePx = (int)(paraSpaceDp * getResources().getDisplayMetrics().density);
+  int indentPx = (int)(indentDp * getResources().getDisplayMetrics().density);
   boolean lastWasEmpty=true;
   for(Element e:body.children()){
    CharSequence parsed=Html.fromHtml(e.html(),Html.FROM_HTML_MODE_LEGACY,source->image(source),null);
@@ -42,13 +44,29 @@ public final class NativeReader extends View {
    while(start<len&&(parsed.charAt(start)=='\n'||parsed.charAt(start)=='\r'))start++;
    CharSequence trimmed=len>start?parsed.subSequence(start,len):"";
    if(trimmed.length()>0){
-    if(!lastWasEmpty&&text.length()>0)text.append("\n\n");
-    anchors.add(text.length());
+    if(!lastWasEmpty&&text.length()>0){
+     text.append("\n");
+     if(paraSpacePx>0){
+      int ss=text.length();
+      text.append("\n");
+      text.setSpan(new AbsoluteSizeSpan(paraSpacePx),ss,text.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+     }
+    }
+    int pStart=text.length();
+    anchors.add(pStart);
     text.append(trimmed);
+    if(indentPx>0){
+     text.setSpan(new LeadingMarginSpan.Standard(indentPx,0),pStart,text.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
     lastWasEmpty=false;
    }else{
     if(!lastWasEmpty&&text.length()>0){
-     text.append("\n\n");
+     text.append("\n");
+     if(paraSpacePx>0){
+      int ss=text.length();
+      text.append("\n");
+      text.setSpan(new AbsoluteSizeSpan(paraSpacePx),ss,text.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+     }
      lastWasEmpty=true;
     }
    }
@@ -64,7 +82,7 @@ public final class NativeReader extends View {
   }catch(Exception e){return null;}
  }
  private static class Note extends CharacterStyle {final String value;Note(String s){value=s;}public void updateDrawState(TextPaint p){p.setUnderlineText(true);}}
- public void style(float sp,int marginDp,float spacing,Typeface face,boolean tap){capture();paint.setTextSize(sp*getResources().getDisplayMetrics().scaledDensity);paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;taps=tap;reflow();}
+ public void style(float sp,int marginDp,float spacing,int pSpaceDp,int indDp,Typeface face,boolean tap){capture();paint.setTextSize(sp*getResources().getDisplayMetrics().scaledDensity);paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;boolean reformat=(paraSpaceDp!=pSpaceDp)||(indentDp!=indDp);paraSpaceDp=pSpaceDp;indentDp=indDp;taps=tap;if(reformat&&!rawHtml.isEmpty()){content(rawHtml,pendingParagraph,pendingFraction);}else{reflow();}}
  public void taps(boolean on){taps=on;}public int getPageCount(){return pages.size();}
  private int offset(){return layout==null||pages.isEmpty()?0:layout.getLineStart(pages.get(page));}
  private void capture(){if(layout==null||pages.isEmpty())return;int off=offset(),p=0;for(int i=0;i<anchors.size();i++)if(anchors.get(i)<=off)p=i;pendingParagraph=p;int end=p+1<anchors.size()?anchors.get(p+1):text.length();pendingFraction=(float)(off-anchors.get(p))/Math.max(1,end-anchors.get(p));}

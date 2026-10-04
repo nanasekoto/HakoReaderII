@@ -23,6 +23,7 @@ public class MainActivity extends Activity {
   private NativeReader nativeReader;
   private ListView currentList;
   private ScrollView currentScroll;
+  private final java.util.ArrayDeque<Runnable> navStack = new java.util.ArrayDeque<>();
   private String visitSession="";
   private boolean online = false, readerReady = false;
   private volatile String bookId = "", chapterId = "";
@@ -144,17 +145,83 @@ public class MainActivity extends Activity {
   private void leaveReader(){visitSession="";String old=Repository.activeBook;Repository.activeBook="";if(!old.isEmpty())store.clearTemporary(old);}
   private void exitApp(){saveThen(()->{leaveReader();Repository.cancel.set(true);stopService(new Intent(this,DownloadService.class));finishAndRemoveTask();});}
   private void library() {
+    navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
-    root.addView(text("HAKO POCKET",22));root.addView(text("Đọc nhẹ • lưu vị trí trên máy",12));
-    ScrollView scroll=new ScrollView(this);currentScroll=scroll;LinearLayout grid=new LinearLayout(this);grid.setOrientation(1);scroll.addView(grid);
-    String[] names={"Đọc tiếp","Vừa đọc","Tủ sách","Thường đọc","Mới cập nhật","Truyện mới","Tìm kiếm","Tài khoản","Cài đặt","Mở liên kết","Thoát"};
-    Runnable[] actions={()->{Store.Book b=store.book(prefs.getString("lastBook",""));if(b!=null)openBook(b);else bookList(false);},()->bookList(false),()->bookList(true),this::frequentList,()->onlineList("Mới cập nhật",HakoParser.ORIGIN+"/danh-sach?truyendich=1&sapxep=capnhat"),()->onlineList("Truyện mới",HakoParser.ORIGIN+"/danh-sach?truyendich=1&sapxep=truyenmoi"),this::searchDialog,()->browse(HakoParser.ORIGIN+"/login"),this::settings,this::addDialog,this::exitApp};
-    for(int n=0;n<names.length;n+=2){LinearLayout line=new LinearLayout(this);for(int j=n;j<n+2&&j<names.length;j++){final int x=j;LinearLayout cell=new LinearLayout(this);cell.setOrientation(1);cell.setGravity(Gravity.CENTER);IconButton icon=new IconButton(this,new int[]{12,7,1,9,8,9,10,11,13,14,6}[j],names[j],actions[j]);cell.addView(icon,new LinearLayout.LayoutParams(dp(48),dp(48)));TextView label=text(names[j],14);label.setGravity(Gravity.CENTER);cell.addView(label);cell.setOnClickListener(v->actions[x].run());line.addView(cell,new LinearLayout.LayoutParams(0,dp(94),1));}grid.addView(line);}root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    root.addView(text("HAKO POCKET",18));
+    root.addView(text("Đọc nhẹ • Xteink S4",11));
+    ScrollView scroll=new ScrollView(this);currentScroll=scroll;
+    LinearLayout grid=new LinearLayout(this);grid.setOrientation(1);scroll.addView(grid);
+    String[] names={
+      "Đọc tiếp","Vừa đọc","Tủ sách",
+      "Mới cập nhật","Thường đọc","Tìm kiếm",
+      "Cài đặt","Tài khoản","Mở liên kết",
+      "Thoát"
+    };
+    int[] iconKinds={12,7,1,8,9,10,13,11,14,6};
+    Runnable[] actions={
+      ()->{Store.Book b=store.book(prefs.getString("lastBook",""));if(b!=null)openBook(b);else bookList(false);},
+      ()->{navStack.push(this::library);bookList(false);},
+      ()->{navStack.push(this::library);bookList(true);},
+      ()->{navStack.push(this::library);onlineList("Mới cập nhật",HakoParser.ORIGIN+"/danh-sach?truyendich=1&sapxep=capnhat");},
+      ()->{navStack.push(this::library);frequentList();},
+      this::searchDialog,
+      this::settings,
+      ()->browse(HakoParser.ORIGIN+"/login"),
+      this::addDialog,
+      this::exitApp
+    };
+    int cols=3;
+    for(int n=0;n<names.length;n+=cols){
+      LinearLayout line=new LinearLayout(this);
+      for(int j=n;j<n+cols&&j<names.length;j++){
+        final int x=j;
+        LinearLayout cell=new LinearLayout(this);
+        cell.setOrientation(1);cell.setGravity(Gravity.CENTER);
+        IconButton icon=new IconButton(this,iconKinds[j],names[j],actions[j]);
+        cell.addView(icon,new LinearLayout.LayoutParams(dp(30),dp(30)));
+        TextView label=text(names[j],11);
+        label.setGravity(Gravity.CENTER);
+        cell.addView(label);
+        cell.setOnClickListener(v->actions[x].run());
+        line.addView(cell,new LinearLayout.LayoutParams(0,dp(58),1));
+      }
+      grid.addView(line);
+    }
+    root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
     status();
   }
     private void onlineList(String title, String url) {
-    leaveReader();reset();bookId="";chapterId="";root.addView(text(title,20));
-    row(new String[]{"Trang chính","Tìm kiếm","Mở web"},new Runnable[]{this::library,this::searchDialog,()->browse(url)});
+    leaveReader();reset();bookId="";chapterId="";root.addView(text(title,18));
+    row(new String[]{"◀ Quay lại","🔍 Tìm kiếm","Mở web"},new Runnable[]{this::goBack,this::searchDialog,()->browse(url)});
+    LinearLayout catBar1 = new LinearLayout(this);
+    catBar1.setOrientation(0);
+    catBar1.setPadding(dp(2), dp(1), dp(2), dp(1));
+    String[] c1Names = {"Truyện Dịch", "Convert", "Sáng Tác"};
+    String[] c1Urls = {
+        HakoParser.ORIGIN + "/danh-sach?truyendich=1&sapxep=capnhat",
+        HakoParser.ORIGIN + "/danh-sach?convert=1&sapxep=capnhat",
+        HakoParser.ORIGIN + "/danh-sach?sangtac=1&sapxep=capnhat"
+    };
+    for(int i=0; i<c1Names.length; i++){
+      final int idx = i;
+      catBar1.addView(button(c1Names[i], () -> onlineList(c1Names[idx], c1Urls[idx])), new LinearLayout.LayoutParams(0, dp(32), 1));
+    }
+    root.addView(catBar1);
+
+    LinearLayout catBar2 = new LinearLayout(this);
+    catBar2.setOrientation(0);
+    catBar2.setPadding(dp(2), dp(1), dp(2), dp(1));
+    String[] c2Names = {"Mới Đăng", "Hoàn Thành", "Nổi Bật"};
+    String[] c2Urls = {
+        HakoParser.ORIGIN + "/danh-sach?truyendich=1&sapxep=truyenmoi",
+        HakoParser.ORIGIN + "/danh-sach?hoanthanh=1&sapxep=capnhat",
+        HakoParser.ORIGIN + "/danh-sach?sapxep=top"
+    };
+    for(int i=0; i<c2Names.length; i++){
+      final int idx = i;
+      catBar2.addView(button(c2Names[i], () -> onlineList(c2Names[idx], c2Urls[idx])), new LinearLayout.LayoutParams(0, dp(32), 1));
+    }
+    root.addView(catBar2);
     final List<HakoParser.Link> stories = new ArrayList<>();
     task("Đang tải danh sách…", () -> {
       String html = Repository.page(url, false);
@@ -173,12 +240,15 @@ public class MainActivity extends Activity {
         public View getView(int p, View v, ViewGroup parent) {
           TextView t = (TextView) super.getView(p, v, parent);
           t.setTextColor(INK);
-          t.setTextSize(15);
-          t.setPadding(dp(10), dp(10), dp(10), dp(10));
+          t.setTextSize(14);
+          t.setPadding(dp(10), dp(8), dp(10), dp(8));
           return t;
         }
       });
-      list.setOnItemClickListener((a, v, p, id) -> addUrl(stories.get(p).url));
+      list.setOnItemClickListener((a, v, p, id) -> {
+        navStack.push(() -> onlineList(title, url));
+        addUrl(stories.get(p).url);
+      });
       root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
       status();
     });
@@ -188,7 +258,7 @@ public class MainActivity extends Activity {
     EditText field=new EditText(this);field.setSingleLine(true);field.setHint("Nhập tên truyện hoặc tác giả…");
     new AlertDialog.Builder(this).setTitle("Tìm kiếm HAKO").setView(field).setPositiveButton("Tìm",(d,w)->{
       String q=field.getText().toString().trim();
-      if(!q.isEmpty()){try{String u=HakoParser.ORIGIN+"/tim-kiem?q="+java.net.URLEncoder.encode(q,"UTF-8");onlineList("Tìm: "+q,u);}catch(Exception ignored){}}
+      if(!q.isEmpty()){try{String u=HakoParser.ORIGIN+"/tim-kiem?keywords="+java.net.URLEncoder.encode(q,"UTF-8");onlineList("Tìm: "+q,u);}catch(Exception ignored){}}
     }).setNegativeButton("Hủy",null).show();
   }
 
@@ -325,7 +395,7 @@ public class MainActivity extends Activity {
     root.addView(text(sub, 12));
     List<String> rowBtns = new ArrayList<>();
     List<Runnable> rowActs = new ArrayList<>();
-    rowBtns.add("Trang chính");rowActs.add(this::library);
+    rowBtns.add("◀ Quay lại");rowActs.add(this::goBack);
     final Store.Chapter curCh = store.chapter(b.id, b.current);
     if (curCh != null) {
       rowBtns.add("Đọc tiếp");
@@ -358,7 +428,7 @@ public class MainActivity extends Activity {
         return t;
       }
     });
-    list.setOnItemClickListener((a, v, p, id) -> openChapter(b.id, displayChs.get(p).id));
+    list.setOnItemClickListener((a, v, p, id) -> { navStack.push(() -> contents(b)); openChapter(b.id, displayChs.get(p).id); });
     root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
     list.post(() -> list.setSelection(Math.max(0, finalSelectedPos - 1)));
     status();
@@ -401,9 +471,9 @@ public class MainActivity extends Activity {
       public void toolbar(){if(bar!=null)bar.setVisibility(bar.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);}
     });root.addView(nativeReader,new LinearLayout.LayoutParams(-1,0,1));
     bar=new LinearLayout(this);bar.setOrientation(1);LinearLayout icons=new LinearLayout(this);
-    String[] labels={"Trang chính","Trước","Mục lục","Tiếp","Chữ","Menu","Thoát"};
+    String[] labels={"◀ Quay lại","Trước","Mục lục","Tiếp","Chữ","Menu","Thoát"};
     Runnable[] actions={
-      ()->saveThen(this::library),
+      ()->goBack(),
       ()->saveThen(()->adjacent(-1)),
       ()->contents(store.book(bid)),
       ()->saveThen(()->adjacent(1)),
@@ -575,16 +645,45 @@ public class MainActivity extends Activity {
     Spinner fonts=new Spinner(this);fonts.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"Tinos (có chân)","DejaVu Serif","Không chân hệ thống","Font đã nhập"}));fonts.setSelection(prefs.getInt("font2",0));box.addView(fonts);
     TextView preview=text("Tiếng Việt: Nguyễn, quyển, tưởng, khuỷu — ă â ê ô ơ ư đ",18);box.addView(preview);
     TextView sizeLabel=text("Cỡ chữ",14);box.addView(sizeLabel);SeekBar size=new SeekBar(this);size.setMax(44);size.setProgress(Math.round((prefs.getFloat("size2",18)-12)*2));box.addView(size);
-    TextView lineLabel=text("Giãn dòng",14);box.addView(lineLabel);SeekBar line=new SeekBar(this);line.setMax(8);line.setProgress(Math.round((prefs.getFloat("line",1.35f)-1.1f)*10));box.addView(line);
-    TextView marginLabel=text("Lề",14);box.addView(marginLabel);SeekBar margin=new SeekBar(this);margin.setMax(28);margin.setProgress(prefs.getInt("margin",10));box.addView(margin);
+    TextView lineLabel=text("Giãn dòng trong đoạn",14);box.addView(lineLabel);
+    SeekBar line=new SeekBar(this);line.setMax(16);line.setProgress(Math.round((prefs.getFloat("line",1.00f)-0.70f)/0.05f));box.addView(line);
+    TextView paraLabel=text("Khoảng cách giữa các đoạn",14);box.addView(paraLabel);
+    SeekBar para=new SeekBar(this);para.setMax(10);para.setProgress(prefs.getInt("paraSpaceDp",4)/2);box.addView(para);
+    TextView indentLabel=text("Thụt đầu dòng mỗi đoạn",14);box.addView(indentLabel);
+    SeekBar indent=new SeekBar(this);indent.setMax(10);indent.setProgress(prefs.getInt("indentDp",12)/3);box.addView(indent);
+    TextView marginLabel=text("Lề mép màn hình",14);box.addView(marginLabel);SeekBar margin=new SeekBar(this);margin.setMax(28);margin.setProgress(prefs.getInt("margin",10));box.addView(margin);
     CheckBox bold=check("Nét đậm (thử trên màn E Ink)",prefs.getInt("weight",400)>400);box.addView(bold);
-    Runnable update=()->{float fs=12+size.getProgress()/2f;sizeLabel.setText("Cỡ chữ: "+fs+" sp");lineLabel.setText("Giãn dòng: "+(Math.round((1.1f+line.getProgress()/10f)*100f)/100f)+"x");marginLabel.setText("Lề: "+margin.getProgress()+" dp");preview.setTextSize(fs);try{int n=fonts.getSelectedItemPosition();android.graphics.Typeface tf=n==0?android.graphics.Typeface.createFromAsset(getAssets(),"Tinos.ttf"):n==1?android.graphics.Typeface.createFromAsset(getAssets(),"DejaVu.ttf"):n==2?android.graphics.Typeface.SANS_SERIF:android.graphics.Typeface.createFromFile(new File(getFilesDir(),"reader-font.ttf"));preview.setTypeface(tf,bold.isChecked()?1:0);}catch(Exception e){preview.setTypeface(android.graphics.Typeface.SERIF);}};
-    SeekBar.OnSeekBarChangeListener listener=new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean u){update.run();}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}};size.setOnSeekBarChangeListener(listener);line.setOnSeekBarChangeListener(listener);margin.setOnSeekBarChangeListener(listener);fonts.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> a,View v,int p,long id){update.run();}public void onNothingSelected(AdapterView<?> a){}});bold.setOnCheckedChangeListener((a,b)->update.run());update.run();
+    Runnable update=()->{
+      float fs=12+size.getProgress()/2f;
+      float ls=Math.round((0.70f+line.getProgress()*0.05f)*100f)/100f;
+      int pDp=para.getProgress()*2;
+      int iDp=indent.getProgress()*3;
+      sizeLabel.setText("Cỡ chữ: "+fs+" sp");
+      lineLabel.setText("Giãn dòng trong đoạn: "+String.format(java.util.Locale.US,"%.2fx",ls));
+      paraLabel.setText("Khoảng cách đoạn: "+(pDp==0?"0 dp (sát nhau)":pDp+" dp"));
+      indentLabel.setText("Thụt đầu dòng: "+(iDp==0?"0 dp (không thụt)":iDp+" dp"));
+      marginLabel.setText("Lề mép màn hình: "+margin.getProgress()+" dp");
+      preview.setTextSize(fs);
+      try{int n=fonts.getSelectedItemPosition();android.graphics.Typeface tf=n==0?android.graphics.Typeface.createFromAsset(getAssets(),"Tinos.ttf"):n==1?android.graphics.Typeface.createFromAsset(getAssets(),"DejaVu.ttf"):n==2?android.graphics.Typeface.SANS_SERIF:android.graphics.Typeface.createFromFile(new File(getFilesDir(),"reader-font.ttf"));preview.setTypeface(tf,bold.isChecked()?1:0);}catch(Exception e){preview.setTypeface(android.graphics.Typeface.SERIF);}
+    };
+    SeekBar.OnSeekBarChangeListener listener=new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean u){update.run();}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}};
+    size.setOnSeekBarChangeListener(listener);line.setOnSeekBarChangeListener(listener);para.setOnSeekBarChangeListener(listener);indent.setOnSeekBarChangeListener(listener);margin.setOnSeekBarChangeListener(listener);
+    fonts.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> a,View v,int p,long id){update.run();}public void onNothingSelected(AdapterView<?> a){}});
+    bold.setOnCheckedChangeListener((a,b)->update.run());update.run();
     CheckBox taps=check("Chạm trên/dưới để lật trang",prefs.getBoolean("taps",true));box.addView(taps);CheckBox charging=check("Đồng bộ tủ sách khi sạc",prefs.getBoolean("charging",true));box.addView(charging);
     box.addView(button("Nhập font TTF / OTF",()->startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),88)));
     box.addView(button("Tên miền HAKO",this::domain));box.addView(button("Đọc mẫu offline",this::demo));
     box.addView(text("Tải trước 1–2: chờ 4s; 3–5: 12s; 6–10: 30s; 11–15: 60s. Màn hình tắt: ngừng tải trước khi dùng pin. Đọc bản lưu không cần chạy trang HAKO.",12));
-    ScrollView scroll=new ScrollView(this);scroll.addView(box);new AlertDialog.Builder(this).setTitle("Chữ & tải nội dung").setView(scroll).setPositiveButton("Áp dụng",(d,w)->{if(fonts.getSelectedItemPosition()==3&&!new File(getFilesDir(),"reader-font.ttf").isFile()){message("Chưa nhập font. Đang giữ lựa chọn cũ.");return;}prefs.edit().putInt("font2",fonts.getSelectedItemPosition()).putFloat("size2",12+size.getProgress()/2f).putFloat("line",Math.round((1.1f+line.getProgress()/10f)*100f)/100f).putInt("margin",margin.getProgress()).putInt("weight",bold.isChecked()?700:400).putBoolean("taps",taps.isChecked()).putBoolean("charging",charging.isChecked()).apply();ChargeJob.schedule(this,charging.isChecked());if(nativeReader!=null)applyReaderStyle();}).setNegativeButton("Đóng",null).show();
+    ScrollView scroll=new ScrollView(this);scroll.addView(box);
+    new AlertDialog.Builder(this).setTitle("Chữ & tải nội dung").setView(scroll).setPositiveButton("Áp dụng",(d,w)->{
+      if(fonts.getSelectedItemPosition()==3&&!new File(getFilesDir(),"reader-font.ttf").isFile()){message("Chưa nhập font. Đang giữ lựa chọn cũ.");return;}
+      float ls=Math.round((0.70f+line.getProgress()*0.05f)*100f)/100f;
+      int pDp=para.getProgress()*2;
+      int iDp=indent.getProgress()*3;
+      prefs.edit().putInt("font2",fonts.getSelectedItemPosition()).putFloat("size2",12+size.getProgress()/2f).putFloat("line",ls).putInt("paraSpaceDp",pDp).putInt("indentDp",iDp).putInt("margin",margin.getProgress()).putInt("weight",bold.isChecked()?700:400).putBoolean("taps",taps.isChecked()).putBoolean("charging",charging.isChecked()).apply();
+      ChargeJob.schedule(this,charging.isChecked());
+      if(nativeReader!=null)applyReaderStyle();
+    }).setNegativeButton("Đóng",null).show();
   }
 
   private CheckBox check(String label, boolean checked) {
@@ -597,7 +696,7 @@ public class MainActivity extends Activity {
 
   private void applyReaderStyle(){if(nativeReader==null)return;android.graphics.Typeface face;int choice=prefs.getInt("font2",0);try{face=choice==3?android.graphics.Typeface.createFromFile(new File(getFilesDir(),"reader-font.ttf")):choice==2?android.graphics.Typeface.SANS_SERIF:android.graphics.Typeface.createFromAsset(getAssets(),choice==1?"DejaVu.ttf":"Tinos.ttf");}catch(Exception e){face=android.graphics.Typeface.SERIF;}
     face=android.graphics.Typeface.create(face,prefs.getInt("weight",400)>=700?android.graphics.Typeface.BOLD:android.graphics.Typeface.NORMAL);
-    nativeReader.style(prefs.getFloat("size2",18f),prefs.getInt("margin",10),prefs.getFloat("line",1.35f),face,prefs.getBoolean("taps",true));
+    nativeReader.style(prefs.getFloat("size2",18f),prefs.getInt("margin",10),prefs.getFloat("line",1.00f),prefs.getInt("paraSpaceDp",4),prefs.getInt("indentDp",12),face,prefs.getBoolean("taps",true));
   }
 
   private void help() {
@@ -697,18 +796,44 @@ public class MainActivity extends Activity {
     super.onDestroy();
   }
 
-  public void onBackPressed() {
-    if(nativeReader!=null){saveThen(this::library);return;}
+  private void goBack() {
+    if (nativeReader != null) {
+      saveThen(() -> {
+        leaveReader();
+        if (!navStack.isEmpty()) navStack.pop().run();
+        else library();
+      });
+      return;
+    }
     if (online && web != null && web.canGoBack()) {
       web.goBack();
       return;
     }
     if (web != null) {
-      if(online){importWebHistory(this::library);return;}
-      saveThen(this::library);
+      leaveReader();
+      if (!navStack.isEmpty()) navStack.pop().run();
+      else library();
       return;
     }
-    super.onBackPressed();
+    if (!navStack.isEmpty()) {
+      navStack.pop().run();
+      return;
+    }
+    confirmExit();
+  }
+
+  private void confirmExit() {
+    new AlertDialog.Builder(this)
+        .setTitle("Thoát Hako Pocket")
+        .setMessage("Bạn có muốn thoát ứng dụng?")
+        .setPositiveButton("Thoát", (d, w) -> exitApp())
+        .setNegativeButton("Ở lại", null)
+        .show();
+  }
+
+  @Override
+  public void onBackPressed() {
+    goBack();
   }
 
   @Override public boolean dispatchKeyEvent(KeyEvent event){
@@ -721,9 +846,14 @@ public class MainActivity extends Activity {
         }else if(web!=null){
           if(dir>0)web.pageDown(false);else web.pageUp(false);
         }else if(currentList!=null&&currentList.isShown()){
-          currentList.scrollListBy(dir*dp(200));
+          int first=currentList.getFirstVisiblePosition();
+          int last=currentList.getLastVisiblePosition();
+          int pageCount=Math.max(1,last-first);
+          int step=Math.max(1,pageCount-1);
+          int target=(dir>0)?Math.min(currentList.getCount()-1,first+step):Math.max(0,first-step);
+          currentList.setSelection(target);
         }else if(currentScroll!=null&&currentScroll.isShown()){
-          currentScroll.scrollBy(0,dir*dp(200));
+          currentScroll.pageScroll(dir>0?View.FOCUS_DOWN:View.FOCUS_UP);
         }
       }
       return true;

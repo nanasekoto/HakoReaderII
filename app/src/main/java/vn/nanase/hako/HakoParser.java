@@ -69,20 +69,20 @@ public final class HakoParser {
     for (Element a : d.select("a[href]")) {
       String href = a.attr("href");
       String id = storyId(href);
-      if (!id.isEmpty() && seen.add(id)) {
-        String title = a.text().trim();
-        if (title.length() < 2) continue;
-        String abs = a.absUrl("href");
-        Link l = new Link(id, title, abs);
-        Element container = a.closest(".thumb-item-flow, .search-item, tr, .row, .col-12, .sect-item");
-        if (container != null) {
-          Element ch = container.selectFirst("a[href*='/c']");
-          if (ch != null && !ch.text().trim().isEmpty() && !ch.equals(a)) {
-            l.info = ch.text().trim();
-          }
+      if (id.isEmpty()) continue;
+      String title = a.text().trim();
+      if (title.length() < 2) continue;
+      if (!seen.add(id)) continue;
+      String abs = a.absUrl("href");
+      Link l = new Link(id, title, abs);
+      Element container = a.closest(".thumb-item-flow, .search-item, tr, .row, .col-12, .sect-item");
+      if (container != null) {
+        Element ch = container.selectFirst("a[href*='/c']");
+        if (ch != null && !ch.text().trim().isEmpty() && !ch.equals(a)) {
+          l.info = ch.text().trim();
         }
-        out.add(l);
       }
+      out.add(l);
     }
     return out;
   }
