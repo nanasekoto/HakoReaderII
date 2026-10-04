@@ -3,6 +3,7 @@ package vn.nanase.hako;
 import android.app.*;
 import android.content.*;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.*;
 import android.view.*;
@@ -154,17 +155,31 @@ public class MainActivity extends Activity {
     private void onlineList(String title, String url) {
     leaveReader();reset();bookId="";chapterId="";root.addView(text(title,20));
     row(new String[]{"Trang chính","Tìm kiếm","Mở web"},new Runnable[]{this::library,this::searchDialog,()->browse(url)});
-    task("Đang tải danh sách…",()->{String html=Repository.page(url,false);return HakoParser.storyList(html,url);},(result)->{
-      @SuppressWarnings("unchecked") List<HakoParser.Link> stories=(List<HakoParser.Link>)result;
-      if(stories.isEmpty()){root.addView(text("Không tìm thấy truyện hoặc trang yêu cầu xác minh. Hãy chọn Mở web.",14));return;}
-      List<String> names=new ArrayList<>();
-      for(HakoParser.Link l:stories)names.add(l.title+(l.info.isEmpty()?"":"\n"+l.info));
-      ListView list=new ListView(this);currentList=list;
-      list.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_list_item_1,names){
-        public View getView(int p,View v,ViewGroup parent){TextView t=(TextView)super.getView(p,v,parent);t.setTextColor(INK);t.setTextSize(15);t.setPadding(dp(10),dp(10),dp(10),dp(10));return t;}
+    final List<HakoParser.Link> stories = new ArrayList<>();
+    task("Đang tải danh sách…", () -> {
+      String html = Repository.page(url, false);
+      stories.addAll(HakoParser.storyList(html, url));
+      return null;
+    }, () -> {
+      if (stories.isEmpty()) {
+        root.addView(text("Không tìm thấy truyện hoặc trang yêu cầu xác minh. Hãy chọn Mở web.", 14));
+        return;
+      }
+      List<String> names = new ArrayList<>();
+      for (HakoParser.Link l : stories) names.add(l.title + (l.info.isEmpty() ? "" : "\n" + l.info));
+      ListView list = new ListView(this);
+      currentList = list;
+      list.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, names) {
+        public View getView(int p, View v, ViewGroup parent) {
+          TextView t = (TextView) super.getView(p, v, parent);
+          t.setTextColor(INK);
+          t.setTextSize(15);
+          t.setPadding(dp(10), dp(10), dp(10), dp(10));
+          return t;
+        }
       });
-      list.setOnItemClickListener((a,v,p,id)->addUrl(stories.get(p).url));
-      root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+      list.setOnItemClickListener((a, v, p, id) -> addUrl(stories.get(p).url));
+      root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
       status();
     });
   }
@@ -337,7 +352,7 @@ public class MainActivity extends Activity {
         TextView t = (TextView) super.getView(p, v, parent);
         boolean isCur = displayChs.get(p).id.equals(b.current);
         t.setTextColor(isCur ? Color.BLACK : INK);
-        if (isCur) t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setTypeface(isCur ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
         t.setTextSize(15);
         t.setPadding(dp(10), dp(10), dp(10), dp(10));
         return t;
