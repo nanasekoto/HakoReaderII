@@ -14,7 +14,7 @@ import org.jsoup.nodes.Element;
 
 /** One immutable layout drawn at complete-line page boundaries; no remote renderer. */
 public final class NativeReader extends View {
- public interface Listener {void position(int paragraph,float fraction,int page,int count);void boundary(int direction);void toolbar();}
+ public interface Listener {void position(int paragraph,float fraction,int page,int count);void boundary(int direction);void toolbar();void dismissToolbar();}
  private final TextPaint paint=new TextPaint(Paint.ANTI_ALIAS_FLAG|Paint.SUBPIXEL_TEXT_FLAG);
  private final Listener listener;
  private final File chapterDir;
@@ -97,7 +97,7 @@ public final class NativeReader extends View {
   invalidate();publish();
  }
  protected void onDraw(Canvas c){super.onDraw(c);if(layout==null||pages.isEmpty())return;int first=pages.get(page),end=page+1<pages.size()?pages.get(page+1):layout.getLineCount();int top=layout.getLineTop(first),bottom=layout.getLineTop(end);c.save();c.clipRect(margin,margin,getWidth()-margin,Math.min(getHeight()-margin,margin+bottom-top));c.translate(margin,margin-top);layout.draw(c);c.restore();}
- public void turn(int direction){if(layout==null||pages.isEmpty())return;int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();}
+ public void turn(int direction){if(layout==null||pages.isEmpty())return;listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();}
  public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
  public boolean onTouchEvent(MotionEvent e){if(e.getAction()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();return true;}if(e.getAction()==MotionEvent.ACTION_UP){if(Math.abs(e.getY()-downY)>40){swiped=true;return true;}if(Math.abs(e.getX()-downX)>25)return true;performClick();if(swiped){swiped=false;listener.toolbar();return true;}
    if(layout!=null&&!pages.isEmpty()){float x=e.getX()-margin,y=e.getY()-margin+layout.getLineTop(pages.get(page));int ln=layout.getLineForVertical((int)y);if(x>=layout.getLineLeft(ln)&&x<=layout.getLineRight(ln)){int off=layout.getOffsetForHorizontal(ln,x);Note[] ns=text.getSpans(off,Math.min(text.length(),off+1),Note.class);if(ns.length>0){new AlertDialog.Builder(getContext()).setTitle("Chú thích").setMessage(ns[0].value).setPositiveButton("Đóng",null).show();return true;}}}

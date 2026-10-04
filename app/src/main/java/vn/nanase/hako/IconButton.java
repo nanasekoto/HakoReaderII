@@ -9,12 +9,12 @@ public final class IconButton extends View {
  protected void onDraw(Canvas c){
   super.onDraw(c);
   if(squircle){
-   p.setColor(Color.BLACK);p.setStrokeWidth(1.8f);p.setStyle(Paint.Style.STROKE);
-   float pad=2f,cr=Math.min(getWidth(),getHeight())*0.26f;
+   p.setColor(Color.BLACK);p.setStrokeWidth(2.0f);p.setStyle(Paint.Style.STROKE);
+   float pad=2.5f,cr=Math.min(getWidth(),getHeight())*0.28f;
    c.drawRoundRect(pad,pad,getWidth()-pad,getHeight()-pad,cr,cr,p);
   }
-  float size=Math.min(getWidth(),getHeight())*(squircle?0.50f:0.55f);
-  c.save();c.translate((getWidth()-size)/2,(getHeight()-size)/2);c.scale(size/24,size/24);p.setColor(Color.BLACK);p.setStrokeWidth(1.7f);p.setStyle(Paint.Style.STROKE);
+  float size=Math.min(getWidth(),getHeight())*(squircle?0.58f:0.55f);
+  c.save();c.translate((getWidth()-size)/2,(getHeight()-size)/2);c.scale(size/24,size/24);p.setColor(Color.BLACK);p.setStrokeWidth(2.0f);p.setStyle(Paint.Style.STROKE);
   if(kind==0){Path q=new Path();q.moveTo(2,11);q.lineTo(12,2);q.lineTo(22,11);q.moveTo(5,9);q.lineTo(5,22);q.lineTo(19,22);q.lineTo(19,9);c.drawPath(q,p);}
   else if(kind==1){for(int y=5;y<=19;y+=7){c.drawLine(3,y,5,y,p);c.drawLine(9,y,22,y,p);}}
   else if(kind==2){Path q=new Path();q.moveTo(12,21);q.cubicTo(4,14,2,8.5f,6.5f,5);q.cubicTo(9.5f,2.5f,12,5.5f,12,6.5f);q.cubicTo(12,5.5f,14.5f,2.5f,17.5f,5);q.cubicTo(22,8.5f,20,14,12,21);q.close();c.drawPath(q,p);}
