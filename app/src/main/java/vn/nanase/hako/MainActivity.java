@@ -243,13 +243,49 @@ public class MainActivity extends Activity {
       for (HakoParser.Link l : stories) names.add(l.title + (l.info.isEmpty() ? "" : "\n" + l.info));
       ListView list = new ListView(this);
       currentList = list;
-      list.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, names) {
-        public View getView(int p, View v, ViewGroup parent) {
-          TextView t = (TextView) super.getView(p, v, parent);
-          t.setTextColor(INK);
-          t.setTextSize(14);
-          t.setPadding(dp(10), dp(8), dp(10), dp(8));
-          return t;
+      list.setDivider(null);
+      list.setDividerHeight(dp(8));
+      list.setPadding(dp(6),dp(4),dp(6),dp(4));
+      list.setClipToPadding(false);
+      final int[] onlineItemH = new int[]{0};
+      list.post(() -> {
+        int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
+        if (listH > 0) {
+          int cardsPerPage = 3;
+          int divH = dp(8);
+          onlineItemH[0] = Math.max(dp(95), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+          list.invalidateViews();
+        }
+      });
+      list.setAdapter(new ArrayAdapter<HakoParser.Link>(this, 0, stories) {
+        public View getView(int p, View convert, ViewGroup parent) {
+          HakoParser.Link item = getItem(p);
+          LinearLayout card = new LinearLayout(MainActivity.this);
+          card.setOrientation(LinearLayout.VERTICAL);
+          card.setGravity(Gravity.CENTER_VERTICAL);
+          if (onlineItemH[0] > 0) {
+            card.setMinimumHeight(onlineItemH[0]);
+            card.setLayoutParams(new AbsListView.LayoutParams(-1, onlineItemH[0]));
+          }
+          android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
+          cardBg.setColor(Color.WHITE);
+          cardBg.setStroke(dp(2), Color.BLACK);
+          cardBg.setCornerRadius(dp(8));
+          card.setBackground(cardBg);
+          card.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+          TextView titleView = text(item.title, 18);
+          titleView.setTypeface(Typeface.DEFAULT_BOLD);
+          titleView.setTextColor(Color.BLACK);
+          card.addView(titleView);
+
+          if (!item.info.isEmpty()) {
+            TextView infoView = text(item.info, 13);
+            infoView.setTextColor(Color.BLACK);
+            infoView.setPadding(0, dp(6), 0, 0);
+            card.addView(infoView);
+          }
+          return card;
         }
       });
       list.setOnItemClickListener((a, v, p, id) -> {
@@ -279,11 +315,26 @@ public class MainActivity extends Activity {
     list.setDividerHeight(dp(8));
     list.setPadding(dp(6),dp(4),dp(6),dp(4));
     list.setClipToPadding(false);
+    final int[] itemH = new int[]{0};
+    list.post(() -> {
+      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
+      if (listH > 0) {
+        int cardsPerPage = 3;
+        int divH = dp(8);
+        itemH[0] = Math.max(dp(95), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        list.invalidateViews();
+      }
+    });
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
         Store.Book b=getItem(p);
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        if(itemH[0] > 0){
+          card.setMinimumHeight(itemH[0]);
+          card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
+        }
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
         cardBg.setStroke(dp(2),Color.BLACK);
@@ -352,8 +403,54 @@ public class MainActivity extends Activity {
     leaveReader();reset();root.addView(text("Thường xuyên đọc",20));row(new String[]{"Trang chính"},new Runnable[]{this::library});
     List<Store.Book> books=new ArrayList<>();for(Store.Book b:store.books())if(b.visits>0||b.pinned)books.add(b);
     Collections.sort(books,(a,b)->{if(a.pinned!=b.pinned)return a.pinned?-1:1;int n=Integer.compare(b.visits,a.visits);return n!=0?n:Long.compare(b.stamp,a.stamp);});
-    List<String> names=new ArrayList<>();for(Store.Book b:books)names.add((b.pinned?"★ ":"")+b.title+"\n"+b.visits+" lần mở đọc · "+(b.stamp==0?"Chưa đọc":android.text.format.DateFormat.format("dd/MM HH:mm",b.stamp)));
-    ListView list=new ListView(this);currentList=list;list.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_list_item_1,names));list.setOnItemClickListener((a,v,i,id)->openBook(books.get(i)));list.setOnItemLongClickListener((a,v,i,id)->{bookMenu(books.get(i));return true;});root.addView(list,new LinearLayout.LayoutParams(-1,0,1));status();
+    ListView list=new ListView(this);currentList=list;
+    list.setDivider(null);
+    list.setDividerHeight(dp(8));
+    list.setPadding(dp(6),dp(4),dp(6),dp(4));
+    list.setClipToPadding(false);
+    final int[] itemH = new int[]{0};
+    list.post(() -> {
+      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
+      if (listH > 0) {
+        int cardsPerPage = 3;
+        int divH = dp(8);
+        itemH[0] = Math.max(dp(95), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        list.invalidateViews();
+      }
+    });
+    list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
+      public View getView(int p,View convert,ViewGroup parent){
+        Store.Book b=getItem(p);
+        LinearLayout card=new LinearLayout(MainActivity.this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        if(itemH[0] > 0){
+          card.setMinimumHeight(itemH[0]);
+          card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
+        }
+        android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
+        cardBg.setColor(Color.WHITE);
+        cardBg.setStroke(dp(2),Color.BLACK);
+        cardBg.setCornerRadius(dp(8));
+        card.setBackground(cardBg);
+        card.setPadding(dp(12),dp(10),dp(12),dp(10));
+
+        TextView titleView=text((b.pinned?"★ ":"")+b.title,18);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleView.setTextColor(Color.BLACK);
+        card.addView(titleView);
+
+        String subInfo = b.visits + " lần đọc" + (b.stamp==0?"":" · " + android.text.format.DateFormat.format("dd/MM HH:mm", b.stamp));
+        TextView subView=text(subInfo,13);
+        subView.setTextColor(Color.BLACK);
+        subView.setPadding(0,dp(6),0,0);
+        card.addView(subView);
+        return card;
+      }
+    });
+    list.setOnItemClickListener((a,v,i,id)->openBook(books.get(i)));
+    list.setOnItemLongClickListener((a,v,i,id)->{bookMenu(books.get(i));return true;});
+    root.addView(list,new LinearLayout.LayoutParams(-1,0,1));status();
   }
   private void saveBook(){Store.Book b=store.book(bookId);if(b==null)return;if(b.followed){message("Bộ này đã trong tủ sách HAKO.");return;}Repository.cancel.set(false);task("Đang lưu lên HAKO…",()->{RenderedPage.action(this,b.url,"follow");store.followed(b.id,true,b.shelfRank);return null;},()->Toast.makeText(this,"Đã lưu vào tủ sách HAKO",Toast.LENGTH_SHORT).show());}
   private void markCaughtUp(Store.Book b){new AlertDialog.Builder(this).setTitle("Đã bắt kịp: "+b.title).setMessage("Đánh dấu bộ này đã đọc trên HAKO. Bộ đếm chương mới sẽ tính từ mốc hiện tại; không đổi màu liên kết trên điện thoại.").setPositiveButton("Đã đọc hết",(d,w)->{Repository.cancel.set(false);task("Đánh dấu trên HAKO…",()->{RenderedPage.action(this,HakoParser.ORIGIN+"/ke-sach","read:"+b.id.substring(b.id.lastIndexOf('-')+1));store.shelfInfo(b.id,"Không có chương mới tại lần đánh dấu vừa rồi");return null;},()->message("HAKO đã xác nhận đánh dấu đã đọc."));}).setNegativeButton("Hủy",null).show();}
@@ -524,14 +621,21 @@ public class MainActivity extends Activity {
     ListView list = new ListView(this);
     currentList = list;
     final int finalSelectedPos = targetIdx;
+    list.setDivider(new android.graphics.drawable.ColorDrawable(Color.BLACK));
+    list.setDividerHeight(dp(1));
     list.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, labels) {
       public View getView(int p, View v, ViewGroup parent) {
         TextView t = (TextView) super.getView(p, v, parent);
         boolean isTarget = (p == finalSelectedPos);
-        t.setTextColor(isTarget ? Color.BLACK : INK);
+        t.setTextColor(Color.BLACK);
         t.setTypeface(isTarget ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-        t.setTextSize(15);
-        t.setPadding(dp(10), dp(10), dp(10), dp(10));
+        t.setTextSize(16);
+        t.setPadding(dp(12), dp(12), dp(12), dp(12));
+        if(isTarget){
+          t.setBackgroundColor(Color.rgb(230,230,230));
+        } else {
+          t.setBackgroundColor(Color.WHITE);
+        }
         return t;
       }
     });
@@ -1037,11 +1141,19 @@ public class MainActivity extends Activity {
     goBack();
   }
 
+  private boolean isPageDownKey(int code){
+    return code==KeyEvent.KEYCODE_VOLUME_DOWN||code==KeyEvent.KEYCODE_PAGE_DOWN||code==KeyEvent.KEYCODE_DPAD_DOWN||code==KeyEvent.KEYCODE_DPAD_RIGHT;
+  }
+  private boolean isPageUpKey(int code){
+    return code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_PAGE_UP||code==KeyEvent.KEYCODE_DPAD_UP||code==KeyEvent.KEYCODE_DPAD_LEFT;
+  }
   @Override public boolean dispatchKeyEvent(KeyEvent event){
     int code=event.getKeyCode();
-    if(code==KeyEvent.KEYCODE_VOLUME_DOWN||code==KeyEvent.KEYCODE_VOLUME_UP){
+    boolean down=isPageDownKey(code);
+    boolean up=isPageUpKey(code);
+    if(down||up){
       if(event.getAction()==KeyEvent.ACTION_DOWN){
-        int dir=(code==KeyEvent.KEYCODE_VOLUME_DOWN)?1:-1;
+        int dir=down?1:-1;
         if(nativeReader!=null){
           hideToolbar();
           nativeReader.turn(dir);
@@ -1050,10 +1162,12 @@ public class MainActivity extends Activity {
         }else if(currentList!=null&&currentList.isShown()){
           int first=currentList.getFirstVisiblePosition();
           int last=currentList.getLastVisiblePosition();
-          int pageCount=Math.max(1,last-first);
-          int step=Math.max(1,pageCount-1);
-          int target=(dir>0)?Math.min(currentList.getCount()-1,first+step):Math.max(0,first-step);
-          currentList.setSelection(target);
+          int count=currentList.getCount();
+          if(count>0){
+            int visibleCount=Math.max(1,last-first+1);
+            int target=(dir>0)?Math.min(count-1,last+1):Math.max(0,first-visibleCount);
+            currentList.setSelection(target);
+          }
         }else if(currentScroll!=null&&currentScroll.isShown()){
           currentScroll.pageScroll(dir>0?View.FOCUS_DOWN:View.FOCUS_UP);
         }
