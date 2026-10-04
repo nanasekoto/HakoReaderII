@@ -19,8 +19,29 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    buildTypes {
+    signingConfigs {
+        debug {
+            storeFile file('../test-signing.p12')
+            storePassword 'android'
+            keyAlias 'hako-test'
+            keyPassword 'android'
+            storeType 'PKCS12'
+        }
         release {
+            storeFile file('../test-signing.p12')
+            storePassword 'android'
+            keyAlias 'hako-test'
+            keyPassword 'android'
+            storeType 'PKCS12'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

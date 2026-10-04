@@ -97,8 +97,18 @@ public final class Store extends SQLiteOpenHelper {
     return a;
   }
 
-  public Book book(String id) {
-    for (Book b : books()) if (b.id.equals(id)) return b;
+  public synchronized Book book(String id) {
+    try (Cursor c = getReadableDatabase().rawQuery("SELECT id,title,url,current,pos,fraction,stamp,dropped,visits,pinned,shelfRank,shelfInfo,followed FROM books WHERE id=?", new String[]{id})) {
+      if (c.moveToNext()) {
+        Book b = new Book();
+        b.id = c.getString(0); b.title = c.getString(1); b.url = c.getString(2);
+        b.current = c.getString(3); b.pos = c.getInt(4); b.fraction = c.getFloat(5);
+        b.stamp = c.getLong(6); b.dropped = c.getInt(7) == 1; b.visits = c.getInt(8);
+        b.pinned = c.getInt(9) == 1; b.shelfRank = c.getInt(10); b.shelfInfo = c.getString(11);
+        b.followed = c.getInt(12) == 1;
+        return b;
+      }
+    } catch (Exception ignored) {}
     return null;
   }
 
@@ -147,8 +157,17 @@ public final class Store extends SQLiteOpenHelper {
     return a;
   }
 
-  public Chapter chapter(String book, String id) {
-    for (Chapter c : chapters(book)) if (c.id.equals(id)) return c;
+  public synchronized Chapter chapter(String book, String id) {
+    try (Cursor c = getReadableDatabase().rawQuery("SELECT id,book,title,url,ord,ready,error FROM chapters WHERE id=?", new String[]{id})) {
+      if (c.moveToNext()) {
+        Chapter x = new Chapter();
+        x.id = c.getString(0); x.book = c.getString(1); x.title = c.getString(2);
+        x.url = c.getString(3); x.ord = c.getInt(4);
+        x.ready = c.getInt(5) == 1 && html(x.id).isFile();
+        x.error = c.getString(6);
+        return x;
+      }
+    } catch (Exception ignored) {}
     return null;
   }
 

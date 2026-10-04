@@ -183,11 +183,11 @@ public class MainActivity extends Activity {
         LinearLayout cell=new LinearLayout(this);
         cell.setOrientation(1);cell.setGravity(Gravity.CENTER);
         IconButton icon=new IconButton(this,iconKinds[j],names[j],true,actions[j]);
-        cell.addView(icon,new LinearLayout.LayoutParams(dp(56),dp(56)));
-        TextView label=text(names[j],13);
+        cell.addView(icon,new LinearLayout.LayoutParams(dp(60),dp(60)));
+        TextView label=text(names[j],15);
         label.setTypeface(Typeface.DEFAULT_BOLD);
         label.setGravity(Gravity.CENTER);
-        label.setPadding(0,dp(5),0,0);
+        label.setPadding(0,dp(6),0,0);
         cell.addView(label);
         cell.setOnClickListener(v->actions[x].run());
         line.addView(cell,new LinearLayout.LayoutParams(0,-1,1f));
@@ -276,7 +276,7 @@ public class MainActivity extends Activity {
     if(shelf)java.util.Collections.sort(books,(a,b)->Integer.compare(a.shelfRank,b.shelfRank));
     ListView list=new ListView(this);currentList=list;
     list.setDivider(null);
-    list.setDividerHeight(dp(4));
+    list.setDividerHeight(dp(8));
     list.setPadding(dp(6),dp(4),dp(6),dp(4));
     list.setClipToPadding(false);
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
@@ -284,14 +284,18 @@ public class MainActivity extends Activity {
         Store.Book b=getItem(p);
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(Color.WHITE);
-        card.setPadding(dp(10),dp(8),dp(10),dp(8));
+        android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
+        cardBg.setColor(Color.WHITE);
+        cardBg.setStroke(dp(2),Color.BLACK);
+        cardBg.setCornerRadius(dp(8));
+        card.setBackground(cardBg);
+        card.setPadding(dp(12),dp(10),dp(12),dp(10));
 
         LinearLayout top=new LinearLayout(MainActivity.this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView titleView=text(b.title,16);
+        TextView titleView=text(b.title,18);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
         top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
@@ -300,13 +304,13 @@ public class MainActivity extends Activity {
         if(newCount>0){
           TextView badge=new TextView(MainActivity.this);
           badge.setText("+"+newCount+" mới");
-          badge.setTextSize(11);
+          badge.setTextSize(14);
           badge.setTextColor(Color.WHITE);
           badge.setBackgroundColor(Color.BLACK);
           badge.setTypeface(Typeface.DEFAULT_BOLD);
-          badge.setPadding(dp(6),dp(2),dp(6),dp(2));
+          badge.setPadding(dp(8),dp(3),dp(8),dp(3));
           LinearLayout.LayoutParams lpBadge=new LinearLayout.LayoutParams(-2,-2);
-          lpBadge.setMargins(dp(6),0,0,0);
+          lpBadge.setMargins(dp(8),0,0,0);
           top.addView(badge,lpBadge);
         }
         card.addView(top);
@@ -329,17 +333,11 @@ public class MainActivity extends Activity {
         }
 
         if(sub.length()>0){
-          TextView subView=text(sub.toString(),12);
-          subView.setTextColor(MUTED);
-          subView.setPadding(0,dp(4),0,0);
+          TextView subView=text(sub.toString(),13);
+          subView.setTextColor(Color.BLACK);
+          subView.setPadding(0,dp(6),0,0);
           card.addView(subView);
         }
-
-        View divider=new View(MainActivity.this);
-        divider.setBackgroundColor(Color.rgb(210,210,210));
-        LinearLayout.LayoutParams lpDiv=new LinearLayout.LayoutParams(-1,dp(1));
-        lpDiv.setMargins(0,dp(6),0,0);
-        card.addView(divider,lpDiv);
 
         return card;
       }
@@ -659,7 +657,7 @@ public class MainActivity extends Activity {
     bar=new LinearLayout(this);bar.setOrientation(0);bar.setBackgroundColor(Color.WHITE);
     String[] labels={"◀ Quay lại","Trước","Mục lục","Tiếp","Chữ","Thoát"};
     Runnable[] actions={
-      ()->goBack(),
+      ()->saveThen(()->{leaveReader();if(!navStack.isEmpty())navStack.pop().run();else library();}),
       ()->saveThen(()->adjacent(-1)),
       ()->{navStack.push(()->showReader(bid,cid));contents(store.book(bid));},
       ()->saveThen(()->adjacent(1)),

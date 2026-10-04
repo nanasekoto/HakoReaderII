@@ -37,7 +37,7 @@ public final class NativeReader extends View {
   int indentPx = (int)(indentDp * getResources().getDisplayMetrics().density);
   boolean lastWasEmpty=true;
   for(Element e:body.children()){
-   CharSequence parsed=Html.fromHtml(e.html(),Html.FROM_HTML_MODE_LEGACY,source->image(source),null);
+   CharSequence parsed=Html.fromHtml(e.outerHtml(),Html.FROM_HTML_MODE_LEGACY,source->image(source),null);
    int len=parsed.length();
    while(len>0&&(parsed.charAt(len-1)=='\n'||parsed.charAt(len-1)=='\r'||parsed.charAt(len-1)==' '))len--;
    int start=0;
@@ -82,7 +82,7 @@ public final class NativeReader extends View {
   }catch(Exception e){return null;}
  }
  private static class Note extends CharacterStyle {final String value;Note(String s){value=s;}public void updateDrawState(TextPaint p){p.setUnderlineText(true);}}
- public void style(float sp,int marginDp,float spacing,int pSpaceDp,int indDp,Typeface face,boolean tap){capture();paint.setTextSize(sp*getResources().getDisplayMetrics().scaledDensity);paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;boolean reformat=(paraSpaceDp!=pSpaceDp)||(indentDp!=indDp);paraSpaceDp=pSpaceDp;indentDp=indDp;taps=tap;if(reformat&&!rawHtml.isEmpty()){content(rawHtml,pendingParagraph,pendingFraction);}else{reflow();}}
+ public void style(float sp,int marginDp,float spacing,int pSpaceDp,int indDp,Typeface face,boolean tap){capture();paint.setTextSize(sp*getResources().getDisplayMetrics().scaledDensity);paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;boolean reformat=(paraSpaceDp!=pSpaceDp)||(indentDp!=indDp);paraSpaceDp=pSpaceDp;indentDp=indDp;taps=tap;if(reformat&&!rawHtml.isEmpty()){content(rawHtml,pendingParagraph,pendingFraction);reflow();}else{reflow();}}
  public void taps(boolean on){taps=on;}public int getPageCount(){return pages.size();}
  private int offset(){return layout==null||pages.isEmpty()?0:layout.getLineStart(pages.get(page));}
  private void capture(){if(layout==null||pages.isEmpty())return;int off=offset(),p=0;for(int i=0;i<anchors.size();i++)if(anchors.get(i)<=off)p=i;pendingParagraph=p;int end=p+1<anchors.size()?anchors.get(p+1):text.length();pendingFraction=(float)(off-anchors.get(p))/Math.max(1,end-anchors.get(p));}

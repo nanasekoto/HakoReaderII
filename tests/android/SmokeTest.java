@@ -19,7 +19,7 @@ public class SmokeTest extends Instrumentation {
   StaticLayout layout=(StaticLayout)field(reader,"layout");List<Integer> pages=(List<Integer>)field(reader,"pages");int margin=(int)field(reader,"margin"),height=reader.getHeight()-2*margin;
   for(int i=0;i<pages.size();i++){int end=i+1<pages.size()?pages.get(i+1):layout.getLineCount();check(layout.getLineBottom(end-1)-layout.getLineTop(pages.get(i))<=height,"No clipped text line");}
   runOnMainSync(()->reader.turn(1));waitForIdleSync();int before=s.book("demo").pos;check(before>12,"Turn moves forward and persists");
-  runOnMainSync(()->reader.style(24,10,1.5f,android.graphics.Typeface.SERIF,true));waitForIdleSync();check(Math.abs(s.book("demo").pos-before)<=1,"Font change keeps paragraph");
+  runOnMainSync(()->reader.style(24,10,1.5f,8,9,android.graphics.Typeface.SERIF,true));waitForIdleSync();check(Math.abs(s.book("demo").pos-before)<=1,"Font change keeps paragraph");
   int saved=s.book("demo").pos;runOnMainSync(a::finish);waitForIdleSync();MainActivity reopened=launch();check(Math.abs(s.book("demo").pos-saved)<=1,"Reopen retains paragraph");
   s.prune(s.book("demo"));check(!s.html("demo-4").exists()&&s.html("demo-5").exists()&&s.html("demo-23").exists()&&!s.html("demo-24").exists(),"Cache window 3 behind / 15 ahead");
   check(s.wasRead("demo-8")&&!s.wasRead("demo-9"),"Prefetched chapter not marked opened");
