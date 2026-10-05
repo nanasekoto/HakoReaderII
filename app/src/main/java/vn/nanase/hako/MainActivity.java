@@ -74,7 +74,7 @@ public class MainActivity extends Activity {
       nativeReader.setTouchLocked(next);
       prefs.edit().putBoolean("touch_lock", next).apply();
       hideToolbar();
-      Toast.makeText(this, next ? "🔒 ĐÃ KHÓA CẢM ỨNG (Chỉ mở khóa bằng phím cứng)" : "🔓 ĐÃ MỞ KHÓA CẢM ỨNG", Toast.LENGTH_SHORT).show();
+      // NativeReader already shows the persistent lock state in its footer.
     }
   }
   private volatile String bookId = "", chapterId = "";
@@ -158,6 +158,8 @@ public class MainActivity extends Activity {
 
   private void reset() {
     generation++;
+    volumeChord.reset();
+    currentList=null; currentScroll=null; status=null;
     nativeReader=null;
     readerReady = false;
     if (web != null) {
@@ -240,7 +242,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.5.1",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -335,6 +337,10 @@ public class MainActivity extends Activity {
       catBar2.addView(button(c2Names[i], () -> onlineList(c2Names[idx], c2Urls[idx])), lp);
     }
     root.addView(catBar2);
+    final PagedBookList list = new PagedBookList(this);
+    currentList = list;
+    root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+    status();
     final List<HakoParser.Link> stories = new ArrayList<>();
     task("Đang tải danh sách…", () -> {
       String html = Repository.page(url, false);
@@ -342,26 +348,24 @@ public class MainActivity extends Activity {
       return null;
     }, () -> {
       if (stories.isEmpty()) {
-        root.addView(text("Không tìm thấy truyện hoặc trang yêu cầu xác minh. Hãy chọn Mở web.", 14));
+        status.setText("Không tìm thấy truyện. Chọn Mở web để kiểm tra.");
         return;
       }
-      List<String> names = new ArrayList<>();
-      for (HakoParser.Link l : stories) names.add(l.title + (l.info.isEmpty() ? "" : "\n" + l.info));
-      ListView list = new ListView(this);
-      currentList = list;
+
+
       list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
       list.setDrawSelectorOnTop(false);
       list.setDivider(null);
       list.setDividerHeight(dp(5));
       list.setPadding(dp(6),dp(3),dp(6),dp(3));
-      list.setClipToPadding(false);
+      list.setClipToPadding(true);
       list.setAdapter(new ArrayAdapter<HakoParser.Link>(this, 0, stories) {
         public View getView(int p, View convert, ViewGroup parent) {
           HakoParser.Link item = getItem(p);
           LinearLayout card = new LinearLayout(MainActivity.this);
           card.setOrientation(LinearLayout.VERTICAL);
           card.setGravity(Gravity.CENTER_VERTICAL);
-          card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+          card.setLayoutParams(new AbsListView.LayoutParams(-1, list.rowHeight(p)));
           card.setMinimumHeight(dp(52));
 
           android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
@@ -377,6 +381,7 @@ public class MainActivity extends Activity {
           titleView.setTypeface(Typeface.DEFAULT_BOLD);
           titleView.setTextColor(Color.BLACK);
           titleView.setMaxLines(2);
+          titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
           card.addView(titleView);
 
           if (!item.info.isEmpty()) {
@@ -384,7 +389,8 @@ public class MainActivity extends Activity {
             infoView.setText(item.info);
             infoView.setTextSize(11.5f);
             infoView.setTextColor(MUTED);
-            infoView.setSingleLine(true);
+            infoView.setMaxLines(2);
+            infoView.setEllipsize(android.text.TextUtils.TruncateAt.END);
             infoView.setPadding(0, dp(2), 0, 0);
             card.addView(infoView);
           }
@@ -395,8 +401,7 @@ public class MainActivity extends Activity {
         navStack.push(() -> onlineList(title, url));
         addUrl(stories.get(p).url);
       });
-      root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
-      status();
+
     });
   }
 
@@ -511,21 +516,16 @@ public class MainActivity extends Activity {
     for (Store.Book b : store.books()) if (shelf ? (b.followed && (!prefs.getBoolean("unreadOnly", false) || hasNew(b))) : b.stamp > 0) books.add(b);
     if (shelf) Collections.sort(books, (a, b) -> Integer.compare(a.shelfRank, b.shelfRank));
 
-    ListView list = new ListView(this);
+    PagedBookList list = new PagedBookList(this);
     currentList = list;
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
     list.setDividerHeight(dp(3));
     list.setPadding(dp(6), dp(2), dp(6), dp(2));
-    list.setClipToPadding(false);
+    list.setClipToPadding(true);
 
-    int screenH = getResources().getDisplayMetrics().heightPixels;
-    int topOccupied = dp(42);
-    int divH = dp(4);
-    int cardsPerPage = 5;
-    int availH = screenH - topOccupied - dp(6);
-    final int itemH = Math.max(dp(65), (availH - (cardsPerPage - 1) * divH) / cardsPerPage);
+
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this, 0, books) {
       public View getView(int p, View convert, ViewGroup parent) {
@@ -533,7 +533,7 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, list.rowHeight(p)));
 
         android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -594,7 +594,8 @@ public class MainActivity extends Activity {
         subView.setText(sub.toString());
         subView.setTextSize(11f);
         subView.setTextColor(MUTED);
-        subView.setSingleLine(true);
+        subView.setMaxLines(2);
+        subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
         card.addView(subView);
 
@@ -641,26 +642,22 @@ public class MainActivity extends Activity {
     infoView.setTextSize(11f);
     infoView.setTextColor(MUTED);
     infoView.setSingleLine(true);
+            infoView.setEllipsize(android.text.TextUtils.TruncateAt.END);
     infoView.setPadding(0, dp(1), 0, 0);
     topBar.addView(infoView);
 
     root.addView(topBar);
 
-    ListView list = new ListView(this);
+    PagedBookList list = new PagedBookList(this);
     currentList = list;
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
     list.setDividerHeight(dp(3));
     list.setPadding(dp(6), dp(2), dp(6), dp(2));
-    list.setClipToPadding(false);
+    list.setClipToPadding(true);
 
-    int screenH = getResources().getDisplayMetrics().heightPixels;
-    int topOccupied = dp(42);
-    int divH = dp(4);
-    int cardsPerPage = 5;
-    int availH = screenH - topOccupied - dp(6);
-    final int itemH = Math.max(dp(65), (availH - (cardsPerPage - 1) * divH) / cardsPerPage);
+
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this, 0, books) {
       public View getView(int p, View convert, ViewGroup parent) {
@@ -668,7 +665,7 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, list.rowHeight(p)));
 
         android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -752,7 +749,8 @@ public class MainActivity extends Activity {
         subView.setText(sub.toString());
         subView.setTextSize(11f);
         subView.setTextColor(MUTED);
-        subView.setSingleLine(true);
+        subView.setMaxLines(2);
+        subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
         card.addView(subView);
 
@@ -1643,6 +1641,7 @@ public class MainActivity extends Activity {
   }
 
   protected void onPause() {
+    volumeChord.reset();
     if(nativeReader!=null&&readerReady)store.position(bookId,chapterId,lastPos,lastFraction);
     if (web != null) {
       CookieManager.getInstance().flush();
@@ -1832,14 +1831,18 @@ public class MainActivity extends Activity {
     return code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_PAGE_UP||code==KeyEvent.KEYCODE_DPAD_UP||code==KeyEvent.KEYCODE_DPAD_LEFT;
   }
 
-  private final Handler mainHandler = new Handler(Looper.getMainLooper());
-  private Runnable volLongPressRunnable = null;
-  private boolean isVolUpHeld = false, isVolDownHeld = false;
-  private long lastVolUpTime = 0, lastVolDownTime = 0;
-  private int lastVolTurnDir = 0;
-  private long lastVolTurnTime = 0;
-  private static final long COMBO_WINDOW_MS = 600;
-  private static final long LONG_PRESS_TIMEOUT_MS = 800;
+  private final ListPaging listPaging = new ListPaging();
+  private final VolumeChord volumeChord = new VolumeChord();
+
+  @Override public boolean dispatchTouchEvent(MotionEvent event) {
+    if (nativeReader != null && nativeReader.isTouchLocked()) return true;
+    return super.dispatchTouchEvent(event);
+  }
+
+  @Override public void onWindowFocusChanged(boolean focused) {
+    super.onWindowFocusChanged(focused);
+    if (!focused) volumeChord.reset();
+  }
 
   private void handleSingleKeyAction(int dir) {
     if (isBoundaryPromptVisible()) {
@@ -1884,74 +1887,15 @@ public class MainActivity extends Activity {
       }
     }
 
-    // 2. Volume buttons: instant page turning, fast 2-key combo (<600ms) or simultaneous press toggles Touch Lock!
-    boolean isVolUp = (code == KeyEvent.KEYCODE_VOLUME_UP);
-    boolean isVolDown = (code == KeyEvent.KEYCODE_VOLUME_DOWN);
-
-    if ((isVolUp || isVolDown) && nativeReader != null) {
-      long now = SystemClock.elapsedRealtime();
-
-      if (action == KeyEvent.ACTION_DOWN) {
-        if (isVolUp) isVolUpHeld = true;
-        if (isVolDown) isVolDownHeld = true;
-
-        if (event.getRepeatCount() == 0) {
-          boolean isCombo = false;
-
-          if (isVolDown) {
-            // Check if Volume Up is held OR was pressed recently (< 600ms)
-            if (isVolUpHeld || (now - lastVolUpTime <= COMBO_WINDOW_MS)) {
-              isCombo = true;
-            }
-            lastVolDownTime = now;
-          } else if (isVolUp) {
-            // Check if Volume Down is held OR was pressed recently (< 600ms)
-            if (isVolDownHeld || (now - lastVolDownTime <= COMBO_WINDOW_MS)) {
-              isCombo = true;
-            }
-            lastVolUpTime = now;
-          }
-
-          if (isCombo) {
-            if (volLongPressRunnable != null) {
-              mainHandler.removeCallbacks(volLongPressRunnable);
-              volLongPressRunnable = null;
-            }
-            // If the first key of this combo turned the page within 600ms, revert it!
-            if (lastVolTurnDir != 0 && (now - lastVolTurnTime <= COMBO_WINDOW_MS)) {
-              nativeReader.turn(-lastVolTurnDir);
-              lastVolTurnDir = 0;
-              lastVolTurnTime = 0;
-            }
-            lastVolUpTime = 0;
-            lastVolDownTime = 0;
-            toggleTouchLock();
-            return true;
-          }
-
-          // Not a combo yet: schedule long-press backup and perform single page turn
-          if (volLongPressRunnable != null) mainHandler.removeCallbacks(volLongPressRunnable);
-          volLongPressRunnable = () -> {
-            toggleTouchLock();
-          };
-          mainHandler.postDelayed(volLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
-
-          final int dir = isVolDown ? 1 : -1;
-          lastVolTurnDir = dir;
-          lastVolTurnTime = now;
-          handleSingleKeyAction(dir);
-        }
-        return true;
-      } else if (action == KeyEvent.ACTION_UP) {
-        if (isVolUp) isVolUpHeld = false;
-        if (isVolDown) isVolDownHeld = false;
-
-        if (volLongPressRunnable != null) {
-          mainHandler.removeCallbacks(volLongPressRunnable);
-          volLongPressRunnable = null;
-        }
-        return true;
-      }
+    // Consume both volume keys before Android changes volume or activates its chord.
+    // A single press turns on release; overlapping presses toggle once and turn no page.
+    if (nativeReader != null && (code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN)) {
+      int result = volumeChord.event(code == KeyEvent.KEYCODE_VOLUME_DOWN,
+          action == KeyEvent.ACTION_DOWN, action == KeyEvent.ACTION_UP,
+          event.isCanceled());
+      if (result == VolumeChord.TOGGLE) toggleTouchLock();
+      else if (result != 0) handleSingleKeyAction(result);
+      return true;
     }
 
     // 3. Other page turn hardware keys (Page Up/Down, D-pad, etc.)
@@ -1965,13 +1909,8 @@ public class MainActivity extends Activity {
         } else if (web != null) {
           if(dir>0)web.pageDown(false);else web.pageUp(false);
         }else if(currentList!=null&&currentList.isShown()){
-          int count=currentList.getCount();
-          if(count>0){
-            int curFirst=currentList.getFirstVisiblePosition();
-            int curPage=curFirst / 6;
-            int target=(dir > 0) ? Math.min(count - 1, (curPage + 1) * 6) : Math.max(0, (curPage - 1) * 6);
-            currentList.setSelection(target);
-          }
+          if (currentList instanceof PagedBookList) ((PagedBookList)currentList).turn(dir);
+          else listPaging.turn(currentList,dir);
         }else if(currentScroll!=null&&currentScroll.isShown()){
           currentScroll.pageScroll(dir>0?View.FOCUS_DOWN:View.FOCUS_UP);
         }
@@ -1991,3 +1930,4 @@ public class MainActivity extends Activity {
     return super.onKeyDown(key, event);
   }
 }
+

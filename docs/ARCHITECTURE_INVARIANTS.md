@@ -71,3 +71,10 @@ Tài liệu này lưu trữ toàn bộ các nguyên nhân gốc rễ và quy chu
   1. **Thanh tiêu đề siêu mỏng:** Tiêu đề và nút bấm nằm trên 1 dòng duy nhất cao tối đa `38dp`.
   2. **Padding tối ưu:** Thẻ truyện sử dụng `TextView` trực tiếp với padding sát mép (0dp trên/dưới), đệm khung `dp(5)`.
   3. **Hiển thị đủ 5 truyện:** Toàn bộ 5 thẻ truyện nằm trọn vẹn 100% bên trong màn hình mà không cần cuộn, truyện thứ 5 hiển thị đầy đủ tên truyện, số chương, ngày giờ mà không bị che khuất.
+
+
+
+## 7. Khóa cảm ứng và phân trang sau kiểm thử APK 0.5.0
+* Chỉ tổ hợp hai phím âm lượng đang được giữ đồng thời mới đổi trạng thái khóa, một lần cho tới khi cả hai được thả. Phím riêng lật trang khi thả. Không suy đoán tổ hợp từ thời gian của lần bấm trước; không lật rồi hoàn tác.
+* Chiều cao thẻ lấy từ vùng ListView được Android cấp sau khi trừ tiêu đề/trạng thái, không từ chiều cao toàn màn hình. Chia dư pixel cho từng thẻ để thẻ cuối vừa khít. Phím chuyển danh sách dùng cùng số thẻ đã đo.
+* Mục tiêu 5 thẻ ở cỡ chữ mặc định. Khi người dùng tăng cỡ chữ hệ thống hoặc vùng hiển thị nhỏ không đủ, giảm số thẻ để giữ chữ nguyên vẹn.

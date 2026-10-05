@@ -1,1 +1,2 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="vn.nanase.hako.tests"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="30"/><application android:label="Hako Tests"/><instrumentation android:name="vn.nanase.hako.tests.SmokeTest" android:targetPackage="vn.nanase.hako"/></manifest>
+

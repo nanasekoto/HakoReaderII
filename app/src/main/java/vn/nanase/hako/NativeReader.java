@@ -150,7 +150,8 @@ public final class NativeReader extends View {
   int first=pages.get(page),end=page+1<pages.size()?pages.get(page+1):layout.getLineCount();
   int top=layout.getLineTop(first);
   c.save();
-  c.clipRect(margin,textTop,getWidth()-margin,textBottom);
+  c.clipRect(margin,textTop,getWidth()-margin,
+      Math.min(textBottom, textTop + layout.getLineBottom(end-1) - top));
   c.translate(margin,textTop-top);
   layout.draw(c);
   c.restore();
@@ -195,7 +196,7 @@ public final class NativeReader extends View {
        return true;
      }
      if(layout!=null&&!pages.isEmpty()){
-       float x=e.getX()-margin,y=e.getY()-margin+layout.getLineTop(pages.get(page));
+       float x=e.getX()-margin,y=e.getY()-headerHeight+layout.getLineTop(pages.get(page));
        int ln=layout.getLineForVertical((int)y);
        if(x>=layout.getLineLeft(ln)&&x<=layout.getLineRight(ln)){
          int off=layout.getOffsetForHorizontal(ln,x);
@@ -216,3 +217,4 @@ public final class NativeReader extends View {
  }
  public boolean performClick(){super.performClick();return true;}
 }
+
