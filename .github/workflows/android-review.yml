@@ -1,0 +1,35 @@
+name: Android 11 UI review
+on:
+  push:
+    branches: [ 'codex/hako-ui-review-051' ]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools' 'emulator' 'system-images;android-30;default;x86_64'
+      - name: Build and JVM checks
+        run: |
+          bash test.sh
+          bash build.sh
+          bash test-android.sh
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Android UI checks at 480x800 and three densities
+        run: bash scripts/emulator-check.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Hako-0.5.1-Android11-evidence
+          path: |
+            build/Hako-Pocket-*.apk
+            build/evidence/

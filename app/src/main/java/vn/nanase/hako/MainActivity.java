@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
   }
 
   private boolean touchLocked = false;
-  private BroadcastReceiver powerReceiver;
+  private final ListPaging listPaging = new ListPaging();
 
   private Store store;
   private android.content.SharedPreferences prefs;
@@ -70,7 +70,8 @@ public class MainActivity extends Activity {
 
   private void toggleTouchLock() {
     if (nativeReader != null) {
-      boolean next = !nativeReader.isTouchLocked();
+      boolean next = !touchLocked;
+      touchLocked = next;
       nativeReader.setTouchLocked(next);
       hideToolbar();
       Toast.makeText(this, next ? "🔒 ĐÃ KHÓA CẢM ỨNG (Chỉ lật bằng phím cứng)" : "🔓 ĐÃ MỞ KHÓA CẢM ỨNG", Toast.LENGTH_SHORT).show();
@@ -157,6 +158,8 @@ public class MainActivity extends Activity {
 
   private void reset() {
     generation++;
+    cancelPendingKeys();
+    currentList = null; currentScroll = null; status = null;
     nativeReader=null;
     readerReady = false;
     if (web != null) {
@@ -239,7 +242,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4",11));
+    root.addView(text("Đọc nhẹ • " + versionLabel(),11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -334,6 +337,10 @@ public class MainActivity extends Activity {
       catBar2.addView(button(c2Names[i], () -> onlineList(c2Names[idx], c2Urls[idx])), lp);
     }
     root.addView(catBar2);
+    final ListView list = new ListView(this);
+    currentList = list;
+    root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+    status();
     final List<HakoParser.Link> stories = new ArrayList<>();
     task("Đang tải danh sách…", () -> {
       String html = Repository.page(url, false);
@@ -341,13 +348,11 @@ public class MainActivity extends Activity {
       return null;
     }, () -> {
       if (stories.isEmpty()) {
-        root.addView(text("Không tìm thấy truyện hoặc trang yêu cầu xác minh. Hãy chọn Mở web.", 14));
+        status.setText("Không có kết quả hoặc cần xác minh. Chọn Mở web.");
         return;
       }
       List<String> names = new ArrayList<>();
       for (HakoParser.Link l : stories) names.add(l.title + (l.info.isEmpty() ? "" : "\n" + l.info));
-      ListView list = new ListView(this);
-      currentList = list;
       list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
       list.setDrawSelectorOnTop(false);
       list.setDivider(null);
@@ -394,8 +399,7 @@ public class MainActivity extends Activity {
         navStack.push(() -> onlineList(title, url));
         addUrl(stories.get(p).url);
       });
-      root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
-      status();
+
     });
   }
 
@@ -430,6 +434,7 @@ public class MainActivity extends Activity {
     Button btnSync=button(shelf?"Cập nhật":"Lịch sử",()->{
       if(shelf){
         if(isSyncingShelf)return;
+        final int screenToken = generation;
         isSyncingShelf=true;
         syncStatus.setText("Đang cập nhật…");
         io.execute(()->{
@@ -439,13 +444,13 @@ public class MainActivity extends Activity {
             
             isSyncingShelf=false;
             runOnUiThread(()->{
-              if(isFinishing())return;
+              if(isFinishing() || screenToken != generation)return;
               bookList(true);
             });
           }catch(Exception e){
             isSyncingShelf=false;
             runOnUiThread(()->{
-              if(isFinishing())return;
+              if(isFinishing() || screenToken != generation)return;
               syncStatus.setText("Lỗi cập nhật: "+(e.getMessage()!=null?e.getMessage():"Mất mạng"));
             });
           }
@@ -509,23 +514,14 @@ public class MainActivity extends Activity {
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
 
-    isBookListScreen = true;
-    int screenH = getResources().getDisplayMetrics().heightPixels;
-    int divH = dp(4);
-    int listPad = dp(4);
-    int topOccupied = dp(shelf ? 56 : 36);
-    // Page 1: exactly 5 cards with header. Page 2+: exactly 6 cards without header. Single pass render!
-    final int h1 = Math.max(dp(70), (screenH - topOccupied - listPad - 4 * divH) / 5);
-    final int h2 = Math.max(dp(65), (screenH - listPad - 5 * divH) / 6);
-
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
         Store.Book b=getItem(p);
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        int cardH = (p < 5) ? h1 : h2;
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, cardH));
+        card.setMinimumHeight(dp(68));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -628,22 +624,14 @@ public class MainActivity extends Activity {
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
 
-    isBookListScreen = true;
-    int screenH = getResources().getDisplayMetrics().heightPixels;
-    int divH = dp(4);
-    int listPad = dp(4);
-    int topOccupied = dp(36);
-    final int h1 = Math.max(dp(70), (screenH - topOccupied - listPad - 4 * divH) / 5);
-    final int h2 = Math.max(dp(65), (screenH - listPad - 5 * divH) / 6);
-
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
         Store.Book b=getItem(p);
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        int cardH = (p < 5) ? h1 : h2;
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, cardH));
+        card.setMinimumHeight(dp(68));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -881,19 +869,7 @@ public class MainActivity extends Activity {
     }
     int targetIdx = resolveTargetIndex(b, chs);
     Store.Chapter target = chs.get(targetIdx);
-    if (store.readable(target.id)) {
-      navStack.push(() -> contents(b));
-      openChapter(b.id, target.id);
-    } else {
-      // If chapter not yet downloaded, enter TOC immediately and prioritize downloading target chapter
-      contents(b);
-      task("Đang tải " + target.title + "…", () -> {
-        Repository.download(this, target);
-        return null;
-      }, () -> {
-        contents(store.book(b.id));
-      });
-    }
+    openChapter(b.id, target.id);
   }
 
   private static class VolumeGroup {
@@ -1259,6 +1235,7 @@ public class MainActivity extends Activity {
       pendingOpenAtEnd = false;
     }
 
+    nativeReader.setTouchLocked(touchLocked);
     nativeReader.setTitles(b.title, c.title);
     nativeReader.setSyncStatus(Repository.isSyncing, Repository.syncPct);
     // nativeReader fills 100% of readerFrame
@@ -1515,7 +1492,7 @@ public class MainActivity extends Activity {
 
   private void help() {
     new AlertDialog.Builder(this)
-        .setTitle("Hako Pocket 0.3 • Bản thử nghiệm")
+        .setTitle("Hako Pocket " + versionLabel())
         .setMessage(
             "Đăng nhập HAKO → Nhập kệ sách → chọn truyện → chọn chương.\n\n"
                 + "✓ là chương có đủ nội dung/ảnh. ◐ là đã có chữ nhưng thiếu ảnh. Nhấn giữ truyện"
@@ -1593,6 +1570,7 @@ public class MainActivity extends Activity {
   }
 
   protected void onPause() {
+    cancelPendingKeys();
     if(nativeReader!=null&&readerReady)store.position(bookId,chapterId,lastPos,lastFraction);
     if (web != null) {
       CookieManager.getInstance().flush();
@@ -1601,6 +1579,7 @@ public class MainActivity extends Activity {
   }
 
   protected void onDestroy() {
+    cancelPendingKeys();
     if (updates != null) unregisterReceiver(updates);
     if (web != null) {
       web.removeJavascriptInterface("Bridge");
@@ -1778,6 +1757,22 @@ public class MainActivity extends Activity {
   private Runnable pendingVolAction = null;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private static final long CHORD_DELAY_MS = 250;
+  private void cancelPendingKeys() {
+    if (pendingVolAction != null) mainHandler.removeCallbacks(pendingVolAction);
+    pendingVolAction = null;
+    isVolUpHeld = isVolDownHeld = chordComboTriggered = false;
+  }
+  @Override public void onWindowFocusChanged(boolean focused) {
+    super.onWindowFocusChanged(focused);
+    if (!focused) cancelPendingKeys();
+  }
+  private String versionLabel() {
+    try {
+      android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+      return info.versionName + " · bản " + info.versionCode;
+    } catch (Exception e) { return "Không đọc được phiên bản"; }
+  }
+
 
   @Override
   public boolean dispatchTouchEvent(MotionEvent ev) {
@@ -1823,48 +1818,23 @@ public class MainActivity extends Activity {
     boolean isVolDown = (code == KeyEvent.KEYCODE_VOLUME_DOWN);
 
     if ((isVolUp || isVolDown) && nativeReader != null) {
-      if (action == KeyEvent.ACTION_DOWN) {
-        if (event.getRepeatCount() == 0) {
-          if (isVolUp) isVolUpHeld = true;
-          if (isVolDown) isVolDownHeld = true;
-
-          // Check if BOTH volume buttons are pressed within the allowed delay window
-          if (isVolUpHeld && isVolDownHeld) {
-            if (pendingVolAction != null) {
-              mainHandler.removeCallbacks(pendingVolAction);
-              pendingVolAction = null;
-            }
-            chordComboTriggered = true;
-            toggleTouchLock();
-            return true;
-          }
-
-          // Single volume key pressed: schedule page turn after CHORD_DELAY_MS delay
-          // If the other key is pressed within this window, the chord cancels this single turn!
-          if (pendingVolAction != null) {
-            mainHandler.removeCallbacks(pendingVolAction);
-          }
-          final int dir = isVolDown ? 1 : -1;
-          pendingVolAction = () -> {
-            pendingVolAction = null;
-            if (!chordComboTriggered) {
-              handleSingleKeyAction(dir);
-            }
-          };
-          mainHandler.postDelayed(pendingVolAction, CHORD_DELAY_MS);
-          return true;
-        } else {
-          if (chordComboTriggered) return true;
-          return true;
+      if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+        if (isVolUp) isVolUpHeld = true;
+        if (isVolDown) isVolDownHeld = true;
+        if (isVolUpHeld && isVolDownHeld && !chordComboTriggered) {
+          chordComboTriggered = true;
+          toggleTouchLock();
         }
       } else if (action == KeyEvent.ACTION_UP) {
+        boolean wasHeld = isVolUp ? isVolUpHeld : isVolDownHeld;
         if (isVolUp) isVolUpHeld = false;
         if (isVolDown) isVolDownHeld = false;
-        if (!isVolUpHeld && !isVolDownHeld) {
-          chordComboTriggered = false;
+        if (wasHeld && !chordComboTriggered && !event.isCanceled()) {
+          handleSingleKeyAction(isVolDown ? 1 : -1);
         }
-        return true;
+        if (!isVolUpHeld && !isVolDownHeld) chordComboTriggered = false;
       }
+      return true;
     }
 
     // 2. Hardware keys when not caught by volume chord (or for other keys: Page Up/Down, D-pad, etc.)
@@ -1878,30 +1848,7 @@ public class MainActivity extends Activity {
         } else if (web != null) {
           if(dir>0)web.pageDown(false);else web.pageUp(false);
         }else if(currentList!=null&&currentList.isShown()){
-          int count=currentList.getCount();
-          if(count>0){
-            int curFirst=currentList.getFirstVisiblePosition();
-            int target;
-            if(isBookListScreen){
-              if(curFirst < 5){
-                target = (dir > 0) ? Math.min(count - 1, 5) : 0;
-              }else{
-                int pageIdx = 2 + (curFirst - 5) / 6;
-                if(dir > 0){
-                  int nextFirst = 5 + (pageIdx - 1) * 6;
-                  target = Math.min(count - 1, nextFirst);
-                }else{
-                  if(pageIdx == 2) target = 0;
-                  else target = 5 + (pageIdx - 3) * 6;
-                }
-              }
-            }else{
-              int last=currentList.getLastVisiblePosition();
-              int visibleCount=Math.max(1, last - curFirst + 1);
-              target = (dir > 0) ? Math.min(count - 1, last + 1) : Math.max(0, curFirst - visibleCount);
-            }
-            currentList.setSelection(target);
-          }
+          listPaging.turn(currentList, dir);
         }else if(currentScroll!=null&&currentScroll.isShown()){
           currentScroll.pageScroll(dir>0?View.FOCUS_DOWN:View.FOCUS_UP);
         }
@@ -1921,3 +1868,4 @@ public class MainActivity extends Activity {
     return super.onKeyDown(key, event);
   }
 }
+

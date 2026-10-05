@@ -141,7 +141,7 @@ public final class NativeReader extends View {
   int first=pages.get(page),end=page+1<pages.size()?pages.get(page+1):layout.getLineCount();
   int top=layout.getLineTop(first);
   c.save();
-  c.clipRect(margin,textTop,getWidth()-margin,textBottom);
+  c.clipRect(margin,textTop,getWidth()-margin,Math.min(textBottom, textTop + layout.getLineTop(end) - top));
   c.translate(margin,textTop-top);
   layout.draw(c);
   c.restore();
@@ -167,7 +167,8 @@ public final class NativeReader extends View {
  public void turn(int direction){if(layout==null||pages.isEmpty())return;listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();}
  public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
  public boolean onTouchEvent(MotionEvent e){if(touchLocked)return true;if(e.getAction()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();return true;}if(e.getAction()==MotionEvent.ACTION_UP){if(Math.abs(e.getY()-downY)>40){swiped=true;return true;}if(Math.abs(e.getX()-downX)>25)return true;performClick();if(swiped){swiped=false;listener.toolbar();return true;}
-   if(layout!=null&&!pages.isEmpty()){float x=e.getX()-margin,y=e.getY()-margin+layout.getLineTop(pages.get(page));int ln=layout.getLineForVertical((int)y);if(x>=layout.getLineLeft(ln)&&x<=layout.getLineRight(ln)){int off=layout.getOffsetForHorizontal(ln,x);Note[] ns=text.getSpans(off,Math.min(text.length(),off+1),Note.class);if(ns.length>0){new AlertDialog.Builder(getContext()).setTitle("Chú thích").setMessage(ns[0].value).setPositiveButton("Đóng",null).show();return true;}}}
+   if(layout!=null&&!pages.isEmpty()){float x=e.getX()-margin,y=e.getY()-headerHeight+layout.getLineTop(pages.get(page));int ln=layout.getLineForVertical((int)y);if(x>=layout.getLineLeft(ln)&&x<=layout.getLineRight(ln)){int off=layout.getOffsetForHorizontal(ln,x);Note[] ns=text.getSpans(off,Math.min(text.length(),off+1),Note.class);if(ns.length>0){new AlertDialog.Builder(getContext()).setTitle("Chú thích").setMessage(ns[0].value).setPositiveButton("Đóng",null).show();return true;}}}
    if(!taps){listener.toolbar();return true;}float h=getHeight();if(e.getY()<h*0.35f)turn(-1);else if(e.getY()>h*0.65f)turn(1);else listener.toolbar();return true;}return true;}
  public boolean performClick(){super.performClick();return true;}
 }
+
