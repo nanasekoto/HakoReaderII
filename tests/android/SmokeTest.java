@@ -30,6 +30,15 @@ public class SmokeTest extends Instrumentation {
   }
   void settle() { waitForIdleSync(); SystemClock.sleep(150); waitForIdleSync(); }
   void key(int action, int code) {
+    if(action==KeyEvent.ACTION_DOWN){
+      // A newly replaced view/foreground-service notification can briefly shift window focus.
+      // Sending DOWN into a different window and UP into this one is not a physical hold here.
+      long limit=SystemClock.uptimeMillis()+3000;
+      while(!activity.getWindow().getDecorView().hasWindowFocus() && SystemClock.uptimeMillis()<limit){
+        SystemClock.sleep(50);waitForIdleSync();
+      }
+      if(!activity.getWindow().getDecorView().hasWindowFocus())throw new AssertionError("Target window has no keyboard focus");
+    }
     sendKeySync(new KeyEvent(action, code));
   }
   void press(int code) { key(KeyEvent.ACTION_DOWN, code); key(KeyEvent.ACTION_UP, code); settle(); }
