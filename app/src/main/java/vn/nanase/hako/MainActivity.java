@@ -72,8 +72,9 @@ public class MainActivity extends Activity {
     if (nativeReader != null) {
       boolean next = !nativeReader.isTouchLocked();
       nativeReader.setTouchLocked(next);
+      prefs.edit().putBoolean("touch_lock", next).apply();
       hideToolbar();
-      Toast.makeText(this, next ? "🔒 ĐÃ KHÓA CẢM ỨNG (Chỉ lật bằng phím cứng)" : "🔓 ĐÃ MỞ KHÓA CẢM ỨNG", Toast.LENGTH_SHORT).show();
+      Toast.makeText(this, next ? "🔒 ĐÃ KHÓA CẢM ỨNG (Chỉ mở khóa bằng phím cứng)" : "🔓 ĐÃ MỞ KHÓA CẢM ỨNG", Toast.LENGTH_SHORT).show();
     }
   }
   private volatile String bookId = "", chapterId = "";
@@ -1309,6 +1310,7 @@ public class MainActivity extends Activity {
 
     nativeReader.setTitles(b.title, c.title);
     nativeReader.setSyncStatus(Repository.isSyncing, Repository.syncPct);
+    nativeReader.setTouchLocked(prefs.getBoolean("touch_lock", false));
     // nativeReader fills 100% of readerFrame
     readerFrame.addView(nativeReader, new FrameLayout.LayoutParams(-1, -1));
 
@@ -1532,7 +1534,7 @@ public class MainActivity extends Activity {
     size.setOnSeekBarChangeListener(listener);line.setOnSeekBarChangeListener(listener);para.setOnSeekBarChangeListener(listener);indent.setOnSeekBarChangeListener(listener);margin.setOnSeekBarChangeListener(listener);
     fonts.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> a,View v,int p,long id){update.run();}public void onNothingSelected(AdapterView<?> a){}});
     bold.setOnCheckedChangeListener((a,b)->update.run());update.run();
-    CheckBox taps=check("Chạm trên/dưới để lật trang",prefs.getBoolean("taps",true));box.addView(taps);CheckBox charging=check("Đồng bộ tủ sách khi sạc",prefs.getBoolean("charging",true));box.addView(charging);
+    CheckBox taps=check("Chạm trên/dưới để lật trang",prefs.getBoolean("taps",true));box.addView(taps);CheckBox charging=check("Đồng bộ tủ sách khi sạc",prefs.getBoolean("charging",true));box.addView(charging);CheckBox touchLockBox=check("Khóa cảm ứng khi đọc (chống chạm túi, chỉ mở bằng phím cứng)",prefs.getBoolean("touch_lock",false));box.addView(touchLockBox);
     box.addView(button("Nhập font TTF / OTF",()->startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),88)));
     box.addView(button("Tên miền HAKO",this::domain));box.addView(button("Đọc mẫu offline",this::demo));
     box.addView(text("Tải trước 1–2: chờ 4s; 3–5: 12s; 6–10: 30s; 11–15: 60s. Màn hình tắt: ngừng tải trước khi dùng pin. Đọc bản lưu không cần chạy trang HAKO.",12));
@@ -1542,7 +1544,7 @@ public class MainActivity extends Activity {
       float ls=Math.round((0.70f+line.getProgress()*0.05f)*100f)/100f;
       int pDp=para.getProgress()*2;
       int iDp=indent.getProgress()*3;
-      prefs.edit().putInt("font2",fonts.getSelectedItemPosition()).putFloat("size2",12+size.getProgress()/2f).putFloat("line",ls).putInt("paraSpaceDp",pDp).putInt("indentDp",iDp).putInt("margin",margin.getProgress()).putInt("weight",bold.isChecked()?700:400).putBoolean("taps",taps.isChecked()).putBoolean("charging",charging.isChecked()).apply();
+      prefs.edit().putInt("font2",fonts.getSelectedItemPosition()).putFloat("size2",12+size.getProgress()/2f).putFloat("line",ls).putInt("paraSpaceDp",pDp).putInt("indentDp",iDp).putInt("margin",margin.getProgress()).putInt("weight",bold.isChecked()?700:400).putBoolean("taps",taps.isChecked()).putBoolean("charging",charging.isChecked()).putBoolean("touch_lock",touchLockBox.isChecked()).apply();if(nativeReader!=null)nativeReader.setTouchLocked(touchLockBox.isChecked());
       ChargeJob.schedule(this,charging.isChecked());
       if(nativeReader!=null)applyReaderStyle();
     }).setNegativeButton("Đóng",null).show();
@@ -1766,6 +1768,14 @@ public class MainActivity extends Activity {
       return;
     }
     if (nativeReader != null) {
+      if (nativeReader.isTouchLocked()) {
+        nativeReader.setTouchLocked(false);
+        prefs.edit().putBoolean("touch_lock", false).apply();
+        if (bar != null) bar.setVisibility(View.VISIBLE);
+        if (topBar != null) topBar.setVisibility(View.VISIBLE);
+        Toast.makeText(this, "🔓 Đã mở khóa cảm ứng", Toast.LENGTH_SHORT).show();
+        return;
+      }
       saveThen(() -> {
         leaveReader();
         if (!navStack.isEmpty()) navStack.pop().run();
@@ -1822,18 +1832,14 @@ public class MainActivity extends Activity {
     return code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_PAGE_UP||code==KeyEvent.KEYCODE_DPAD_UP||code==KeyEvent.KEYCODE_DPAD_LEFT;
   }
 
-  private boolean isVolUpHeld = false, isVolDownHeld = false, chordComboTriggered = false;
-  private Runnable pendingVolAction = null;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
-  private static final long CHORD_DELAY_MS = 250;
-
-  @Override
-  public boolean dispatchTouchEvent(MotionEvent ev) {
-    if (nativeReader != null && nativeReader.isTouchLocked()) {
-      return true; // Completely block all touch across entire window
-    }
-    return super.dispatchTouchEvent(ev);
-  }
+  private Runnable volLongPressRunnable = null;
+  private boolean isVolUpHeld = false, isVolDownHeld = false;
+  private long lastVolUpTime = 0, lastVolDownTime = 0;
+  private int lastVolTurnDir = 0;
+  private long lastVolTurnTime = 0;
+  private static final long COMBO_WINDOW_MS = 600;
+  private static final long LONG_PRESS_TIMEOUT_MS = 800;
 
   private void handleSingleKeyAction(int dir) {
     if (isBoundaryPromptVisible()) {
@@ -1866,56 +1872,89 @@ public class MainActivity extends Activity {
     int code = event.getKeyCode();
     int action = event.getAction();
 
-    // 1. Detect Volume Up + Volume Down chord combination with delay window
-    boolean isVolUp = (code == KeyEvent.KEYCODE_VOLUME_UP);
-    boolean isVolDown = (code == KeyEvent.KEYCODE_VOLUME_DOWN);
-
-    if ((isVolUp || isVolDown) && nativeReader != null) {
-      if (action == KeyEvent.ACTION_DOWN) {
-        if (event.getRepeatCount() == 0) {
-          if (isVolUp) isVolUpHeld = true;
-          if (isVolDown) isVolDownHeld = true;
-
-          // Check if BOTH volume buttons are pressed within the allowed delay window
-          if (isVolUpHeld && isVolDownHeld) {
-            if (pendingVolAction != null) {
-              mainHandler.removeCallbacks(pendingVolAction);
-              pendingVolAction = null;
-            }
-            chordComboTriggered = true;
-            toggleTouchLock();
-            return true;
-          }
-
-          // Single volume key pressed: schedule page turn after CHORD_DELAY_MS delay
-          // If the other key is pressed within this window, the chord cancels this single turn!
-          if (pendingVolAction != null) {
-            mainHandler.removeCallbacks(pendingVolAction);
-          }
-          final int dir = isVolDown ? 1 : -1;
-          pendingVolAction = () -> {
-            pendingVolAction = null;
-            if (!chordComboTriggered) {
-              handleSingleKeyAction(dir);
-            }
-          };
-          mainHandler.postDelayed(pendingVolAction, CHORD_DELAY_MS);
-          return true;
-        } else {
-          if (chordComboTriggered) return true;
-          return true;
-        }
-      } else if (action == KeyEvent.ACTION_UP) {
-        if (isVolUp) isVolUpHeld = false;
-        if (isVolDown) isVolDownHeld = false;
-        if (!isVolUpHeld && !isVolDownHeld) {
-          chordComboTriggered = false;
+    // 1. Hardware Menu / Front Center / Enter button to open toolbar
+    if (code == KeyEvent.KEYCODE_MENU || code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {
+      if (action == KeyEvent.ACTION_DOWN && nativeReader != null) {
+        if (isToolbarVisible()) hideToolbar();
+        else {
+          if (bar != null) bar.setVisibility(View.VISIBLE);
+          if (topBar != null) topBar.setVisibility(View.VISIBLE);
         }
         return true;
       }
     }
 
-    // 2. Hardware keys when not caught by volume chord (or for other keys: Page Up/Down, D-pad, etc.)
+    // 2. Volume buttons: instant page turning, fast 2-key combo (<600ms) or simultaneous press toggles Touch Lock!
+    boolean isVolUp = (code == KeyEvent.KEYCODE_VOLUME_UP);
+    boolean isVolDown = (code == KeyEvent.KEYCODE_VOLUME_DOWN);
+
+    if ((isVolUp || isVolDown) && nativeReader != null) {
+      long now = SystemClock.elapsedRealtime();
+
+      if (action == KeyEvent.ACTION_DOWN) {
+        if (isVolUp) isVolUpHeld = true;
+        if (isVolDown) isVolDownHeld = true;
+
+        if (event.getRepeatCount() == 0) {
+          boolean isCombo = false;
+
+          if (isVolDown) {
+            // Check if Volume Up is held OR was pressed recently (< 600ms)
+            if (isVolUpHeld || (now - lastVolUpTime <= COMBO_WINDOW_MS)) {
+              isCombo = true;
+            }
+            lastVolDownTime = now;
+          } else if (isVolUp) {
+            // Check if Volume Down is held OR was pressed recently (< 600ms)
+            if (isVolDownHeld || (now - lastVolDownTime <= COMBO_WINDOW_MS)) {
+              isCombo = true;
+            }
+            lastVolUpTime = now;
+          }
+
+          if (isCombo) {
+            if (volLongPressRunnable != null) {
+              mainHandler.removeCallbacks(volLongPressRunnable);
+              volLongPressRunnable = null;
+            }
+            // If the first key of this combo turned the page within 600ms, revert it!
+            if (lastVolTurnDir != 0 && (now - lastVolTurnTime <= COMBO_WINDOW_MS)) {
+              nativeReader.turn(-lastVolTurnDir);
+              lastVolTurnDir = 0;
+              lastVolTurnTime = 0;
+            }
+            lastVolUpTime = 0;
+            lastVolDownTime = 0;
+            toggleTouchLock();
+            return true;
+          }
+
+          // Not a combo yet: schedule long-press backup and perform single page turn
+          if (volLongPressRunnable != null) mainHandler.removeCallbacks(volLongPressRunnable);
+          volLongPressRunnable = () -> {
+            toggleTouchLock();
+          };
+          mainHandler.postDelayed(volLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
+
+          final int dir = isVolDown ? 1 : -1;
+          lastVolTurnDir = dir;
+          lastVolTurnTime = now;
+          handleSingleKeyAction(dir);
+        }
+        return true;
+      } else if (action == KeyEvent.ACTION_UP) {
+        if (isVolUp) isVolUpHeld = false;
+        if (isVolDown) isVolDownHeld = false;
+
+        if (volLongPressRunnable != null) {
+          mainHandler.removeCallbacks(volLongPressRunnable);
+          volLongPressRunnable = null;
+        }
+        return true;
+      }
+    }
+
+    // 3. Other page turn hardware keys (Page Up/Down, D-pad, etc.)
     boolean down = isPageDownKey(code);
     boolean up = isPageUpKey(code);
     if (down || up) {

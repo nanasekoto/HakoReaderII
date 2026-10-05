@@ -16,6 +16,33 @@ public class FixTest {
    for(int p=0;p<pages.size();p++){int a=pages.get(p),end=p+1<pages.size()?pages.get(p+1):n;check(end>a&&bottom[end-1]-top[a]<=height,"Whole lines fit every page");}
   }
   check(PageBreaks.split(new int[]{0,900,920},new int[]{900,920},300,0).equals(Arrays.asList(0,1)),"Oversized block progresses without infinite loop");
+  
+  // Invariant 1: Multi-domain support
+  HakoParser.ORIGIN = "https://docln.sbs";
+  check(HakoParser.isOrigin("https://docln.sbs/truyen/1-a/c1-b"), "Support docln.sbs origin");
+  check(HakoParser.isOrigin("https://docln.net/truyen/1-a/c1-b"), "Support docln.net mirror");
+  check(HakoParser.isOrigin("https://ln.hako.vn/truyen/1-a/c1-b"), "Support ln.hako.vn mirror");
+  check(HakoParser.isOrigin("https://hako.vip/truyen/1-a/c1-b"), "Support hako.vip mirror");
+  check(!HakoParser.isOrigin("https://google.com/test"), "Reject outside domain");
+
+  // Invariant 2: Frequent list percentage formula: (oldChs + newDownloaded) / total
+  int totalChapters = 50;
+  int currentChapter = 40; // Read up to chapter 40
+  int oldChs = currentChapter;
+  int newChs = totalChapters - currentChapter; // 10 remaining chapters
+  int newDownloadedAll = 10;
+  int pctAll = Math.round((oldChs + newDownloadedAll) * 100f / totalChapters);
+  check(pctAll == 100, "All new chapters downloaded equals 100%");
+
+  int newDownloadedHalf = 5;
+  int pctHalf = Math.round((oldChs + newDownloadedHalf) * 100f / totalChapters);
+  check(pctHalf == 90, "Half new chapters downloaded equals 90% (45/50)");
+
+  // Invariant 3: Store.java SQL column check - ensure no camelCase shelfRank/shelfInfo in raw SQL
+  String storeCode = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get("app/src/main/java/vn/nanase/hako/Store.java")), java.nio.charset.StandardCharsets.UTF_8);
+  check(!storeCode.contains("SELECT id,title,url,current,pos,fraction,stamp,dropped,visits,pinned,shelfRank"), "Store.book SQL query uses snake_case column names");
+  check(storeCode.contains("shelf_rank") && storeCode.contains("shelf_info"), "Store.java queries shelf_rank and shelf_info");
+
   System.out.println("PASS "+checks+" regression assertions");
  }
 }

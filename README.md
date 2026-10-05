@@ -78,3 +78,8 @@ adb shell am instrument -w vn.nanase.hako.tests/.SmokeTest
 ```
 
 Không cần chuyển tài khoản hoặc mật khẩu cho người phát triển.
+
+---
+
+## Nguyên Tắc Kiến Trúc & Quy Chuẩn Bất Biến (Architecture Invariants)
+Dự án được xây dựng dựa trên bộ quy tắc chuẩn hóa nghiêm ngặt để tối ưu hóa 100% cho màn hình E-ink Xteink S4 (Android 11) và ngăn ngừa mọi lỗi hồi quy cố hữu. Chi tiết kỹ thuật xem tại: [`docs/ARCHITECTURE_INVARIANTS.md`](docs/ARCHITECTURE_INVARIANTS.md).
