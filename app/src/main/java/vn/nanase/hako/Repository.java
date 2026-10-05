@@ -200,8 +200,9 @@ public final class Repository {
       if(all){
         for(Store.Book b:s.books()){
           if(b.id.equals("demo")||b.dropped)continue;
-          // Only sync books user has actively opened/read; do not auto-fill untouched shelf books
-          if(b.stamp>0||b.visits>0||b.id.equals(activeBook))todo.add(b);
+          // Per-book auto-download control: only sync books where user explicitly enabled auto-download for this specific novel!
+          boolean autoDl = ctx.getSharedPreferences("settings",0).getBoolean("auto_dl_"+b.id, false);
+          if(autoDl || b.id.equals(activeBook)) todo.add(b);
         }
       }else{
         Store.Book b=s.book(book);if(b!=null&&!b.id.equals("demo"))todo.add(b);
@@ -227,7 +228,8 @@ public final class Repository {
         if(todo.isEmpty()||(charging&&!ChargeJob.isCharging(ctx)))break;
         Store.Book b=todo.remove(0);
         if(b==null||b.id==null||b.id.isEmpty()||b.dropped)continue;
-        if(b.stamp==0&&b.visits==0&&!b.id.equals(activeBook))continue;
+        boolean autoDl = ctx.getSharedPreferences("settings",0).getBoolean("auto_dl_"+b.id, false);
+        if(all && !autoDl && !b.id.equals(activeBook))continue;
         catalog(ctx,b);
         Store.Book refreshed=s.book(b.id);
         if(refreshed!=null)b=refreshed;

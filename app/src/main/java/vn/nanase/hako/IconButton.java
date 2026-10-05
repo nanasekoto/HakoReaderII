@@ -5,7 +5,7 @@ public final class IconButton extends View {
  private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);private final int kind;
  private final boolean squircle;
  public IconButton(Context c,int k,String label,Runnable action){this(c,k,label,false,action);}
- public IconButton(Context c,int k,String label,boolean sq,Runnable action){super(c);kind=k;squircle=sq;setContentDescription(label);setTooltipText(label);setFocusable(true);setClickable(true);setOnClickListener(v->action.run());}
+ public IconButton(Context c,int k,String label,boolean sq,Runnable action){super(c);kind=k;squircle=sq;setContentDescription(label);setTooltipText(label);setFocusable(true);setClickable(true);setBackground(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));setStateListAnimator(null);setOnClickListener(v->action.run());}
  protected void onDraw(Canvas c){
   super.onDraw(c);
   if(squircle){

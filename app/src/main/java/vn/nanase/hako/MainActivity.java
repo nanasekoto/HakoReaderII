@@ -80,9 +80,11 @@ public class MainActivity extends Activity {
     b.setTextColor(INK);
     b.setTextSize(13);
     b.setAllCaps(false);
-    b.setMinHeight(dp(42));
+    b.setMinHeight(dp(36));
     b.setMinimumWidth(0);
-    b.setPadding(dp(4), 0, dp(4), 0);
+    b.setPadding(dp(6), 0, dp(6), 0);
+    b.setBackground(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+    b.setStateListAnimator(null);
     b.setOnClickListener(v -> r.run());
     return b;
   }
@@ -217,7 +219,7 @@ public class MainActivity extends Activity {
         label.setGravity(Gravity.CENTER);
         label.setPadding(0,dp(6),0,0);
         cell.addView(label);
-        cell.setOnClickListener(v->actions[x].run());
+        cell.setBackground(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)); cell.setOnClickListener(v->actions[x].run());
         line.addView(cell,new LinearLayout.LayoutParams(0,-1,1f));
       }
       grid.addView(line,new LinearLayout.LayoutParams(-1,0,1f));
@@ -271,6 +273,8 @@ public class MainActivity extends Activity {
       for (HakoParser.Link l : stories) names.add(l.title + (l.info.isEmpty() ? "" : "\n" + l.info));
       ListView list = new ListView(this);
       currentList = list;
+      list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+      list.setDrawSelectorOnTop(false);
       list.setDivider(null);
       list.setDividerHeight(dp(8));
       list.setPadding(dp(6),dp(4),dp(6),dp(4));
@@ -358,14 +362,13 @@ public class MainActivity extends Activity {
 
     Button btnMore=button("⋯",()->{
       new AlertDialog.Builder(this).setItems(new String[]{
-        "Đồng bộ ngay","Dừng tải","HAKO / Tủ sách",
+        "Dừng tải","HAKO / Tủ sách",
         prefs.getBoolean("unreadOnly",false)?"Hiện tất cả truyện":"Chỉ bộ còn chương mới",
         "Thêm link truyện (dán URL)"
       },(d,w)->{
-        if(w==0)confirmBulk();
-        if(w==1)Repository.cancel.set(true);
-        if(w==2)browse(HakoParser.ORIGIN+"/ke-sach");
-        if(w==3){
+        if(w==0)Repository.cancel.set(true);
+        if(w==1)browse(HakoParser.ORIGIN+"/ke-sach");
+        if(w==2){
           prefs.edit().putBoolean("unreadOnly",!prefs.getBoolean("unreadOnly",false)).apply();
           bookList(true);
         }
@@ -382,6 +385,8 @@ public class MainActivity extends Activity {
     if(shelf)java.util.Collections.sort(books,(a,b)->Integer.compare(a.shelfRank,b.shelfRank));
 
     ListView list=new ListView(this);currentList=list;
+    list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+    list.setDrawSelectorOnTop(false);
     list.setDivider(null);
     list.setDividerHeight(dp(5));
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
@@ -509,6 +514,8 @@ public class MainActivity extends Activity {
     Collections.sort(books,(a,b)->{if(a.pinned!=b.pinned)return a.pinned?-1:1;int n=Integer.compare(b.visits,a.visits);return n!=0?n:Long.compare(b.stamp,a.stamp);});
 
     ListView list=new ListView(this);currentList=list;
+    list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+    list.setDrawSelectorOnTop(false);
     list.setDivider(null);
     list.setDividerHeight(dp(5));
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
@@ -643,15 +650,32 @@ public class MainActivity extends Activity {
   }
 
   private void bookMenu(Store.Book b) {
+    boolean autoDl = prefs.getBoolean("auto_dl_" + b.id, false);
     new AlertDialog.Builder(this)
         .setTitle(b.title)
         .setItems(
             new String[] {
-              "Mục lục / chọn chương", "Tải lại mục lục", "Tải truyện này", "Mở trên HAKO", b.dropped?"Tiếp tục theo dõi":"Tạm ngưng / drop",b.pinned?"Bỏ ghim":"Ghim thường đọc","Đã bắt kịp trên HAKO"
+              "Mục lục / chọn chương",
+              "⬇ Tải tất cả chương (bộ này)",
+              autoDl ? "⚡ Tự động tải khi sạc: ĐANG BẬT" : "⚡ Tự động tải khi sạc: ĐANG TẮT",
+              "Tải lại mục lục",
+              "Mở trên HAKO",
+              b.dropped ? "Tiếp tục theo dõi" : "Tạm ngưng / drop",
+              b.pinned ? "Bỏ ghim" : "Ghim thường đọc",
+              "Đã bắt kịp trên HAKO"
             },
             (d, w) -> {
               if (w == 0) contents(b);
-              if (w == 1)
+              if (w == 1) {
+                startDownloads(b.id, true);
+                Toast.makeText(this, "Bắt đầu tải tất cả chương: " + b.title, Toast.LENGTH_SHORT).show();
+              }
+              if (w == 2) {
+                boolean next = !autoDl;
+                prefs.edit().putBoolean("auto_dl_" + b.id, next).apply();
+                Toast.makeText(this, next ? "Đã BẬT tự động tải khi sạc cho bộ này" : "Đã TẮT tự động tải khi sạc cho bộ này", Toast.LENGTH_SHORT).show();
+              }
+              if (w == 3)
                 task(
                     "Cập nhật mục lục…",
                     () -> {
@@ -660,10 +684,10 @@ public class MainActivity extends Activity {
                       return null;
                     },
                     () -> contents(b));
-              if (w == 2) startDownloads(b.id, false);
-              if (w == 3) browse(b.url);
-              if(w==5){store.pin(b.id,!b.pinned);frequentList();}if(w==6)markCaughtUp(b);
-              if(w==4){store.dropped(b.id,!b.dropped);bookList(b.followed);}
+              if (w == 4) browse(b.url);
+              if (w == 5) { store.dropped(b.id, !b.dropped); bookList(b.followed); }
+              if (w == 6) { store.pin(b.id, !b.pinned); frequentList(); }
+              if (w == 7) markCaughtUp(b);
             })
         .show();
   }
@@ -805,6 +829,8 @@ public class MainActivity extends Activity {
 
     ListView list = new ListView(this);
     currentList = list;
+    list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+    list.setDrawSelectorOnTop(false);
     final int finalSelectedPos = targetIdx;
     list.setDivider(new android.graphics.drawable.ColorDrawable(Color.BLACK));
     list.setDividerHeight(dp(1));
@@ -1355,7 +1381,7 @@ public class MainActivity extends Activity {
     btnStayBg.setCornerRadius(dp(6));
     btnStay.setBackground(btnStayBg);
     btnStay.setPadding(dp(10), dp(6), dp(10), dp(6));
-    btnStay.setOnClickListener(v -> hideBoundaryPrompt());
+    btnStay.setStateListAnimator(null); btnStay.setOnClickListener(v -> hideBoundaryPrompt());
     LinearLayout.LayoutParams lpStay = new LinearLayout.LayoutParams(0, dp(42), 1f);
     lpStay.setMargins(0, 0, dp(8), 0);
     btnRow.addView(btnStay, lpStay);
@@ -1370,7 +1396,7 @@ public class MainActivity extends Activity {
     btnConfirmBg.setCornerRadius(dp(6));
     btnConfirm.setBackground(btnConfirmBg);
     btnConfirm.setPadding(dp(10), dp(6), dp(10), dp(6));
-    btnConfirm.setOnClickListener(v -> {
+    btnConfirm.setStateListAnimator(null); btnConfirm.setOnClickListener(v -> {
       int d = boundaryDir;
       hideBoundaryPrompt();
       adjacent(d);
