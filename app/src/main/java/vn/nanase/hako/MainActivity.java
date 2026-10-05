@@ -412,7 +412,11 @@ public class MainActivity extends Activity {
     headerTitle.setTextSize(18);
     headerTitle.setTypeface(Typeface.DEFAULT_BOLD);
     headerTitle.setTextColor(INK);
-    header.addView(headerTitle,new LinearLayout.LayoutParams(0,-2,1f));
+    headerTitle.setSingleLine(true);
+    header.addView(headerTitle,new LinearLayout.LayoutParams(-2,-2));
+
+    View spacer=new View(this);
+    header.addView(spacer,new LinearLayout.LayoutParams(0,1,1f));
 
     header.addView(button("Trang chính",this::library),new LinearLayout.LayoutParams(-2,dp(32)));
     Button btnSync=button(shelf?"Cập nhật":"Lịch sử",()->{
@@ -451,24 +455,39 @@ public class MainActivity extends Activity {
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
-    list.setDividerHeight(dp(5));
-    list.setPadding(dp(6),dp(3),dp(6),dp(3));
+    list.setDividerHeight(dp(3.5f));
+    list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
+
+    final int[] itemH = new int[]{0};
+    list.post(() -> {
+      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
+      if (listH > 0) {
+        int cardsPerPage = 7;
+        int divH = dp(3.5f);
+        itemH[0] = Math.max(dp(50), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        list.invalidateViews();
+      }
+    });
+
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
         Store.Book b=getItem(p);
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
-        card.setMinimumHeight(dp(52));
+        if(itemH[0] > 0){
+          card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
+        }else{
+          card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+        }
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(1.8f),Color.BLACK);
-        cardBg.setCornerRadius(dp(6));
+        cardBg.setStroke(dp(1.5f),Color.BLACK);
+        cardBg.setCornerRadius(dp(5));
         card.setBackground(cardBg);
-        card.setPadding(dp(10),dp(6),dp(10),dp(6));
+        card.setPadding(dp(8),dp(3),dp(8),dp(3));
 
         LinearLayout top=new LinearLayout(MainActivity.this);
         top.setOrientation(LinearLayout.HORIZONTAL);
@@ -476,23 +495,23 @@ public class MainActivity extends Activity {
 
         TextView titleView=new TextView(MainActivity.this);
         titleView.setText(b.title);
-        titleView.setTextSize(14.5f);
+        titleView.setTextSize(13.5f);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
-        titleView.setMaxLines(2);
+        titleView.setSingleLine(true);
         top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
 
         int newCount=newChapterCount(b);
         if(newCount>0){
           TextView badge=new TextView(MainActivity.this);
           badge.setText("+"+newCount+" mới");
-          badge.setTextSize(11);
+          badge.setTextSize(10.5f);
           badge.setTextColor(Color.WHITE);
           badge.setBackgroundColor(Color.BLACK);
           badge.setTypeface(Typeface.DEFAULT_BOLD);
-          badge.setPadding(dp(5),dp(1),dp(5),dp(1));
+          badge.setPadding(dp(4),dp(1),dp(4),dp(1));
           LinearLayout.LayoutParams lpBadge=new LinearLayout.LayoutParams(-2,-2);
-          lpBadge.setMargins(dp(6),0,0,0);
+          lpBadge.setMargins(dp(5),0,0,0);
           top.addView(badge,lpBadge);
         }
         card.addView(top);
@@ -519,10 +538,10 @@ public class MainActivity extends Activity {
 
         TextView subView=new TextView(MainActivity.this);
         subView.setText(sub.toString());
-        subView.setTextSize(11.5f);
+        subView.setTextSize(11f);
         subView.setTextColor(MUTED);
         subView.setSingleLine(true);
-        subView.setPadding(0,dp(2),0,0);
+        subView.setPadding(0,dp(1),0,0);
         card.addView(subView);
 
         return card;
@@ -559,9 +578,20 @@ public class MainActivity extends Activity {
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
-    list.setDividerHeight(dp(5));
+    list.setDividerHeight(dp(3.5f));
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
+
+    final int[] freqItemH = new int[]{0};
+    list.post(() -> {
+      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
+      if (listH > 0) {
+        int cardsPerPage = 7;
+        int divH = dp(3.5f);
+        freqItemH[0] = Math.max(dp(50), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        list.invalidateViews();
+      }
+    });
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
@@ -569,15 +599,18 @@ public class MainActivity extends Activity {
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
-        card.setMinimumHeight(dp(52));
+        if(freqItemH[0] > 0){
+          card.setLayoutParams(new AbsListView.LayoutParams(-1, freqItemH[0]));
+        }else{
+          card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+        }
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(2),Color.BLACK);
-        cardBg.setCornerRadius(dp(6));
+        cardBg.setStroke(dp(1.5f),Color.BLACK);
+        cardBg.setCornerRadius(dp(5));
         card.setBackground(cardBg);
-        card.setPadding(dp(10),dp(6),dp(10),dp(6));
+        card.setPadding(dp(8),dp(3),dp(8),dp(3));
 
         LinearLayout top=new LinearLayout(MainActivity.this);
         top.setOrientation(LinearLayout.HORIZONTAL);
@@ -585,10 +618,10 @@ public class MainActivity extends Activity {
 
         TextView titleView=new TextView(MainActivity.this);
         titleView.setText((b.pinned?"★ ":"")+b.title);
-        titleView.setTextSize(14.5f);
+        titleView.setTextSize(13.5f);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
-        titleView.setMaxLines(2);
+        titleView.setSingleLine(true);
         top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
 
         Store.BookProgress prog = store.progress(b);
@@ -603,10 +636,10 @@ public class MainActivity extends Activity {
           badge.setText("ĐÃ TẢI "+prog.percent+"%");
           badge.setBackgroundColor(Color.BLACK);
         }
-        badge.setTextSize(11);
+        badge.setTextSize(10.5f);
         badge.setTextColor(Color.WHITE);
         badge.setTypeface(Typeface.DEFAULT_BOLD);
-        badge.setPadding(dp(5),dp(1),dp(5),dp(1));
+        badge.setPadding(dp(4),dp(1),dp(4),dp(1));
         LinearLayout.LayoutParams lpBadge=new LinearLayout.LayoutParams(-2,-2);
         lpBadge.setMargins(dp(6),0,0,0);
         top.addView(badge,lpBadge);
@@ -628,10 +661,10 @@ public class MainActivity extends Activity {
 
         TextView subView=new TextView(MainActivity.this);
         subView.setText(sub.toString());
-        subView.setTextSize(11.5f);
+        subView.setTextSize(11f);
         subView.setTextColor(MUTED);
         subView.setSingleLine(true);
-        subView.setPadding(0,dp(2),0,0);
+        subView.setPadding(0,dp(1),0,0);
         card.addView(subView);
         return card;
       }
@@ -1679,26 +1712,45 @@ public class MainActivity extends Activity {
   private boolean isPageUpKey(int code){
     return code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_PAGE_UP||code==KeyEvent.KEYCODE_DPAD_UP||code==KeyEvent.KEYCODE_DPAD_LEFT;
   }
+  private boolean volUpHeld=false,volDownHeld=false;
+  private long lastComboLockTime=0;
   @Override public boolean dispatchKeyEvent(KeyEvent event){
     int code=event.getKeyCode();
+    int action=event.getAction();
+
+    // Check simultaneous Volume Up + Volume Down press to toggle touch lock
     if(code==KeyEvent.KEYCODE_VOLUME_UP){
-      if(event.getAction()==KeyEvent.ACTION_DOWN){
-        volumeUpPressed=true;
-        volumeUpPressTime=SystemClock.elapsedRealtime();
-      }else if(event.getAction()==KeyEvent.ACTION_UP){
-        volumeUpPressed=false;
-        if(SystemClock.elapsedRealtime()-volumeUpPressTime>1200){
+      if(action==KeyEvent.ACTION_DOWN){
+        volUpHeld=true;
+        if(volDownHeld&&SystemClock.elapsedRealtime()-lastComboLockTime>600){
+          lastComboLockTime=SystemClock.elapsedRealtime();
           toggleTouchLock();
+          return true;
+        }
+      }else if(action==KeyEvent.ACTION_UP){
+        volUpHeld=false;
+        if(SystemClock.elapsedRealtime()-lastComboLockTime<400){
+          return true;
+        }
+      }
+    }else if(code==KeyEvent.KEYCODE_VOLUME_DOWN){
+      if(action==KeyEvent.ACTION_DOWN){
+        volDownHeld=true;
+        if(volUpHeld&&SystemClock.elapsedRealtime()-lastComboLockTime>600){
+          lastComboLockTime=SystemClock.elapsedRealtime();
+          toggleTouchLock();
+          return true;
+        }
+      }else if(action==KeyEvent.ACTION_UP){
+        volDownHeld=false;
+        if(SystemClock.elapsedRealtime()-lastComboLockTime<400){
           return true;
         }
       }
     }
-    if(event.getAction()==KeyEvent.ACTION_DOWN){
-      // Toggle touch lock when Volume Up is held and Power or Volume Down is pressed
-      if((code==KeyEvent.KEYCODE_POWER||code==KeyEvent.KEYCODE_VOLUME_DOWN)&&volumeUpPressed){
-        toggleTouchLock();
-        return true;
-      }
+
+    if(SystemClock.elapsedRealtime()-lastComboLockTime<400){
+      return true;
     }
     boolean down=isPageDownKey(code);
     boolean up=isPageUpKey(code);
@@ -1725,7 +1777,7 @@ public class MainActivity extends Activity {
           int count=currentList.getCount();
           if(count>0){
             int curFirst=currentList.getFirstVisiblePosition();
-            int pageSize=5;
+            int pageSize=7;
             int curPage=curFirst/pageSize;
             int targetPage=(dir>0)?Math.min((count-1)/pageSize,curPage+1):Math.max(0,curPage-1);
             currentList.setSelection(targetPage*pageSize);
