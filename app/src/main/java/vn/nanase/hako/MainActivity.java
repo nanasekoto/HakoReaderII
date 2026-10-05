@@ -513,7 +513,17 @@ public class MainActivity extends Activity {
     int cardsPerPage = 6;
     int divH = dp(4);
     int listH = Math.max(dp(350), screenH - dp(36) - dp(4));
-    final int itemH = Math.max(dp(56), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+    final int[] itemH = new int[]{ Math.max(dp(62), (listH - (cardsPerPage - 1) * divH) / cardsPerPage) };
+    list.post(() -> {
+      int actualH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
+      if (actualH > 0) {
+        int targetH = (actualH - (cardsPerPage - 1) * divH) / cardsPerPage;
+        if (targetH > 0 && targetH != itemH[0]) {
+          itemH[0] = targetH;
+          list.invalidateViews();
+        }
+      }
+    });
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
@@ -521,7 +531,7 @@ public class MainActivity extends Activity {
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -627,7 +637,17 @@ public class MainActivity extends Activity {
     int cardsPerPage = 6;
     int divH = dp(4);
     int listH = Math.max(dp(350), screenH - dp(36) - dp(4));
-    final int itemH = Math.max(dp(56), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+    final int[] itemH = new int[]{ Math.max(dp(62), (listH - (cardsPerPage - 1) * divH) / cardsPerPage) };
+    list.post(() -> {
+      int actualH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
+      if (actualH > 0) {
+        int targetH = (actualH - (cardsPerPage - 1) * divH) / cardsPerPage;
+        if (targetH > 0 && targetH != itemH[0]) {
+          itemH[0] = targetH;
+          list.invalidateViews();
+        }
+      }
+    });
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
@@ -635,7 +655,7 @@ public class MainActivity extends Activity {
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -1134,8 +1154,26 @@ public class MainActivity extends Activity {
     Repository.pendingBook=bid;
     if (store.readable(cid)) {
       showReader(bid, cid);
-      
-    } else
+    } else {
+      if (boundaryPrompt != null) {
+        boundaryPrompt.removeAllViews();
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER);
+        card.setPadding(dp(18), dp(16), dp(18), dp(16));
+        android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
+        cardBg.setColor(Color.WHITE);
+        cardBg.setStroke(dp(2), Color.BLACK);
+        cardBg.setCornerRadius(dp(10));
+        card.setBackground(cardBg);
+        TextView tv = text("Đang tải " + c.title + "…\nVui lòng đợi trong giây lát.", 15);
+        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setTextColor(Color.BLACK);
+        tv.setGravity(Gravity.CENTER);
+        card.addView(tv);
+        boundaryPrompt.addView(card, new LinearLayout.LayoutParams(-1, -2));
+        boundaryPrompt.setVisibility(View.VISIBLE);
+      }
       task(
           "Đang tải " + c.title + "…",
           () -> {
@@ -1143,8 +1181,10 @@ public class MainActivity extends Activity {
             return null;
           },
           () -> {
+            hideBoundaryPrompt();
             showReader(bid, cid);
           });
+    }
   }
 
   private void showReader(String bid,String cid){
@@ -1795,13 +1835,24 @@ public class MainActivity extends Activity {
     if(down||up){
       if(event.getAction()==KeyEvent.ACTION_DOWN){
         if(isBoundaryPromptVisible()){
-          // Volume Down ALWAYS CONFIRMS, Volume Up ALWAYS CANCELS / STAYS!
-          if(down){
-            int d = boundaryDir;
-            hideBoundaryPrompt();
-            adjacent(d);
-          }else if(up){
-            hideBoundaryPrompt();
+          if(boundaryDir > 0){
+            // At END of chapter: Vol Down (Tiếp tục) confirms, Vol Up (Ở lại) cancels
+            if(down){
+              int d = boundaryDir;
+              hideBoundaryPrompt();
+              adjacent(d);
+            }else if(up){
+              hideBoundaryPrompt();
+            }
+          }else if(boundaryDir < 0){
+            // At START of chapter: Vol Up (Quay lại) confirms, Vol Down (Ở lại) cancels
+            if(up){
+              int d = boundaryDir;
+              hideBoundaryPrompt();
+              adjacent(d);
+            }else if(down){
+              hideBoundaryPrompt();
+            }
           }
           return true;
         }
