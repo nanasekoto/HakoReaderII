@@ -490,6 +490,18 @@ public class MainActivity extends Activity {
     headerTitle.setTextColor(INK);
     header.addView(headerTitle,new LinearLayout.LayoutParams(0,-2,1f));
 
+    Button btnDlAll = button("Tải tất cả", () -> {
+      new AlertDialog.Builder(this)
+          .setTitle("Tải tất cả các chương")
+          .setMessage("Tải toàn bộ các chương của các bộ truyện trong danh sách Thường đọc để đọc offline?")
+          .setPositiveButton("Tải ngay", (d, w) -> startDownloads("", true))
+          .setNegativeButton("Hủy", null)
+          .show();
+    });
+    LinearLayout.LayoutParams lpDl = new LinearLayout.LayoutParams(-2, dp(32));
+    lpDl.setMargins(0, 0, dp(4), 0);
+    header.addView(btnDlAll, lpDl);
+
     header.addView(button("Trang chính",this::library),new LinearLayout.LayoutParams(-2,dp(32)));
     root.addView(header);
 
@@ -606,7 +618,7 @@ public class MainActivity extends Activity {
         return card;
       }
     });
-    list.setOnItemClickListener((a,v,i,id)->{navStack.push(this::frequentList);openBook(books.get(i));});
+    list.setOnItemClickListener((a,v,i,id)->{navStack.push(this::frequentList);contents(books.get(i));});
     list.setOnItemLongClickListener((a,v,i,id)->{bookMenu(books.get(i));return true;});
     root.addView(list,new LinearLayout.LayoutParams(-1,0,1));status();
   }
@@ -772,6 +784,10 @@ public class MainActivity extends Activity {
     List<Runnable> rowActs = new ArrayList<>();
     rowBtns.add("◀ Quay lại");rowActs.add(this::goBack);
     rowBtns.add("▶ Đọc tiếp");rowActs.add(() -> openChapter(b.id, targetCh.id));
+    rowBtns.add("⬇ Tải tất cả");rowActs.add(() -> {
+      startDownloads(b.id, true);
+      Toast.makeText(this, "Đang tải tất cả chương của: " + b.title, Toast.LENGTH_SHORT).show();
+    });
     rowBtns.add(b.followed ? "♥ Đã lưu" : "♡ Tủ sách");
     rowActs.add(() -> { saveBook(); contents(store.book(b.id)); });
     rowBtns.add("⋯ Menu");rowActs.add(() -> bookMenu(b));
