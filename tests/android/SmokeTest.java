@@ -30,7 +30,7 @@ public class SmokeTest extends Instrumentation {
   }
   void settle() { waitForIdleSync(); SystemClock.sleep(150); waitForIdleSync(); }
   void key(int action, int code) {
-    runOnMainSync(() -> activity.dispatchKeyEvent(new KeyEvent(action, code)));
+    sendKeySync(new KeyEvent(action, code));
   }
   void press(int code) { key(KeyEvent.ACTION_DOWN, code); key(KeyEvent.ACTION_UP, code); settle(); }
   void chord() {
@@ -56,7 +56,7 @@ public class SmokeTest extends Instrumentation {
   }
   void shot(String name) throws Exception {
     Bitmap image=getUiAutomation().takeScreenshot(); check(image!=null,"Screenshot "+name);
-    File dir=new File(getTargetContext().getExternalFilesDir(null),"ui-evidence");dir.mkdirs();
+    File dir=new File(getTargetContext().getFilesDir(),"ui-evidence");dir.mkdirs();
     try(FileOutputStream out=new FileOutputStream(new File(dir,name+".png"))) { image.compress(Bitmap.CompressFormat.PNG,100,out); }
     image.recycle();
   }
@@ -66,7 +66,10 @@ public class SmokeTest extends Instrumentation {
     int first=list.getFirstVisiblePosition(), last=list.getLastVisiblePosition();
     View bottom=list.getChildAt(list.getChildCount()-1);
     boolean partial=bottom.getBottom()>list.getHeight()-list.getPaddingBottom();
+    check(!partial,label+" last row fits fully within viewport");
+    log.append("GEOMETRY ").append(label).append(" height=").append(list.getHeight()).append(" first=").append(first).append(" last=").append(last).append(" lastBottom=").append(bottom.getBottom()).append('\n');
     press(KeyEvent.KEYCODE_VOLUME_DOWN);
+    shot(label.replace(' ','-')+"-page2");
     int after=list.getFirstVisiblePosition();
     check(after>first && after<=last+(partial?0:1),label+" page forward skips no partial row");
     press(KeyEvent.KEYCODE_VOLUME_UP);
@@ -87,19 +90,39 @@ public class SmokeTest extends Instrumentation {
       activity=(MainActivity)startActivitySync(new Intent().setClassName("vn.nanase.hako","vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));settle();
       check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.5.0"),"Installed version 0.5.0 (existing Actions APK)");
       shot("home"); listCheck("Vừa đọc"); listCheck("Tủ sách"); listCheck("Thường đọc");
+      call("onlineList",new Class<?>[]{String.class,String.class},"Mới cập nhật (dữ liệu thử)",
+        "https://raw.githubusercontent.com/nanasekoto/HakoReaderII/codex/test-existing-fc1b545/tests/fixtures/story-list.html");
+      long limit=SystemClock.elapsedRealtime()+15000;
+      ListView online=null;
+      while(SystemClock.elapsedRealtime()<limit) {
+        online=(ListView)field(activity,"currentList");
+        if(online!=null && online.isShown() && online.getCount()>=18)break;
+        SystemClock.sleep(100);waitForIdleSync();
+      }
+      if(online!=null && online.isShown() && online.getCount()>=18) {
+        shot("new-updates");
+        int oldLast=online.getLastVisiblePosition();
+        View bottom=online.getChildAt(online.getChildCount()-1);
+        boolean partial=bottom.getBottom()>online.getHeight()-online.getPaddingBottom();
+        check(!partial,"New updates last card fits fully");
+        press(KeyEvent.KEYCODE_VOLUME_DOWN);shot("new-updates-page2");
+        check(online.getFirstVisiblePosition()<=oldLast+(partial?0:1),"New updates paging skips no item");
+      }else check(false,"New updates fixture loaded within 15 seconds");
+      call("library",new Class<?>[]{});
       click("Đọc mẫu");
       NativeReader reader=(NativeReader)field(activity,"nativeReader");
       check(reader!=null && reader.getPageCount()>1,"Demo opens native reader with multiple pages");
       shot("reader");
       int before=(Integer)field(reader,"page"); press(KeyEvent.KEYCODE_VOLUME_DOWN);
       check((Integer)field(reader,"page")==before+1,"Volume down turns exactly one page");
+      SystemClock.sleep(700);
       int page=(Integer)field(reader,"page");
       key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_VOLUME_UP);settle();
       check((Integer)field(reader,"page")==page,"First chord key does not flash another page");
       key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_VOLUME_DOWN);
       key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_VOLUME_DOWN);
       key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_VOLUME_UP);settle();
-      check(reader.isTouchLocked() && (Integer)field(reader,"page")==page,"Chord locks without turning page");
+      check(reader.isTouchLocked() && (Integer)field(reader,"page")==page,"Clean chord locks and restores final page");
       runOnMainSync(() -> {
         long now=SystemClock.uptimeMillis();
         MotionEvent down=MotionEvent.obtain(now,now,MotionEvent.ACTION_DOWN,100,400,0);
@@ -109,7 +132,15 @@ public class SmokeTest extends Instrumentation {
       check((Integer)field(reader,"page")==page,"Locked touch does not turn page");
       call("openChapter",new Class<?>[]{String.class,String.class},"demo","demo-2");
       reader=(NativeReader)field(activity,"nativeReader");check(reader.isTouchLocked(),"Lock persists across chapters");
-      chord();check(!reader.isTouchLocked(),"Chord unlocks");
+      SystemClock.sleep(700);chord();check(!reader.isTouchLocked(),"Clean chord unlocks");
+      SystemClock.sleep(700);
+      press(KeyEvent.KEYCODE_VOLUME_DOWN);press(KeyEvent.KEYCODE_VOLUME_UP);
+      check(!reader.isTouchLocked(),"Two separate opposite page presses do not lock touch");
+      if(reader.isTouchLocked())call("toggleTouchLock",new Class<?>[]{});
+      SystemClock.sleep(700);press(KeyEvent.KEYCODE_VOLUME_DOWN);chord();
+      check(reader.isTouchLocked(),"Chord immediately after paging locks exactly once");
+      if(reader.isTouchLocked())call("toggleTouchLock",new Class<?>[]{});
+      SystemClock.sleep(700);
       press(KeyEvent.KEYCODE_VOLUME_DOWN);
       int saved=s.book("demo").pos; float fraction=s.book("demo").fraction;
       call("library",new Class<?>[]{});click("Đọc tiếp");

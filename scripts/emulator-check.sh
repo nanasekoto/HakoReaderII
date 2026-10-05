@@ -35,7 +35,7 @@ for density in 160 220 240; do
   timeout 120 adb shell am instrument -w vn.nanase.hako.tests/vn.nanase.hako.tests.SmokeTest | tee "build/evidence/dpi-${density}/instrumentation.txt" || failed=1
   if ! grep -q 'PASS TOTAL' "build/evidence/dpi-${density}/instrumentation.txt"; then failed=1; fi
   timeout 10 adb exec-out screencap -p > "build/evidence/dpi-${density}/last-screen.png" || true
-  adb pull /sdcard/Android/data/vn.nanase.hako/files/ui-evidence "build/evidence/dpi-${density}/" || true
+  adb exec-out run-as vn.nanase.hako tar -C files/ui-evidence -cf - . > "build/evidence/dpi-${density}/screenshots.tar" || true
   adb logcat -d -s AndroidRuntime > "build/evidence/dpi-${density}/crashes.txt"
 done
 exit "$failed"
