@@ -28,7 +28,8 @@ public final class NativeReader extends View {
  
  public void setTouchLocked(boolean locked){this.touchLocked=locked;invalidate();}
  public boolean isTouchLocked(){return touchLocked;} public void setOpenAtEnd(boolean end){this.openAtEnd=end;} 
- private String bookTitle="",chapterTitle="";
+ private String bookTitle="",chapterTitle="",notice="";
+ public void setNotice(String value){notice=value;invalidate();}
  private final Paint statusPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
  private int headerHeight=0,footerHeight=0;
  public void setTitles(String book,String chapter){this.bookTitle=book==null?"":book.trim();this.chapterTitle=chapter==null?"":chapter.trim();invalidate();}
@@ -164,7 +165,7 @@ public final class NativeReader extends View {
   c.drawText(pageStr,margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.CENTER);
-  String centerStatus=(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ 100%":(syncPct+"%")));
+  String centerStatus=notice.isEmpty()?(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ 100%":(syncPct+"%"))):notice;
   c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.RIGHT);

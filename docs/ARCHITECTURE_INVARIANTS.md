@@ -62,19 +62,17 @@ Tài liệu này lưu trữ toàn bộ các nguyên nhân gốc rễ và quy chu
 
 ---
 
-## 6. QUY TẮC GIAO DIỆN TỦ SÁCH 5 TRUYỆN (KHÔNG MẤT THÔNG TIN TRUYỆN CUỐI)
-* **Nguyên nhân lỗi cũ:**
-  1. Hàng tiêu đề và nút chức năng chiếm tới 126dp.
-  2. Các thẻ truyện dùng hàm `text(...)` làm phình padding thừa lên tới 44dp bên trong mỗi thẻ.
-  3. Chiều cao bị đội lên khiến truyện thứ 5 bị tràn ra ngoài màn hình và bị cắt mất chữ.
-* **Quy tắc bắt buộc:**
-  1. **Thanh tiêu đề siêu mỏng:** Tiêu đề và nút bấm nằm trên 1 dòng duy nhất cao tối đa `38dp`.
-  2. **Padding tối ưu:** Thẻ truyện sử dụng `TextView` trực tiếp với padding sát mép (0dp trên/dưới), đệm khung `dp(5)`.
-  3. **Hiển thị đủ 5 truyện:** Toàn bộ 5 thẻ truyện nằm trọn vẹn 100% bên trong màn hình mà không cần cuộn, truyện thứ 5 hiển thị đầy đủ tên truyện, số chương, ngày giờ mà không bị che khuất.
+## 6. Bố cục sáu tựa truyện (yêu cầu 0.5.2)
+* Ở cỡ chữ hệ thống mặc định: sáu thẻ nằm trọn vùng nhìn. Tên truyện 17sp, thông tin 12sp, icon lớn hơn. Không đo từ toàn bộ màn hình rồi trừ một con số ước lượng.
+* Tên dài giới hạn hai dòng với dấu ba chấm; giữ thẻ để xem đầy đủ. Nếu cỡ chữ hệ thống quá lớn/vùng nhìn không đủ, giảm số thẻ để tránh cắt nét chữ.
+* Mục lục dùng cùng cách đo; các hàng chương được giới hạn hai dòng và có giữ để xem tên đầy đủ.
 
+## 7. Phím khóa cảm ứng (yêu cầu 0.5.2)
+* Bỏ tổ hợp Vol+ và Vol− vì không hoạt động trên máy người dùng.
+* Giữ riêng Vol+/phím Page Up/phím lùi 700ms để đổi khóa một lần; lần thả sau giữ không lật trang. Bấm ngắn lật khi thả. Hủy timer khi mất focus/Activity dừng, bỏ auto-repeat.
+* Khóa chặn cảm ứng toàn Activity. Xác nhận cuối chương dùng overlay trong reader để vẫn có thể giữ phím khóa nhanh lúc chuẩn bị đút túi.
 
-
-## 7. Khóa cảm ứng và phân trang sau kiểm thử APK 0.5.0
-* Chỉ tổ hợp hai phím âm lượng đang được giữ đồng thời mới đổi trạng thái khóa, một lần cho tới khi cả hai được thả. Phím riêng lật trang khi thả. Không suy đoán tổ hợp từ thời gian của lần bấm trước; không lật rồi hoàn tác.
-* Chiều cao thẻ lấy từ vùng ListView được Android cấp sau khi trừ tiêu đề/trạng thái, không từ chiều cao toàn màn hình. Chia dư pixel cho từng thẻ để thẻ cuối vừa khít. Phím chuyển danh sách dùng cùng số thẻ đã đo.
-* Mục tiêu 5 thẻ ở cỡ chữ mặc định. Khi người dùng tăng cỡ chữ hệ thống hoặc vùng hiển thị nhỏ không đủ, giảm số thẻ để giữ chữ nguyên vẹn.
+## 8. Yêu thích và xác nhận đã đọc
+* Yêu thích gồm các bộ chọn theo dõi đặc biệt, bấm tải full, và có lượt đọc; ưu tiên bộ chọn riêng, tải full, rồi lượt đọc cao. Không xếp theo cập nhật. Chạm tựa mở chọn chương.
+* Vừa đọc có icon tải toàn bộ từng truyện; bấm tải full lưu chế độ giữ đủ và đưa vào nhóm ưu tiên Yêu thích.
+* Cuối chương mới nhất chỉ có một xác nhận cập nhật HAKO; xác nhận gọi thẳng thao tác cập nhật, không gọi một hàm mở xác nhận thứ hai. Kết quả thành công hiển thị chân trang.
