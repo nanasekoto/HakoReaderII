@@ -24,8 +24,18 @@ public final class NativeReader extends View {
  private final Map<Drawable,int[]> imageSizes=new IdentityHashMap<>();
  private StaticLayout layout;
  private int page=0,margin=10,pendingParagraph=0;private float pendingFraction=0,line=1.30f;private int paraSpaceDp=8,indentDp=9;private String rawHtml="";
- private boolean taps=true,swiped=false;private float downX,downY;
- public NativeReader(Context c,File dir,Listener listener){super(c);this.chapterDir=dir;this.listener=listener;setBackgroundColor(Color.WHITE);setFocusable(true);paint.setColor(Color.BLACK);}
+ private boolean taps=true,swiped=false,openAtEnd=false;private float downX,downY; public void setOpenAtEnd(boolean end){this.openAtEnd=end;}
+ private String bookTitle="",chapterTitle="";
+ private final Paint statusPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
+ private int headerHeight=0,footerHeight=0;
+ public void setTitles(String book,String chapter){this.bookTitle=book==null?"":book.trim();this.chapterTitle=chapter==null?"":chapter.trim();invalidate();}
+ public NativeReader(Context c,File dir,Listener listener){
+  super(c);this.chapterDir=dir;this.listener=listener;setBackgroundColor(Color.WHITE);setFocusable(true);paint.setColor(Color.BLACK);
+  statusPaint.setColor(Color.rgb(80,80,80));statusPaint.setTypeface(Typeface.DEFAULT);
+  float sp11=11f*getResources().getDisplayMetrics().scaledDensity;statusPaint.setTextSize(sp11);
+  headerHeight=(int)(22*getResources().getDisplayMetrics().density);
+  footerHeight=(int)(22*getResources().getDisplayMetrics().density);
+ }
  public void content(String html,int paragraph,float fraction){
   rawHtml=html;pendingParagraph=paragraph;pendingFraction=fraction;anchors.clear();notes.clear();imageSizes.clear();
   Element body=Jsoup.parseBodyFragment(html).body();int note=0;
@@ -88,15 +98,58 @@ public final class NativeReader extends View {
  private void capture(){if(layout==null||pages.isEmpty())return;int off=offset(),p=0;for(int i=0;i<anchors.size();i++)if(anchors.get(i)<=off)p=i;pendingParagraph=p;int end=p+1<anchors.size()?anchors.get(p+1):text.length();pendingFraction=(float)(off-anchors.get(p))/Math.max(1,end-anchors.get(p));}
  private void publish(){capture();listener.position(pendingParagraph,pendingFraction,page,pages.size());}
  protected void onSizeChanged(int w,int h,int ow,int oh){capture();reflow();}
- private void reflow(){int width=getWidth()-2*margin,height=getHeight()-2*margin;if(width<=0||height<=0||text.length()==0)return;
+ private void reflow(){
+  int width=getWidth()-2*margin;
+  int textTop=margin+headerHeight,textBottom=getHeight()-margin-footerHeight;
+  int height=textBottom-textTop;
+  if(width<=0||height<=0||text.length()==0)return;
   for(ImageSpan span:text.getSpans(0,text.length(),ImageSpan.class)){Drawable d=span.getDrawable();int[] original=imageSizes.get(d);if(original==null){original=new int[]{Math.max(1,d.getBounds().width()),Math.max(1,d.getBounds().height())};imageSizes.put(d,original);}float scale=Math.min(1f,Math.min((float)width/original[0],Math.max(1,height-2*paint.getTextSize())/original[1]));d.setBounds(0,0,Math.max(1,(int)(original[0]*scale)),Math.max(1,(int)(original[1]*scale)));}
   layout=StaticLayout.Builder.obtain(text,0,text.length(),paint,width).setIncludePad(true).setLineSpacing(0,line).setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE).build();
   int p=Math.min(Math.max(0,pendingParagraph),anchors.size()-1),a=anchors.get(p),b=p+1<anchors.size()?anchors.get(p+1):text.length();int target=a+Math.round(pendingFraction*(b-a));int targetLine=layout.getLineForOffset(Math.min(text.length(),target));
   int[] top=new int[layout.getLineCount()+1],bottom=new int[layout.getLineCount()];for(int i=0;i<top.length;i++)top[i]=layout.getLineTop(i);for(int i=0;i<bottom.length;i++)bottom[i]=layout.getLineBottom(i);
-  pages.clear();for(int start:PageBreaks.split(top,bottom,height,targetLine))pages.add(start);page=pages.indexOf(targetLine);if(page<0)page=0;
+  pages.clear();for(int start:PageBreaks.split(top,bottom,height,targetLine))pages.add(start);
+  if(openAtEnd&&!pages.isEmpty()){page=pages.size()-1;openAtEnd=false;}
+  else{page=pages.indexOf(targetLine);if(page<0)page=0;}
   invalidate();publish();
  }
- protected void onDraw(Canvas c){super.onDraw(c);if(layout==null||pages.isEmpty())return;int first=pages.get(page),end=page+1<pages.size()?pages.get(page+1):layout.getLineCount();int top=layout.getLineTop(first),bottom=layout.getLineTop(end);c.save();c.clipRect(margin,margin,getWidth()-margin,Math.min(getHeight()-margin,margin+bottom-top));c.translate(margin,margin-top);layout.draw(c);c.restore();}
+ protected void onDraw(Canvas c){
+  super.onDraw(c);if(layout==null||pages.isEmpty())return;
+  int textTop=margin+headerHeight,textBottom=getHeight()-margin-footerHeight;
+  int availW=getWidth()-2*margin;
+
+  // 1. Top Header: Book title & Chapter title in 11sp
+  float headerY=margin+(headerHeight*0.72f);
+  if(!bookTitle.isEmpty()||!chapterTitle.isEmpty()){
+   String headerText=bookTitle.isEmpty()?chapterTitle:(chapterTitle.isEmpty()?bookTitle:bookTitle+" · "+chapterTitle);
+   float textW=statusPaint.measureText(headerText);
+   if(textW>availW){
+    while(headerText.length()>3&&statusPaint.measureText(headerText+"…")>availW){
+     headerText=headerText.substring(0,headerText.length()-1);
+    }
+    headerText=headerText+"…";
+   }
+   c.drawText(headerText,margin,headerY,statusPaint);
+  }
+
+  // 2. Story Content strictly clipped inside textTop..textBottom
+  int first=pages.get(page),end=page+1<pages.size()?pages.get(page+1):layout.getLineCount();
+  int top=layout.getLineTop(first);
+  c.save();
+  c.clipRect(margin,textTop,getWidth()-margin,textBottom);
+  c.translate(margin,textTop-top);
+  layout.draw(c);
+  c.restore();
+
+  // 3. Bottom Footer: Page count on left, Percentage on right in 11sp
+  float footerY=getHeight()-margin-(footerHeight*0.28f);
+  String pageStr=(page+1)+" / "+pages.size();
+  c.drawText(pageStr,margin,footerY,statusPaint);
+
+  int pct=Math.round((page+1)*100f/pages.size());
+  String pctStr=pct+"%";
+  float pctW=statusPaint.measureText(pctStr);
+  c.drawText(pctStr,getWidth()-margin-pctW,footerY,statusPaint);
+ }
  public void turn(int direction){if(layout==null||pages.isEmpty())return;listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();}
  public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
  public boolean onTouchEvent(MotionEvent e){if(e.getAction()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();return true;}if(e.getAction()==MotionEvent.ACTION_UP){if(Math.abs(e.getY()-downY)>40){swiped=true;return true;}if(Math.abs(e.getX()-downX)>25)return true;performClick();if(swiped){swiped=false;listener.toolbar();return true;}

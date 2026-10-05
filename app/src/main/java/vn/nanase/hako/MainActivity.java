@@ -17,7 +17,7 @@ import org.json.*;
 public class MainActivity extends Activity {
   private Store store;
   private android.content.SharedPreferences prefs;
-  private LinearLayout root, bar, topBar;
+  private LinearLayout root, bar, topBar, boundaryPrompt; private int boundaryDir = 0; private boolean pendingOpenAtEnd = false;
   private TextView status, title;
   private WebView web;
   private NativeReader nativeReader;
@@ -43,7 +43,17 @@ public class MainActivity extends Activity {
     updates =
         new BroadcastReceiver() {
           public void onReceive(Context c, Intent i) {
-            if (status != null) status.setText(i.getStringExtra("text"));
+            String text = i.getStringExtra("text");
+            if (status != null) status.setText(text);
+            if (text != null && !text.isEmpty()) {
+              if (text.contains("Đã tải xong") || text.contains("Đã kết thúc") || text.contains("đã tải đủ")) {
+                Toast.makeText(MainActivity.this, text.contains("tắt Wi-Fi") ? text : (text + " • Có thể tắt Wi-Fi!"), Toast.LENGTH_LONG).show();
+              } else if (text.contains("Bắt đầu tải") || text.startsWith("Đang tải (")) {
+                Toast.makeText(MainActivity.this, text, Toast.LENGTH_SHORT).show();
+              } else if (text.startsWith("Lỗi tải") || text.startsWith("Tạm dừng")) {
+                Toast.makeText(MainActivity.this, text, Toast.LENGTH_SHORT).show();
+              }
+            }
           }
         };
     registerReceiver(updates, new IntentFilter(Repository.EVENT));
@@ -98,7 +108,7 @@ public class MainActivity extends Activity {
       web = null;
     }
     online = false;
-    topBar = null; bar = null;
+    topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0;
     root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.WHITE);
@@ -161,7 +171,7 @@ public class MainActivity extends Activity {
     };
     int[] iconKinds={12,7,2,8,9,10,13,11,14,3,1,6};
     Runnable[] actions={
-      ()->{Store.Book b=store.book(prefs.getString("lastBook",""));if(b!=null)openBook(b);else bookList(false);},
+      ()->{Store.Book b=store.book(prefs.getString("lastBook",""));if(b!=null){navStack.push(this::library);openBook(b);}else bookList(false);},
       ()->{navStack.push(this::library);bookList(false);},
       ()->{navStack.push(this::library);bookList(true);},
       ()->{navStack.push(this::library);onlineList("Mới cập nhật",HakoParser.ORIGIN+"/danh-sach?truyendich=1&sapxep=capnhat");},
@@ -306,22 +316,63 @@ public class MainActivity extends Activity {
   }
 
   private void bookList(boolean shelf){
-    leaveReader();reset();bookId="";chapterId="";root.addView(text(shelf?"Tủ sách":"Vừa đọc",20));
-    row(new String[]{"Trang chính",shelf?"Cập nhật":"Lịch sử HAKO","⋯"},new Runnable[]{this::library,()->{if(shelf)task("Nhập tủ sách…",()->{Repository.importShelf(this);return null;},()->bookList(true));else browse(HakoParser.ORIGIN+"/lich-su-doc");},()->{new AlertDialog.Builder(this).setItems(new String[]{"Đồng bộ ngay","Dừng tải","HAKO / Tủ sách",prefs.getBoolean("unreadOnly",false)?"Hiện tất cả truyện":"Chỉ bộ còn chương mới"},(d,w)->{if(w==0)confirmBulk();if(w==1)Repository.cancel.set(true);if(w==2)browse(HakoParser.ORIGIN+"/ke-sach");if(w==3){prefs.edit().putBoolean("unreadOnly",!prefs.getBoolean("unreadOnly",false)).apply();bookList(true);}}).show();}});
-    status();List<Store.Book> books=new ArrayList<>();for(Store.Book b:store.books())if(shelf?(b.followed&&(!prefs.getBoolean("unreadOnly",false)||hasNew(b))):b.stamp>0)books.add(b);
+    leaveReader();reset();bookId="";chapterId="";
+    LinearLayout header=new LinearLayout(this);
+    header.setOrientation(LinearLayout.HORIZONTAL);
+    header.setGravity(Gravity.CENTER_VERTICAL);
+    header.setPadding(dp(10),dp(2),dp(10),dp(2));
+
+    TextView headerTitle=new TextView(this);
+    headerTitle.setText(shelf?"Tủ sách":"Vừa đọc");
+    headerTitle.setTextSize(18);
+    headerTitle.setTypeface(Typeface.DEFAULT_BOLD);
+    headerTitle.setTextColor(INK);
+    header.addView(headerTitle,new LinearLayout.LayoutParams(0,-2,1f));
+
+    header.addView(button("Trang chính",this::library),new LinearLayout.LayoutParams(-2,dp(32)));
+    Button btnSync=button(shelf?"Cập nhật":"Lịch sử",()->{
+      if(shelf)task("Nhập tủ sách…",()->{Repository.importShelf(this);return null;},()->bookList(true));
+      else browse(HakoParser.ORIGIN+"/lich-su-doc");
+    });
+    LinearLayout.LayoutParams lpSync=new LinearLayout.LayoutParams(-2,dp(32));
+    lpSync.setMargins(dp(4),0,0,0);
+    header.addView(btnSync,lpSync);
+
+    Button btnMore=button("⋯",()->{
+      new AlertDialog.Builder(this).setItems(new String[]{
+        "Đồng bộ ngay","Dừng tải","HAKO / Tủ sách",
+        prefs.getBoolean("unreadOnly",false)?"Hiện tất cả truyện":"Chỉ bộ còn chương mới"
+      },(d,w)->{
+        if(w==0)confirmBulk();
+        if(w==1)Repository.cancel.set(true);
+        if(w==2)browse(HakoParser.ORIGIN+"/ke-sach");
+        if(w==3){
+          prefs.edit().putBoolean("unreadOnly",!prefs.getBoolean("unreadOnly",false)).apply();
+          bookList(true);
+        }
+      }).show();
+    });
+    LinearLayout.LayoutParams lpMore=new LinearLayout.LayoutParams(-2,dp(32));
+    lpMore.setMargins(dp(4),0,0,0);
+    header.addView(btnMore,lpMore);
+    root.addView(header);
+
+    List<Store.Book> books=new ArrayList<>();
+    for(Store.Book b:store.books())if(shelf?(b.followed&&(!prefs.getBoolean("unreadOnly",false)||hasNew(b))):b.stamp>0)books.add(b);
     if(shelf)java.util.Collections.sort(books,(a,b)->Integer.compare(a.shelfRank,b.shelfRank));
+
     ListView list=new ListView(this);currentList=list;
     list.setDivider(null);
-    list.setDividerHeight(dp(8));
-    list.setPadding(dp(6),dp(4),dp(6),dp(4));
+    list.setDividerHeight(dp(5));
+    list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
     final int[] itemH = new int[]{0};
     list.post(() -> {
       int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
       if (listH > 0) {
         int cardsPerPage = 5;
-        int divH = dp(6);
-        itemH[0] = Math.max(dp(75), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        int divH = dp(5);
+        itemH[0] = Math.max(dp(65), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
         list.invalidateViews();
       }
     });
@@ -340,13 +391,15 @@ public class MainActivity extends Activity {
         cardBg.setStroke(dp(2),Color.BLACK);
         cardBg.setCornerRadius(dp(6));
         card.setBackground(cardBg);
-        card.setPadding(dp(10),dp(6),dp(10),dp(6));
+        card.setPadding(dp(10),dp(5),dp(10),dp(5));
 
         LinearLayout top=new LinearLayout(MainActivity.this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView titleView=text(b.title,15);
+        TextView titleView=new TextView(MainActivity.this);
+        titleView.setText(b.title);
+        titleView.setTextSize(14.5f);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
         titleView.setMaxLines(2);
@@ -356,11 +409,11 @@ public class MainActivity extends Activity {
         if(newCount>0){
           TextView badge=new TextView(MainActivity.this);
           badge.setText("+"+newCount+" mới");
-          badge.setTextSize(12);
+          badge.setTextSize(11);
           badge.setTextColor(Color.WHITE);
           badge.setBackgroundColor(Color.BLACK);
           badge.setTypeface(Typeface.DEFAULT_BOLD);
-          badge.setPadding(dp(6),dp(2),dp(6),dp(2));
+          badge.setPadding(dp(5),dp(1),dp(5),dp(1));
           LinearLayout.LayoutParams lpBadge=new LinearLayout.LayoutParams(-2,-2);
           lpBadge.setMargins(dp(6),0,0,0);
           top.addView(badge,lpBadge);
@@ -385,37 +438,56 @@ public class MainActivity extends Activity {
         }
 
         if(sub.length()>0){
-          TextView subView=text(sub.toString(),12);
-          subView.setTextColor(Color.BLACK);
-          subView.setPadding(0,dp(3),0,0);
+          TextView subView=new TextView(MainActivity.this);
+          subView.setText(sub.toString());
+          subView.setTextSize(11.5f);
+          subView.setTextColor(MUTED);
+          subView.setSingleLine(true);
+          subView.setPadding(0,dp(2),0,0);
           card.addView(subView);
         }
 
         return card;
       }
     });
-    list.setOnItemClickListener((a,v,p,id)->openBook(books.get(p)));
+    list.setOnItemClickListener((a,v,p,id)->{navStack.push(()->bookList(shelf));openBook(books.get(p));});
     list.setOnItemLongClickListener((a,v,p,id)->{bookMenu(books.get(p));return true;});
     root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
     if(books.isEmpty())root.addView(text(shelf?"Bấm Cập nhật sau khi đăng nhập HAKO.":"Chưa có lịch sử đọc trong APK.",14));
   }
   private boolean hasNew(Store.Book b){try{return Integer.parseInt(b.shelfInfo.split(" ")[0])>0;}catch(Exception e){return false;}}
   private void frequentList(){
-    leaveReader();reset();root.addView(text("Thường xuyên đọc",20));row(new String[]{"Trang chính"},new Runnable[]{this::library});
+    leaveReader();reset();bookId="";chapterId="";
+    LinearLayout header=new LinearLayout(this);
+    header.setOrientation(LinearLayout.HORIZONTAL);
+    header.setGravity(Gravity.CENTER_VERTICAL);
+    header.setPadding(dp(10),dp(2),dp(10),dp(2));
+
+    TextView headerTitle=new TextView(this);
+    headerTitle.setText("Thường xuyên đọc");
+    headerTitle.setTextSize(18);
+    headerTitle.setTypeface(Typeface.DEFAULT_BOLD);
+    headerTitle.setTextColor(INK);
+    header.addView(headerTitle,new LinearLayout.LayoutParams(0,-2,1f));
+
+    header.addView(button("Trang chính",this::library),new LinearLayout.LayoutParams(-2,dp(32)));
+    root.addView(header);
+
     List<Store.Book> books=new ArrayList<>();for(Store.Book b:store.books())if(b.visits>0||b.pinned)books.add(b);
     Collections.sort(books,(a,b)->{if(a.pinned!=b.pinned)return a.pinned?-1:1;int n=Integer.compare(b.visits,a.visits);return n!=0?n:Long.compare(b.stamp,a.stamp);});
+
     ListView list=new ListView(this);currentList=list;
     list.setDivider(null);
-    list.setDividerHeight(dp(8));
-    list.setPadding(dp(6),dp(4),dp(6),dp(4));
+    list.setDividerHeight(dp(5));
+    list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
     final int[] itemH = new int[]{0};
     list.post(() -> {
       int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
       if (listH > 0) {
         int cardsPerPage = 5;
-        int divH = dp(6);
-        itemH[0] = Math.max(dp(75), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        int divH = dp(5);
+        itemH[0] = Math.max(dp(65), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
         list.invalidateViews();
       }
     });
@@ -432,24 +504,75 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
         cardBg.setStroke(dp(2),Color.BLACK);
-        cardBg.setCornerRadius(dp(8));
+        cardBg.setCornerRadius(dp(6));
         card.setBackground(cardBg);
-        card.setPadding(dp(10),dp(6),dp(10),dp(6));
+        card.setPadding(dp(10),dp(5),dp(10),dp(5));
 
-        TextView titleView=text((b.pinned?"★ ":"")+b.title,15);
+        LinearLayout top=new LinearLayout(MainActivity.this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView titleView=new TextView(MainActivity.this);
+        titleView.setText((b.pinned?"★ ":"")+b.title);
+        titleView.setTextSize(14.5f);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
-        card.addView(titleView);
+        titleView.setMaxLines(2);
+        top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
 
-        String subInfo = b.visits + " lần đọc" + (b.stamp==0?"":" · " + android.text.format.DateFormat.format("dd/MM HH:mm", b.stamp));
-        TextView subView=text(subInfo,13);
-        subView.setTextColor(Color.BLACK);
-        subView.setPadding(0,dp(6),0,0);
+        // Compute download %
+        List<Store.Chapter> chs=store.chapters(b.id);
+        int totalChs=chs.size();
+        int downloadedChs=0;
+        for(Store.Chapter ch:chs)if(store.readable(ch.id))downloadedChs++;
+        int downloadPct=totalChs>0?Math.round(downloadedChs*100f/totalChs):0;
+
+        TextView badge=new TextView(MainActivity.this);
+        if(totalChs==0){
+          badge.setText("CHƯA TẢI");
+          badge.setBackgroundColor(Color.GRAY);
+        }else if(downloadPct==100){
+          badge.setText("✓ 100%");
+          badge.setBackgroundColor(Color.BLACK);
+        }else{
+          badge.setText("ĐÃ TẢI "+downloadPct+"%");
+          badge.setBackgroundColor(Color.BLACK);
+        }
+        badge.setTextSize(11);
+        badge.setTextColor(Color.WHITE);
+        badge.setTypeface(Typeface.DEFAULT_BOLD);
+        badge.setPadding(dp(5),dp(1),dp(5),dp(1));
+        LinearLayout.LayoutParams lpBadge=new LinearLayout.LayoutParams(-2,-2);
+        lpBadge.setMargins(dp(6),0,0,0);
+        top.addView(badge,lpBadge);
+        card.addView(top);
+
+        StringBuilder sub=new StringBuilder();
+        if(totalChs==0){
+          sub.append("Chưa có mục lục · Cần bật Wi-Fi để cập nhật");
+        }else{
+          sub.append(downloadedChs).append("/").append(totalChs).append(" chương đã tải (").append(downloadPct).append("%)");
+          Store.Chapter ch=store.chapter(b.id,b.current);
+          if(ch!=null){
+            int unread=Math.max(0,totalChs-ch.ord-1);
+            if(unread>0)sub.append(" · còn ").append(unread).append(" ch mới");
+          }
+        }
+        if(b.stamp>0){
+          sub.append(" · ").append(android.text.format.DateFormat.format("dd/MM",b.stamp));
+        }
+
+        TextView subView=new TextView(MainActivity.this);
+        subView.setText(sub.toString());
+        subView.setTextSize(11.5f);
+        subView.setTextColor(MUTED);
+        subView.setSingleLine(true);
+        subView.setPadding(0,dp(2),0,0);
         card.addView(subView);
         return card;
       }
     });
-    list.setOnItemClickListener((a,v,i,id)->openBook(books.get(i)));
+    list.setOnItemClickListener((a,v,i,id)->{navStack.push(this::frequentList);openBook(books.get(i));});
     list.setOnItemLongClickListener((a,v,i,id)->{bookMenu(books.get(i));return true;});
     root.addView(list,new LinearLayout.LayoutParams(-1,0,1));status();
   }
@@ -750,7 +873,7 @@ public class MainActivity extends Activity {
               .show();
           return;
         }
-        new AlertDialog.Builder(MainActivity.this).setMessage(dir>0?"Hết chương. Sang chương tiếp?":"Đầu chương. Mở chương trước?").setPositiveButton("Chuyển",(d,w)->adjacent(dir)).setNegativeButton("Ở lại",null).show();
+        showBoundaryPrompt(dir);
       }
       public void toolbar(){
         int vis=isToolbarVisible()?View.GONE:View.VISIBLE;
@@ -762,8 +885,23 @@ public class MainActivity extends Activity {
       }
     });
 
+    if (pendingOpenAtEnd) {
+      nativeReader.setOpenAtEnd(true);
+      pendingOpenAtEnd = false;
+    }
+
+    nativeReader.setTitles(b.title, c.title);
     // nativeReader fills 100% of readerFrame
     readerFrame.addView(nativeReader, new FrameLayout.LayoutParams(-1, -1));
+
+    // boundaryPrompt centered card
+    boundaryPrompt = new LinearLayout(this);
+    boundaryPrompt.setOrientation(LinearLayout.VERTICAL);
+    boundaryPrompt.setGravity(Gravity.CENTER);
+    boundaryPrompt.setVisibility(View.GONE);
+    FrameLayout.LayoutParams lpPrompt = new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER);
+    lpPrompt.setMargins(dp(16), 0, dp(16), 0);
+    readerFrame.addView(boundaryPrompt, lpPrompt);
 
     // topBar floats at the top
     topBar.setVisibility(View.GONE);
@@ -771,9 +909,9 @@ public class MainActivity extends Activity {
 
     // bar (bottom bar) floats at the bottom
     bar=new LinearLayout(this);bar.setOrientation(0);bar.setBackgroundColor(Color.WHITE);
-    String[] labels={"◀ Quay lại","Trước","Mục lục","Tiếp","Chữ","Thoát"};
+    String[] labels={"Trang chủ","Trước","Mục lục","Tiếp","Chữ","Thoát"};
     Runnable[] actions={
-      ()->saveThen(()->{leaveReader();if(!navStack.isEmpty())navStack.pop().run();else library();}),
+      ()->saveThen(()->{leaveReader();library();}),
       ()->saveThen(()->adjacent(-1)),
       ()->{navStack.push(()->showReader(bid,cid));contents(store.book(bid));},
       ()->saveThen(()->adjacent(1)),
@@ -796,7 +934,10 @@ public class MainActivity extends Activity {
     for (int n = 0; n < chs.size(); n++)
       if (chs.get(n).id.equals(chapterId)) {
         int target = n + delta;
-        if (target >= 0 && target < chs.size()) openChapter(bookId, chs.get(target).id);
+        if (target >= 0 && target < chs.size()) {
+          if (delta < 0) pendingOpenAtEnd = true;
+          openChapter(bookId, chs.get(target).id);
+        }
         else
           Toast.makeText(
                   this, delta > 0 ? "Đã đến cuối mục lục" : "Đây là chương đầu", Toast.LENGTH_SHORT)
@@ -1104,12 +1245,104 @@ public class MainActivity extends Activity {
     if (topBar != null) topBar.setVisibility(View.GONE);
   }
 
+  private void hideBoundaryPrompt() {
+    if (boundaryPrompt != null) {
+      boundaryPrompt.setVisibility(View.GONE);
+      boundaryDir = 0;
+    }
+  }
+
+  private boolean isBoundaryPromptVisible() {
+    return boundaryPrompt != null && boundaryPrompt.getVisibility() == View.VISIBLE;
+  }
+
+  private void showBoundaryPrompt(int dir) {
+    if (boundaryPrompt == null) return;
+    hideToolbar();
+    boundaryDir = dir;
+    boundaryPrompt.removeAllViews();
+
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    card.setGravity(Gravity.CENTER_HORIZONTAL);
+    card.setPadding(dp(18), dp(16), dp(18), dp(16));
+
+    android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
+    cardBg.setColor(Color.WHITE);
+    cardBg.setStroke(dp(2), Color.BLACK);
+    cardBg.setCornerRadius(dp(10));
+    card.setBackground(cardBg);
+
+    TextView titleView = text(dir > 0 ? "ĐÃ ĐỌC HẾT CHƯƠNG" : "ĐANG Ở ĐẦU CHƯƠNG", 16);
+    titleView.setTypeface(Typeface.DEFAULT_BOLD);
+    titleView.setTextColor(Color.BLACK);
+    titleView.setGravity(Gravity.CENTER);
+    titleView.setPadding(0, 0, 0, dp(6));
+    card.addView(titleView);
+
+    String msg = dir > 0
+        ? "Chuyển sang chương tiếp theo?"
+        : "Quay lại chương trước?\n(Sẽ mở lại trang cuối vừa đọc)";
+    TextView msgView = text(msg, 14);
+    msgView.setTextColor(Color.BLACK);
+    msgView.setGravity(Gravity.CENTER);
+    msgView.setPadding(0, 0, 0, dp(14));
+    card.addView(msgView);
+
+    LinearLayout btnRow = new LinearLayout(this);
+    btnRow.setOrientation(LinearLayout.HORIZONTAL);
+    btnRow.setGravity(Gravity.CENTER);
+
+    Button btnStay = new Button(this);
+    btnStay.setText(dir > 0 ? "Ở lại (Vol +)" : "Ở lại (Vol -)");
+    btnStay.setTextSize(13);
+    btnStay.setTypeface(Typeface.DEFAULT_BOLD);
+    btnStay.setTextColor(Color.BLACK);
+    android.graphics.drawable.GradientDrawable btnStayBg = new android.graphics.drawable.GradientDrawable();
+    btnStayBg.setColor(Color.WHITE);
+    btnStayBg.setStroke(dp(1), Color.BLACK);
+    btnStayBg.setCornerRadius(dp(6));
+    btnStay.setBackground(btnStayBg);
+    btnStay.setPadding(dp(10), dp(6), dp(10), dp(6));
+    btnStay.setOnClickListener(v -> hideBoundaryPrompt());
+    LinearLayout.LayoutParams lpStay = new LinearLayout.LayoutParams(0, dp(42), 1f);
+    lpStay.setMargins(0, 0, dp(8), 0);
+    btnRow.addView(btnStay, lpStay);
+
+    Button btnConfirm = new Button(this);
+    btnConfirm.setText(dir > 0 ? "Tiếp tục (Vol -)" : "Quay lại (Vol +)");
+    btnConfirm.setTextSize(13);
+    btnConfirm.setTypeface(Typeface.DEFAULT_BOLD);
+    btnConfirm.setTextColor(Color.WHITE);
+    android.graphics.drawable.GradientDrawable btnConfirmBg = new android.graphics.drawable.GradientDrawable();
+    btnConfirmBg.setColor(Color.BLACK);
+    btnConfirmBg.setCornerRadius(dp(6));
+    btnConfirm.setBackground(btnConfirmBg);
+    btnConfirm.setPadding(dp(10), dp(6), dp(10), dp(6));
+    btnConfirm.setOnClickListener(v -> {
+      int d = boundaryDir;
+      hideBoundaryPrompt();
+      adjacent(d);
+    });
+    LinearLayout.LayoutParams lpConfirm = new LinearLayout.LayoutParams(0, dp(42), 1f);
+    btnRow.addView(btnConfirm, lpConfirm);
+
+    card.addView(btnRow);
+
+    boundaryPrompt.addView(card, new LinearLayout.LayoutParams(-1, -2));
+    boundaryPrompt.setVisibility(View.VISIBLE);
+  }
+
   private boolean isToolbarVisible() {
     return (bar != null && bar.getVisibility() == View.VISIBLE)
         || (topBar != null && topBar.getVisibility() == View.VISIBLE);
   }
 
   private void goBack() {
+    if (isBoundaryPromptVisible()) {
+      hideBoundaryPrompt();
+      return;
+    }
     if (nativeReader != null && isToolbarVisible()) {
       hideToolbar();
       return;
@@ -1134,6 +1367,15 @@ public class MainActivity extends Activity {
     }
     if (!navStack.isEmpty()) {
       navStack.pop().run();
+      return;
+    }
+    if (!bookId.isEmpty()) {
+      bookId = "";
+      bookList(true);
+      return;
+    }
+    if (currentList != null) {
+      library();
       return;
     }
     confirmExit();
@@ -1165,6 +1407,16 @@ public class MainActivity extends Activity {
     boolean up=isPageUpKey(code);
     if(down||up){
       if(event.getAction()==KeyEvent.ACTION_DOWN){
+        if(isBoundaryPromptVisible()){
+          if(boundaryDir > 0){
+            if(down){ hideBoundaryPrompt(); adjacent(1); }
+            else if(up){ hideBoundaryPrompt(); }
+          }else if(boundaryDir < 0){
+            if(up){ hideBoundaryPrompt(); adjacent(-1); }
+            else if(down){ hideBoundaryPrompt(); }
+          }
+          return true;
+        }
         int dir=down?1:-1;
         if(nativeReader!=null){
           hideToolbar();

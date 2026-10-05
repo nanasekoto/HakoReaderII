@@ -228,7 +228,8 @@ public final class Store extends SQLiteOpenHelper {
     Chapter current = chapter(b.id, b.current);
     if (current == null) return;
     for (Chapter c : chapters(b.id))
-      if (!FetchPolicy.keep(c.ord,current.ord)) {
+      // Preserve all future/unread chapters; only prune read chapters far in the past
+      if (c.ord < current.ord - FetchPolicy.BEHIND) {
         delete(dir(c.id));
         state(c.id, false, "");
       }

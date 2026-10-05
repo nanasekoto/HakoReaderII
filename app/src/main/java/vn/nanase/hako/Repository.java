@@ -195,39 +195,72 @@ public final class Repository {
     cancel.set(false);manualOverride=!charging&&all;
     try{
       allowed(ctx);Store s=Store.get(ctx);ArrayList<Store.Book> todo=new ArrayList<>();
-      if(all){for(Store.Book b:s.books())if(b.followed&&!b.dropped&&!b.id.equals("demo"))todo.add(b);}
-      else {Store.Book b=s.book(book);if(b!=null&&!b.id.equals("demo"))todo.add(b);}
+      if(all){
+        for(Store.Book b:s.books()){
+          if(b.id.equals("demo")||b.dropped)continue;
+          // Only sync books user has actively opened/read; do not auto-fill untouched shelf books
+          if(b.stamp>0||b.visits>0||b.id.equals(activeBook))todo.add(b);
+        }
+      }else{
+        Store.Book b=s.book(book);if(b!=null&&!b.id.equals("demo"))todo.add(b);
+      }
       while(!cancel.get()&&(!todo.isEmpty()||!pendingBook.isEmpty()||pendingAll)){
         if(pendingAll){pendingAll=false;for(Store.Book b:s.books())if(b.followed&&!b.dropped&&!b.id.equals("demo")){boolean exists=false;for(Store.Book t:todo)if(t.id.equals(b.id))exists=true;if(!exists)todo.add(b);}}
         if(!pendingBook.isEmpty()){Store.Book p=s.book(pendingBook);pendingBook="";if(p!=null){todo.removeIf(x->x.id.equals(p.id));todo.add(0,p);}}
         if(todo.isEmpty()||(charging&&!ChargeJob.isCharging(ctx)))break;
         Store.Book b=todo.remove(0);
-        if(b==null||b.id==null||b.id.isEmpty()||b.dropped||(!b.followed&&!b.id.equals(activeBook)))continue;
+        if(b==null||b.id==null||b.id.isEmpty()||b.dropped)continue;
+        if(b.stamp==0&&b.visits==0&&!b.id.equals(activeBook))continue;
         catalog(ctx,b);
         Store.Book refreshed=s.book(b.id);
         if(refreshed!=null)b=refreshed;
         List<Store.Chapter> chapters=s.chapters(b.id);int current=0;
         for(Store.Chapter ch:chapters)if(ch.id.equals(b.current))current=ch.ord;
-        // Priority 1: Current reading chapter to +15 ahead
+        // Download ALL remaining/new chapters starting from current reading chapter through the end
+        List<Store.Chapter> needDownload=new ArrayList<>();
         for(Store.Chapter ch:chapters){
-          if(ch.ord<current||ch.ord>current+FetchPolicy.AHEAD||s.readable(ch.id))continue;
-          int distance=ch.ord-current;
-          if(!waitFor(ctx,FetchPolicy.delayMillis(distance),b.id,charging))break;
-          notify(ctx,"Đang đọc: tải trước "+distance+"/15 • "+ch.title);
-          try{download(ctx,ch);}catch(Exception e){s.state(ch.id,false,e.getMessage());notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());Thread.sleep(1500);}
+          if(ch.ord>=current&&!s.readable(ch.id))needDownload.add(ch);
         }
-        // Priority 2: If downloading full book (all=true), download remainder
-        if(all && !cancel.get()){
+        if(needDownload.isEmpty()){
+          notify(ctx,b.title+": Tất cả chương mới đã tải đủ ✓");
+        }else{
+          notify(ctx,b.title+": Bắt đầu tải "+needDownload.size()+" chương mới");
+          int count=0;
+          for(Store.Chapter ch:needDownload){
+            if(cancel.get())break;
+            if(charging&&!ChargeJob.isCharging(ctx))break;
+            count++;
+            notify(ctx,"Đang tải ("+count+"/"+needDownload.size()+"): "+ch.title);
+            long delay=charging?2000:3000;
+            if(!waitFor(ctx,delay,b.id,charging))break;
+            try{
+              download(ctx,ch);
+            }catch(Exception e){
+              s.state(ch.id,false,e.getMessage());
+              notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());
+              Thread.sleep(1500);
+            }
+          }
+        }
+        // If downloading full book (all=true), also download any earlier chapters 0..current-1
+        if(all&&!cancel.get()){
           for(Store.Chapter ch:chapters){
-            if(s.readable(ch.id))continue;
-            if(!waitFor(ctx,3000,b.id,charging))break;
-            notify(ctx,"Tải toàn bộ • "+ch.title);
-            try{download(ctx,ch);}catch(Exception e){s.state(ch.id,false,e.getMessage());notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());Thread.sleep(1500);}
+            if(ch.ord>=current||s.readable(ch.id))continue;
+            if(charging&&!ChargeJob.isCharging(ctx))break;
+            notify(ctx,"Tải bổ sung: "+ch.title);
+            if(!waitFor(ctx,2500,b.id,charging))break;
+            try{
+              download(ctx,ch);
+            }catch(Exception e){
+              s.state(ch.id,false,e.getMessage());
+              notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());
+              Thread.sleep(1500);
+            }
           }
         }
         Store.Book latest=s.book(b.id);if(latest!=null)s.prune(latest);
       }
-      notify(ctx,"Đã kết thúc lượt tải. Nội dung đã lưu có thể đọc offline.");
+      notify(ctx,"✓ Đã tải xong tất cả chương mới. Có thể tắt Wi-Fi!");
     }finally{busy.set(false);pendingBook="";pendingAll=false;manualOverride=false;}
   }
   private static boolean waitFor(Context c,long delay,String id,boolean charging)throws Exception {
