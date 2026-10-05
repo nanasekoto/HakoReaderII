@@ -53,14 +53,9 @@ Tài liệu này lưu trữ toàn bộ các nguyên nhân gốc rễ và quy chu
 
 ---
 
-## 5. CÔNG THỨC TÍNH % TIẾN ĐỘ TRONG "THƯỜNG XUYÊN ĐỌC"
-* **Nguyên nhân lỗi cũ:** Lấy tổng số chương đã tải chia cho tổng số chương cả bộ truyện. Với truyện dài đã đọc 40/50 chương nhưng chỉ tải 10 chương mới, app hiển thị `20%` khiến người dùng nhầm tưởng là chưa tải đủ.
-* **Quy tắc bắt buộc:**
-  * **Công thức chuẩn:** `(Số chương cũ đã đọc + Số chương mới đã tải về) / Tổng số chương = 100%`.
-  * Các chương trước vị trí đang đọc (`ord < currentOrd`) được tính là đã hoàn thành.
-  * Khi toàn bộ các chương mới tiếp theo được tải xong, tiến độ **bắt buộc phải hiển thị là `100%`** kèm nhãn `[✓ 100%]`.
-
----
+## 5. Tiến độ tải trong Yêu thích
+* Với truyện không chọn lưu full: chương đã đọc trước vị trí hiện tại được tính hoàn thành, giữ quy tắc cũ.
+* Với truyện chọn tải full: tính số chương thực sự đọc được trên máy / tổng số chương. Không tính chương cũ đã bị xóa là đã lưu; FULL 100% chỉ khi toàn bộ còn đủ nội dung.
 
 ## 6. Bố cục sáu tựa truyện (yêu cầu 0.5.2)
 * Ở cỡ chữ hệ thống mặc định: sáu thẻ nằm trọn vùng nhìn. Tên truyện 17sp, thông tin 12sp, icon lớn hơn. Không đo từ toàn bộ màn hình rồi trừ một con số ước lượng.

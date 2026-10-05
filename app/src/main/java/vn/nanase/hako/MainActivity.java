@@ -709,6 +709,8 @@ public class MainActivity extends Activity {
           }
         }
 
+        boolean fullMode=store.isKeepFull(b.id);
+        if(fullMode)currentOrd=0;
         int oldChs = Math.max(0, currentOrd);
         int newChsTotal = Math.max(0, totalChs - currentOrd);
         int newChsDownloaded = 0;
@@ -726,10 +728,10 @@ public class MainActivity extends Activity {
           badge.setText("CHƯA TẢI");
           badge.setBackgroundColor(Color.GRAY);
         } else if (newChsTotal == 0 || newChsDownloaded >= newChsTotal) {
-          badge.setText("✓ 100%");
+          badge.setText(fullMode?"FULL 100%":"✓ 100%");
           badge.setBackgroundColor(Color.BLACK);
         } else {
-          badge.setText("ĐÃ TẢI " + downloadPct + "%");
+          badge.setText((fullMode?"FULL ":"TẢI ") + downloadPct + "%");
           badge.setBackgroundColor(Color.BLACK);
         }
         badge.setTextSize(10f);
@@ -745,10 +747,10 @@ public class MainActivity extends Activity {
         if (totalChs == 0) {
           sub.append("Chưa có mục lục · Cần bật Wi-Fi để cập nhật");
         } else if (newChsTotal == 0 || newChsDownloaded >= newChsTotal) {
-          sub.append("✓ Đã tải đủ 100% (").append(totalChs).append(" ch) · Đọc offline");
+          sub.append(fullMode?"Đã lưu đủ ":"Bắt kịp ").append(totalChs).append(" chương · Offline");
         } else {
           int unread = newChsTotal - newChsDownloaded;
-          sub.append("Đã tải: ").append(newChsDownloaded).append("/").append(newChsTotal).append(" ch mới (").append(downloadPct).append("%) · còn ").append(unread).append(" ch");
+          sub.append("Đã lưu ").append(newChsDownloaded).append("/").append(newChsTotal).append(fullMode?" chương":" ch tiếp theo").append(" · còn ").append(unread);
         }
         if (b.stamp > 0) {
           sub.append(" · ").append(formatVnDate(b.stamp, "dd/MM"));

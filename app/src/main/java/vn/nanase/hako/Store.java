@@ -67,6 +67,7 @@ public final class Store extends SQLiteOpenHelper {
       }
     }
 
+    if(isKeepFull(b.id))currentOrd=0;
     int oldChs = Math.max(0, currentOrd);
     int newChsTotal = Math.max(0, total - currentOrd);
     int newChsDownloaded = 0;
@@ -305,3 +306,4 @@ public final class Store extends SQLiteOpenHelper {
     f.delete();
   }
 }
+

@@ -104,6 +104,17 @@ public class SmokeTest extends Instrumentation {
       activity=(MainActivity)startActivitySync(new Intent().setClassName("vn.nanase.hako","vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));settle();
       check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.5.2"),"Installed version 0.5.2 (behavior fix)");
       shot("home"); listCheck("Vừa đọc"); listCheck("Tủ sách"); listCheck("Yêu thích");
+      s.putBook(new HakoParser.Link("partial-full","Bộ tải full còn thiếu chương cũ", ""));
+      List<HakoParser.Link> partialLinks=new ArrayList<>();
+      for(int n=1;n<=3;n++)partialLinks.add(new HakoParser.Link("partial-full-"+n,"Chương "+n,""));
+      s.catalog("partial-full",partialLinks);
+      for(int n=2;n<=3;n++){Store.write(s.html("partial-full-"+n),"<p>Nội dung thử đã tải đầy đủ, dùng để kiểm tra tiến độ thực sự của bộ truyện lưu full.</p>");s.state("partial-full-"+n,true,"");}
+      s.position("partial-full","partial-full-2",0,0);s.setKeepFull("partial-full",true);
+      call("frequentList",new Class<?>[]{});
+      check(find(activity.getWindow().getDecorView(),"FULL 67%")!=null,"Full progress counts missing old chapters instead of false 100 percent");
+      check(s.progress(s.book("partial-full")).percent==67,"Stored full progress counts actual whole-book files");
+      shot("favorites-full-progress");
+      call("library",new Class<?>[]{});
       call("onlineList",new Class<?>[]{String.class,String.class},"Mới cập nhật (dữ liệu thử)",
         "https://raw.githubusercontent.com/nanasekoto/HakoReaderII/codex/test-existing-fc1b545/tests/fixtures/story-list.html");
       long limit=SystemClock.elapsedRealtime()+15000;
