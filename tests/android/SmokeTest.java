@@ -210,6 +210,20 @@ public class SmokeTest extends Instrumentation {
       key(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_PAGE_UP);settle();
       check(!(Boolean)field(activity,"touchLocked"),"Mapped Page Up hold unlocks chapter picker");
 
+      s.putBook(new HakoParser.Link("longtoc","Một tựa truyện thật dài để kiểm tra chọn chương trên màn hình nhỏ", ""));
+      List<HakoParser.Link> longChapters=new ArrayList<>();
+      for(int n=1;n<=18;n++)longChapters.add(new HakoParser.Link("longtoc-"+n,
+          "Chương "+n+" Những ngày bình yên cùng những người bạn và một cuộc hành trình thật dài", ""));
+      s.catalog("longtoc",longChapters);
+      call("contents",new Class<?>[]{Store.Book.class},s.book("longtoc"));
+      ListView longList=(ListView)field(activity,"currentList");
+      check(longList.getChildCount()==6,"Long chapter titles still show six rows");
+      for(int i=0;i<longList.getChildCount();i++){
+        TextView text=(TextView)longList.getChildAt(i);
+        int lines=Math.min(text.getMaxLines(),text.getLayout().getLineCount());
+        check(text.getLayout().getLineBottom(lines-1)+text.getCompoundPaddingTop()+text.getCompoundPaddingBottom()<=text.getHeight(),"Long chapter row "+i+" has no vertically clipped text");
+      }
+      shot("long-chapter-titles");
       s.setKeepFull("demo",true);s.position("demo","demo-10",0,0);s.prune(s.book("demo"));
       check(s.html("demo-2").exists(),"Full offline mode retains old cached chapters");
       result.putString("stream",log+(failures==0?"PASS TOTAL ":"FAIL TOTAL ")+checks+" Android checks; failures="+failures+"\n");
