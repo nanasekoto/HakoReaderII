@@ -55,18 +55,23 @@ public class DownloadService extends Service {
     Repository.cancel.set(false);
     startForeground(9, notice("Chuẩn bị tải"));
     String book = i.getStringExtra("book");
-    boolean all = i.getBooleanExtra("all", false);
+    int mode = i.getIntExtra("mode", 0);
+    if (mode == 0) {
+      boolean all = i.getBooleanExtra("all", false);
+      mode = all ? Repository.MODE_SYNC_LIBRARY : Repository.MODE_BOOK_NEXT;
+    }
+    final int finalMode = mode;
     if (worker != null && worker.isAlive()) {
-      if (all) Repository.pendingAll = true;
+      if (finalMode == Repository.MODE_SYNC_LIBRARY) Repository.pendingAll = true;
       else if (book != null) Repository.pendingBook = book;
-      if(all)Repository.manualOverride = true;
+      Repository.manualOverride = true;
       return START_NOT_STICKY;
     }
     worker =
         new Thread(
             () -> {
               try {
-                Repository.run(this, book, all, false);
+                Repository.run(this, book, finalMode, false);
                 while (Repository.busy.get()) Thread.sleep(500);
               } catch (Exception e) {
                 Repository.notify(this, "Tạm dừng: " + e.getMessage());

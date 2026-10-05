@@ -15,11 +15,67 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public final File cache;
+  private final Context context;
 
   private Store(Context c) {
     super(c, "hako.db", null, 3);
+    this.context = c.getApplicationContext();
     cache = new File(c.getFilesDir(), "chapters");
     cache.mkdirs();
+  }
+
+  public boolean isKeepFull(String id) {
+    return context.getSharedPreferences("settings", 0).getBoolean("keep_full_" + id, false);
+  }
+
+  public void setKeepFull(String id, boolean keep) {
+    context.getSharedPreferences("settings", 0).edit().putBoolean("keep_full_" + id, keep).apply();
+  }
+
+  public static class BookProgress {
+    public final int totalChs;
+    public final int oldChs;
+    public final int newChsTotal;
+    public final int newChsDownloaded;
+    public final int percent;
+
+    public BookProgress(int total, int old, int newTotal, int newDownloaded, int pct) {
+      this.totalChs = total;
+      this.oldChs = old;
+      this.newChsTotal = newTotal;
+      this.newChsDownloaded = newDownloaded;
+      this.percent = pct;
+    }
+  }
+
+  public BookProgress progress(Book b) {
+    List<Chapter> chs = chapters(b.id);
+    int total = chs.size();
+    if (total == 0) return new BookProgress(0, 0, 0, 0, 0);
+
+    int currentOrd = 0;
+    if (b.current != null && !b.current.isEmpty()) {
+      for (int i = 0; i < chs.size(); i++) {
+        if (chs.get(i).id.equals(b.current)) {
+          currentOrd = chs.get(i).ord;
+          break;
+        }
+      }
+    } else {
+      for (int i = 0; i < chs.size(); i++) {
+        if (wasRead(chs.get(i).id)) currentOrd = i;
+      }
+    }
+
+    int oldChs = Math.max(0, currentOrd);
+    int newChsTotal = Math.max(0, total - currentOrd);
+    int newChsDownloaded = 0;
+    for (int i = currentOrd; i < total; i++) {
+      if (readable(chs.get(i).id)) newChsDownloaded++;
+    }
+
+    int pct = Math.min(100, Math.max(0, Math.round((oldChs + newChsDownloaded) * 100f / total)));
+    return new BookProgress(total, oldChs, newChsTotal, newChsDownloaded, pct);
   }
 
   public void onCreate(SQLiteDatabase d) {
@@ -225,6 +281,8 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public synchronized void prune(Book b) {
+    if (b == null) return;
+    if (isKeepFull(b.id)) return; // Never prune books selected for full offline
     Chapter current = chapter(b.id, b.current);
     if (current == null) return;
     for (Chapter c : chapters(b.id))
@@ -238,7 +296,7 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void followed(String id,boolean value,int rank){ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   public synchronized void dropped(String id,boolean value){ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   public boolean readable(String cid){try{return html(cid).isFile()&&HakoParser.validContent(read(html(cid)));}catch(Exception e){return false;}}
-  public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed)for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
+  public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
   public void cleanStartup(){for(Book b:books())if(!b.id.equals("demo")){if(!b.followed&&!b.id.equals(Repository.activeBook))clearTemporary(b.id);else for(Chapter c:chapters(b.id))if(!readable(c.id)){delete(dir(c.id));state(c.id,false,"");}}}
   public synchronized void rebase(String origin){for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}}
   public static void delete(File f) {

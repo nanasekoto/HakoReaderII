@@ -31,7 +31,7 @@ public class ChargeJob extends JobService {
             () -> {
               boolean retry = false;
               try {
-                Repository.run(this, "", true, true);
+                Repository.run(this, "", Repository.MODE_SYNC_LIBRARY, true);
               } catch (Exception e) {
                 retry = false;
                 Repository.notify(this, "Tải khi sạc: " + e.getMessage());

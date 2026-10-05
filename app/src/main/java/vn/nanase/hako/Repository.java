@@ -22,8 +22,12 @@ public final class Repository {
       cancel = new AtomicBoolean(false);
   public static volatile boolean pendingAll = false, manualOverride = false;
   public static volatile String status = "Sẵn sàng", pendingBook = "";
+  public static final int MODE_BOOK_NEXT = 1, MODE_BOOK_ALL = 2, MODE_SYNC_LIBRARY = 3;
+  public static volatile int currentMode = 0;
   public static volatile int syncTotal = 0, syncDone = 0, syncPct = 100;
   public static volatile boolean isSyncing = false;
+  public static volatile String syncState = "IDLE";
+  public static volatile String priorityChapterId = "";
 
   public static void notify(Context c, String s) {
     status = s;
@@ -192,141 +196,193 @@ public final class Repository {
     return b.toString();
   }
 
-  public static void run(Context ctx,String book,boolean all,boolean charging)throws Exception {
-    init(ctx);if(!busy.compareAndSet(false,true)){if(all)pendingAll=true;else pendingBook=book;return;}
-    cancel.set(false);manualOverride=!charging&&all;
-    try{
-      allowed(ctx);Store s=Store.get(ctx);ArrayList<Store.Book> todo=new ArrayList<>();
-      if(all){
-        for(Store.Book b:s.books()){
-          if(b.id.equals("demo")||b.dropped)continue;
-          // Per-book auto-download control: only sync books where user explicitly enabled auto-download for this specific novel!
-          boolean autoDl = ctx.getSharedPreferences("settings",0).getBoolean("auto_dl_"+b.id, false);
-          if(autoDl || b.id.equals(activeBook)) todo.add(b);
-        }
-      }else{
-        Store.Book b=s.book(book);if(b!=null&&!b.id.equals("demo"))todo.add(b);
-      }
-      int totalNeed = 0;
-      for (Store.Book tb : todo) {
-        List<Store.Chapter> tchs = s.chapters(tb.id);
-        int cur = 0;
-        for (Store.Chapter ch : tchs) if (ch.id.equals(tb.current)) cur = ch.ord;
-        for (Store.Chapter ch : tchs) {
-          if (ch.ord >= cur && !s.readable(ch.id)) totalNeed++;
-        }
-      }
-      syncTotal = totalNeed;
-      syncDone = 0;
-      isSyncing = (totalNeed > 0);
-      syncPct = totalNeed == 0 ? 100 : 0;
-      notify(ctx, isSyncing ? ("Bắt đầu tải " + syncTotal + " chương mới") : "Tất cả chương mới đã tải đủ");
+  public static void run(Context ctx, String book, int mode, boolean charging) throws Exception {
+    init(ctx);
+    if (!busy.compareAndSet(false, true)) {
+      if (mode == MODE_SYNC_LIBRARY) pendingAll = true;
+      else if (book != null && !book.isEmpty()) pendingBook = book;
+      return;
+    }
+    cancel.set(false);
+    currentMode = mode;
+    manualOverride = !charging && (mode == MODE_BOOK_ALL || mode == MODE_SYNC_LIBRARY);
+    isSyncing = true;
+    syncState = "CHECKING";
+    syncTotal = 0;
+    syncDone = 0;
+    syncPct = 0;
+    notify(ctx, "Đang kiểm tra mục lục…");
 
-      while(!cancel.get()&&(!todo.isEmpty()||!pendingBook.isEmpty()||pendingAll)){
-        if(pendingAll){pendingAll=false;for(Store.Book b:s.books())if(b.followed&&!b.dropped&&!b.id.equals("demo")){boolean exists=false;for(Store.Book t:todo)if(t.id.equals(b.id))exists=true;if(!exists)todo.add(b);}}
-        if(!pendingBook.isEmpty()){Store.Book p=s.book(pendingBook);pendingBook="";if(p!=null){todo.removeIf(x->x.id.equals(p.id));todo.add(0,p);}}
-        if(todo.isEmpty()||(charging&&!ChargeJob.isCharging(ctx)))break;
-        Store.Book b=todo.remove(0);
-        if(b==null||b.id==null||b.id.isEmpty()||b.dropped)continue;
-        boolean autoDl = ctx.getSharedPreferences("settings",0).getBoolean("auto_dl_"+b.id, false);
-        if(all && !autoDl && !b.id.equals(activeBook))continue;
-        catalog(ctx,b);
-        Store.Book refreshed=s.book(b.id);
-        if(refreshed!=null)b=refreshed;
-        List<Store.Chapter> chapters=s.chapters(b.id);int current=0;
-        for(Store.Chapter ch:chapters)if(ch.id.equals(b.current))current=ch.ord;
-        // Download ALL remaining/new chapters starting from current reading chapter through the end
-        List<Store.Chapter> needDownload=new ArrayList<>();
-        for(Store.Chapter ch:chapters){
-          if(ch.ord>=current&&!s.readable(ch.id))needDownload.add(ch);
+    try {
+      allowed(ctx);
+      Store s = Store.get(ctx);
+      ArrayList<Store.Book> todo = new ArrayList<>();
+
+      if (mode == MODE_BOOK_NEXT || mode == MODE_BOOK_ALL) {
+        Store.Book b = s.book(book);
+        if (b != null && !b.id.equals("demo")) {
+          if (mode == MODE_BOOK_ALL) s.setKeepFull(b.id, true);
+          todo.add(b);
         }
-        if(needDownload.isEmpty()){
-          notify(ctx,b.title+": Tất cả chương mới đã tải đủ ✓");
-        }else{
-          notify(ctx,b.title+": Bắt đầu tải "+needDownload.size()+" chương mới");
-          int count=0;
-          for(Store.Chapter ch:needDownload){
-            if(cancel.get())break;
-            if(charging&&!ChargeJob.isCharging(ctx))break;
-            count++;
-            notify(ctx,"Đang tải ("+count+"/"+needDownload.size()+"): "+ch.title);
-            long delay=1500;
-            if(!waitFor(ctx,delay,b.id,charging))break;
-            try{
-              download(ctx,ch);
-              syncDone++;
-              syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
-              notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
-            }catch(Exception e){
-              // Retry once after short pause
-              try {
-                Thread.sleep(3000);
-                if (!cancel.get()) {
-                  download(ctx, ch);
-                  syncDone++;
-                  syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
-                  notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
-                }
-              } catch (Exception retryEx) {
-                s.state(ch.id,false,retryEx.getMessage());
-                notify(ctx,"Lỗi tải "+ch.title+": "+retryEx.getMessage());
-                Thread.sleep(1500);
-              }
-            }
+      } else { // MODE_SYNC_LIBRARY
+        for (Store.Book b : s.books()) {
+          if (b.id.equals("demo") || b.dropped) continue;
+          boolean autoDl = ctx.getSharedPreferences("settings", 0).getBoolean("auto_dl_" + b.id, false);
+          if (autoDl || b.id.equals(activeBook)) {
+            todo.add(b);
           }
         }
-        // If downloading full book (all=true), also download any earlier chapters 0..current-1
-        if(all&&!cancel.get()){
-          for(Store.Chapter ch:chapters){
-            if(ch.ord>=current||s.readable(ch.id))continue;
-            if(charging&&!ChargeJob.isCharging(ctx))break;
-            notify(ctx,"Tải bổ sung: "+ch.title);
-            if(!waitFor(ctx,1500,b.id,charging))break;
-            try{
-              download(ctx,ch);
-              syncDone++;
-              syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
-              notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
-            }catch(Exception e){
-              // Retry once after short pause
-              try {
-                Thread.sleep(3000);
-                if (!cancel.get()) {
-                  download(ctx, ch);
-                  syncDone++;
-                  syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
-                  notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
-                }
-              } catch (Exception retryEx) {
-                s.state(ch.id,false,retryEx.getMessage());
-                notify(ctx,"Lỗi tải "+ch.title+": "+retryEx.getMessage());
-                Thread.sleep(1500);
-              }
-            }
-          }
-        }
-        Store.Book latest=s.book(b.id);if(latest!=null)s.prune(latest);
       }
-      notify(ctx,"✓ Đã tải xong tất cả chương mới. Có thể tắt Wi-Fi!");
-    }finally{
-      busy.set(false);pendingBook="";pendingAll=false;manualOverride=false;isSyncing=false;
-      boolean completedAll = (syncTotal > 0 && syncDone >= syncTotal) || (syncTotal == 0);
-      if(completedAll){
+
+      // If activeBook is in list, move to front
+      if (!activeBook.isEmpty()) {
+        for (int i = 0; i < todo.size(); i++) {
+          if (todo.get(i).id.equals(activeBook)) {
+            Store.Book ab = todo.remove(i);
+            todo.add(0, ab);
+            break;
+          }
+        }
+      }
+
+      while (!cancel.get() && (!todo.isEmpty() || !pendingBook.isEmpty() || pendingAll)) {
+        if (pendingAll) {
+          pendingAll = false;
+          for (Store.Book b : s.books()) {
+            if (b.id.equals("demo") || b.dropped) continue;
+            boolean autoDl = ctx.getSharedPreferences("settings", 0).getBoolean("auto_dl_" + b.id, false);
+            if (autoDl) {
+              boolean exists = false;
+              for (Store.Book t : todo) if (t.id.equals(b.id)) exists = true;
+              if (!exists) todo.add(b);
+            }
+          }
+        }
+        if (!pendingBook.isEmpty()) {
+          Store.Book p = s.book(pendingBook);
+          pendingBook = "";
+          if (p != null) {
+            todo.removeIf(x -> x.id.equals(p.id));
+            todo.add(0, p);
+          }
+        }
+        if (todo.isEmpty() || (charging && !ChargeJob.isCharging(ctx))) break;
+
+        Store.Book b = todo.remove(0);
+        if (b == null || b.id == null || b.id.isEmpty() || b.dropped) continue;
+
+        // 1. Refresh catalog FIRST to know real chapter count
+        catalog(ctx, b);
+        Store.Book refreshed = s.book(b.id);
+        if (refreshed != null) b = refreshed;
+        List<Store.Chapter> chapters = s.chapters(b.id);
+        int current = 0;
+        for (Store.Chapter ch : chapters) if (ch.id.equals(b.current)) current = ch.ord;
+
+        boolean isFullMode = (mode == MODE_BOOK_ALL) || s.isKeepFull(b.id);
+
+        // 2. Identify EXACT chapters needed
+        List<Store.Chapter> needDownload = new ArrayList<>();
+        // Priority: current reading chapter to end of book
+        for (Store.Chapter ch : chapters) {
+          if (ch.ord >= current && !s.readable(ch.id)) needDownload.add(ch);
+        }
+        // If full mode: also earlier chapters
+        if (isFullMode) {
+          for (Store.Chapter ch : chapters) {
+            if (ch.ord < current && !s.readable(ch.id)) needDownload.add(ch);
+          }
+        }
+
+        syncTotal += needDownload.size();
+        syncState = "DOWNLOADING";
+        if (syncTotal == 0) {
+          notify(ctx, b.title + ": Đã tải đủ ✓");
+        } else {
+          syncPct = Math.min(100, Math.round(syncDone * 100f / syncTotal));
+          notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + ")");
+        }
+
+        // 3. Download loop per chapter with preemption
+        for (Store.Chapter ch : needDownload) {
+          if (cancel.get()) break;
+          if (charging && !ChargeJob.isCharging(ctx)) break;
+
+          // Priority check: did user open another chapter?
+          if (!priorityChapterId.isEmpty()) {
+            String pCid = priorityChapterId;
+            priorityChapterId = "";
+            Store.Chapter pch = s.chapter(b.id, pCid);
+            if (pch != null && !s.readable(pch.id)) {
+              notify(ctx, "Ưu tiên: " + pch.title);
+              try {
+                download(ctx, pch);
+                if (s.readable(pch.id)) syncDone++;
+              } catch (Exception ignored) {}
+            }
+          }
+
+          if (s.readable(ch.id)) continue;
+
+          long delay = charging ? 2000 : 3000;
+          if (!waitFor(ctx, delay, b.id, charging)) break;
+
+          try {
+            download(ctx, ch);
+            if (s.readable(ch.id)) {
+              syncDone++;
+              syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
+              notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
+            }
+          } catch (Exception e) {
+            s.state(ch.id, false, e.getMessage());
+            notify(ctx, "Lỗi tải " + ch.title + ": " + e.getMessage());
+            Thread.sleep(1500);
+          }
+        }
+
+        Store.Book latest = s.book(b.id);
+        if (latest != null && !isFullMode) s.prune(latest);
+      }
+
+      int remaining = 0;
+      if (syncTotal > 0 && syncDone < syncTotal) remaining = syncTotal - syncDone;
+      if (syncTotal > 0 && remaining == 0) {
+        syncState = "COMPLETED";
         syncPct = 100;
+        isSyncing = false;
         notify(ctx, "✓ Đã tải xong tất cả chương mới");
-      }else{
-        syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 0;
-        notify(ctx, "Tạm dừng tải: " + syncDone + "/" + syncTotal + " (" + syncPct + "%)");
+      } else if (syncTotal == 0) {
+        syncState = "COMPLETED";
+        syncPct = 100;
+        isSyncing = false;
+        notify(ctx, "✓ Tất cả chương đã có đủ offline");
+      } else {
+        syncState = "INCOMPLETE";
+        isSyncing = false;
+        notify(ctx, "Chưa hoàn tất: còn " + remaining + " chương chưa tải");
+      }
+    } finally {
+      busy.set(false);
+      pendingBook = "";
+      pendingAll = false;
+      manualOverride = false;
+      isSyncing = false;
+      if (syncTotal == 0 || syncDone >= syncTotal) {
+        syncPct = 100;
+        syncState = "COMPLETED";
       }
     }
   }
-  private static boolean waitFor(Context c,long delay,String id,boolean charging)throws Exception {
-    long end=android.os.SystemClock.elapsedRealtime()+delay;
-    while(android.os.SystemClock.elapsedRealtime()<end){
-      if(cancel.get())return false;
-      if(charging&&!ChargeJob.isCharging(c))return false;
-      Thread.sleep(Math.min(500,Math.max(1,end-android.os.SystemClock.elapsedRealtime())));
+
+  private static boolean waitFor(Context c, long delay, String id, boolean charging) throws Exception {
+    long end = android.os.SystemClock.elapsedRealtime() + delay;
+    while (android.os.SystemClock.elapsedRealtime() < end) {
+      if (cancel.get() || !priorityChapterId.isEmpty()) return false;
+      if (charging && !ChargeJob.isCharging(c)) return false;
+      Thread.sleep(Math.min(500, Math.max(1, end - android.os.SystemClock.elapsedRealtime())));
     }
-    allowed(c);return true;
+    allowed(c);
+    return true;
   }
 }

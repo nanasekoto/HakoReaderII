@@ -15,6 +15,38 @@ import java.util.concurrent.*;
 import org.json.*;
 
 public class MainActivity extends Activity {
+  public static class EinkDialog {
+    public static AlertDialog show(Context context, String title, String message,
+                                    String posLabel, Runnable onPos,
+                                    String negLabel, Runnable onNeg) {
+      AlertDialog.Builder b = new AlertDialog.Builder(context);
+      if (title != null && !title.isEmpty()) b.setTitle(title);
+      if (message != null && !message.isEmpty()) b.setMessage(message);
+      if (posLabel != null) b.setPositiveButton(posLabel + " (Vol -)", (d, w) -> { if (onPos != null) onPos.run(); });
+      if (negLabel != null) b.setNegativeButton(negLabel + " (Vol +)", (d, w) -> { if (onNeg != null) onNeg.run(); });
+      AlertDialog dialog = b.create();
+      dialog.setOnKeyListener((d, keyCode, event) -> {
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+          if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_PAGE_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            dialog.dismiss();
+            if (onPos != null) onPos.run();
+            return true;
+          } else if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_PAGE_UP || keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+            dialog.dismiss();
+            if (onNeg != null) onNeg.run();
+            return true;
+          }
+        }
+        return false;
+      });
+      dialog.show();
+      return dialog;
+    }
+  }
+
+  private boolean touchLocked = false;
+  private BroadcastReceiver powerReceiver;
+
   private Store store;
   private android.content.SharedPreferences prefs;
   private LinearLayout root, bar, topBar, boundaryPrompt; private int boundaryDir = 0; private boolean pendingOpenAtEnd = false;
@@ -28,14 +60,7 @@ public class MainActivity extends Activity {
   private boolean online = false, readerReady = false;
   private boolean volumeUpPressed = false;
   private long volumeUpPressTime = 0;
-  private int calculateCardHeight(int cardsPerPage, int reservedDp) {
-    int screenH = getResources().getDisplayMetrics().heightPixels;
-    float density = getResources().getDisplayMetrics().density;
-    int densityH = (int)(screenH / density);
-    int availDp = Math.max(200, densityH - reservedDp);
-    int divDp = 4;
-    return dp(Math.max(54, (availDp - (cardsPerPage - 1) * divDp) / cardsPerPage));
-  }
+
   private void toggleTouchLock() {
     if (nativeReader != null) {
       boolean next = !nativeReader.isTouchLocked();
@@ -219,7 +244,7 @@ public class MainActivity extends Activity {
       ()->browse(HakoParser.ORIGIN+"/login"),
       this::domain,
       this::demo,
-      ()->{Repository.cancel.set(false);startDownloads("",true);},
+      ()->{Repository.cancel.set(false);startDownloads("",Repository.MODE_SYNC_LIBRARY);},
       this::exitApp
     };
     int cols=3;
@@ -513,22 +538,11 @@ public class MainActivity extends Activity {
     headerTitle.setTextColor(INK);
     header.addView(headerTitle,new LinearLayout.LayoutParams(0,-2,1f));
 
-    Button btnDlAll = button("Tải tất cả", () -> {
-      new AlertDialog.Builder(this)
-          .setTitle("Tải tất cả các chương")
-          .setMessage("Tải toàn bộ các chương của các bộ truyện trong danh sách Thường đọc để đọc offline?")
-          .setPositiveButton("Tải ngay", (d, w) -> startDownloads("", true))
-          .setNegativeButton("Hủy", null)
-          .show();
-    });
-    LinearLayout.LayoutParams lpDl = new LinearLayout.LayoutParams(-2, dp(32));
-    lpDl.setMargins(0, 0, dp(4), 0);
-    header.addView(btnDlAll, lpDl);
-
     header.addView(button("Trang chính",this::library),new LinearLayout.LayoutParams(-2,dp(32)));
     root.addView(header);
 
-    List<Store.Book> books=new ArrayList<>();for(Store.Book b:store.books())if(b.visits>0||b.pinned)books.add(b);
+    List<Store.Book> books=new ArrayList<>();
+    for(Store.Book b:store.books())if(b.visits>0||b.pinned)books.add(b);
     Collections.sort(books,(a,b)->{if(a.pinned!=b.pinned)return a.pinned?-1:1;int n=Integer.compare(b.visits,a.visits);return n!=0?n:Long.compare(b.stamp,a.stamp);});
 
     ListView list=new ListView(this);currentList=list;
@@ -538,26 +552,16 @@ public class MainActivity extends Activity {
     list.setDividerHeight(dp(5));
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
-    final int[] itemH = new int[]{0};
-    list.post(() -> {
-      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
-      if (listH > 0) {
-        int cardsPerPage = 5;
-        int divH = dp(5);
-        itemH[0] = Math.max(dp(65), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
-        list.invalidateViews();
-      }
-    });
+
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
         Store.Book b=getItem(p);
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        if(itemH[0] > 0){
-          card.setMinimumHeight(itemH[0]);
-          card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
-        }
+        card.setMinimumHeight(dp(68));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
         cardBg.setStroke(dp(2),Color.BLACK);
@@ -577,38 +581,16 @@ public class MainActivity extends Activity {
         titleView.setMaxLines(2);
         top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
 
-        // Compute download %: so chuong cu + so chuong moi da tai = 100%
-        List<Store.Chapter> chs=store.chapters(b.id);
-        int totalChs=chs.size();
-        int currentOrd=0;
-        if(!b.current.isEmpty()){
-          for(int i=0;i<chs.size();i++){if(chs.get(i).id.equals(b.current)){currentOrd=chs.get(i).ord;break;}}
-        }else{
-          for(int i=0;i<chs.size();i++){if(store.wasRead(chs.get(i).id))currentOrd=i;}
-        }
-
-        int oldChs=Math.max(0,currentOrd);
-        int newChsTotal=Math.max(0,totalChs-currentOrd);
-        int newChsDownloaded=0;
-        for(int i=currentOrd;i<totalChs;i++){
-          if(store.readable(chs.get(i).id))newChsDownloaded++;
-        }
-
-        int downloadPct=100;
-        int newPct = newChsTotal > 0 ? Math.round(newChsDownloaded * 100f / newChsTotal) : 100;
-        if(totalChs>0){
-          downloadPct=Math.min(100,Math.round((oldChs+newChsDownloaded)*100f/totalChs));
-        }
-
+        Store.BookProgress prog = store.progress(b);
         TextView badge=new TextView(MainActivity.this);
-        if(totalChs==0){
+        if(prog.totalChs==0){
           badge.setText("CHƯA TẢI");
           badge.setBackgroundColor(Color.GRAY);
-        }else if(newChsTotal==0||newChsDownloaded>=newChsTotal){
+        }else if(prog.percent==100||prog.newChsTotal==0||prog.newChsDownloaded>=prog.newChsTotal){
           badge.setText("✓ 100%");
           badge.setBackgroundColor(Color.BLACK);
         }else{
-          badge.setText("ĐÃ TẢI "+newPct+"%");
+          badge.setText("ĐÃ TẢI "+prog.percent+"%");
           badge.setBackgroundColor(Color.BLACK);
         }
         badge.setTextSize(11);
@@ -621,13 +603,14 @@ public class MainActivity extends Activity {
         card.addView(top);
 
         StringBuilder sub=new StringBuilder();
-        if(totalChs==0){
+        if(prog.totalChs==0){
           sub.append("Chưa có mục lục · Cần bật Wi-Fi để cập nhật");
-        }else if(newChsTotal==0||newChsDownloaded>=newChsTotal){
-          sub.append("✓ Đã tải đủ 100% (").append(totalChs).append(" ch) · Đọc offline");
+        }else if(prog.newChsTotal==0||prog.newChsDownloaded>=prog.newChsTotal){
+          sub.append("✓ Đã tải 100% (").append(prog.totalChs).append(" ch) · Đọc offline");
         }else{
-          int unread=newChsTotal-newChsDownloaded;
-          sub.append("Đã tải: ").append(newChsDownloaded).append("/").append(newChsTotal).append(" chương mới (").append(newPct).append("%) · còn ").append(unread).append(" ch");
+          int unread=prog.newChsTotal-prog.newChsDownloaded;
+          sub.append("Đã tải: ").append(prog.newChsDownloaded).append("/").append(prog.newChsTotal)
+             .append(" chương mới (").append(prog.percent).append("%) · còn ").append(unread).append(" ch");
         }
         if(b.stamp>0){
           sub.append(" · ").append(android.text.format.DateFormat.format("dd/MM",b.stamp));
@@ -643,27 +626,49 @@ public class MainActivity extends Activity {
         return card;
       }
     });
-    list.setOnItemClickListener((a,v,i,id)->{navStack.push(this::frequentList);contents(books.get(i));});
+    list.setOnItemClickListener((a,v,i,id)->{navStack.push(this::frequentList);openBook(books.get(i));});
     list.setOnItemLongClickListener((a,v,i,id)->{bookMenu(books.get(i));return true;});
     root.addView(list,new LinearLayout.LayoutParams(-1,0,1));status();
   }
   private void saveBook(){Store.Book b=store.book(bookId);if(b==null)return;if(b.followed){message("Bộ này đã trong tủ sách HAKO.");return;}Repository.cancel.set(false);task("Đang lưu lên HAKO…",()->{RenderedPage.action(this,b.url,"follow");store.followed(b.id,true,b.shelfRank);return null;},()->Toast.makeText(this,"Đã lưu vào tủ sách HAKO",Toast.LENGTH_SHORT).show());}
-  private void markCaughtUp(Store.Book b){new AlertDialog.Builder(this).setTitle("Đã bắt kịp: "+b.title).setMessage("Đánh dấu bộ này đã đọc trên HAKO. Bộ đếm chương mới sẽ tính từ mốc hiện tại; không đổi màu liên kết trên điện thoại.").setPositiveButton("Đã đọc hết",(d,w)->{Repository.cancel.set(false);task("Đánh dấu trên HAKO…",()->{RenderedPage.action(this,HakoParser.ORIGIN+"/ke-sach","read:"+b.id.substring(b.id.lastIndexOf('-')+1));store.shelfInfo(b.id,"Không có chương mới tại lần đánh dấu vừa rồi");return null;},()->message("HAKO đã xác nhận đánh dấu đã đọc."));}).setNegativeButton("Hủy",null).show();}
+  private void markCaughtUp(Store.Book b){
+    EinkDialog.show(
+        this,
+        "Đã bắt kịp: " + b.title,
+        "Đánh dấu bộ này đã đọc trên HAKO. Bộ đếm chương mới sẽ tính từ mốc hiện tại; không đổi màu liên kết trên điện thoại.",
+        "Đã đọc hết",
+        () -> {
+          Repository.cancel.set(false);
+          task(
+              "Đánh dấu trên HAKO…",
+              () -> {
+                RenderedPage.action(
+                    this,
+                    HakoParser.ORIGIN + "/ke-sach",
+                    "read:" + b.id.substring(b.id.lastIndexOf('-') + 1));
+                store.shelfInfo(b.id, "Không có chương mới tại lần đánh dấu vừa rồi");
+                return null;
+              },
+              () -> message("HAKO đã xác nhận đánh dấu đã đọc."));
+        },
+        "Hủy",
+        null);
+  }
   private void readerMenu(){new AlertDialog.Builder(this).setItems(new String[]{"Chương trước","Chương tiếp","Đánh dấu đoạn","Ẩn thanh công cụ","Tải trước / tiếp tục","Dừng tải","Mở HAKO","Chạm lật trang: "+(prefs.getBoolean("taps",true)?"Bật":"Tắt"),"Đầu chương","Cuối chương","Đã bắt kịp trên HAKO","Tải lại chương này"},(d,w)->{
-    if(w==0)saveThen(()->adjacent(-1));if(w==1)saveThen(()->adjacent(1));if(w==2)bookmarks();if(w==3){bar.setVisibility(View.GONE);Toast.makeText(this,"Vuốt dọc rồi chạm để hiện công cụ",Toast.LENGTH_SHORT).show();}if(w==4)startDownloads(bookId,false);if(w==5)Repository.cancel.set(true);if(w==6){Store.Chapter ch=store.chapter(bookId,chapterId);saveThen(()->browse(ch.url));}if(w==7){boolean t=!prefs.getBoolean("taps",true);prefs.edit().putBoolean("taps",t).apply();if(nativeReader!=null)nativeReader.taps(t);}if(w==8&&nativeReader!=null)nativeReader.jump(false);if(w==9&&nativeReader!=null)nativeReader.jump(true);if(w==10)markCaughtUp(store.book(bookId));if(w==11){final String bid=bookId,cid=chapterId;store.state(cid,false,"");task("Tải lại chương…",()->{Repository.cancel.set(false);Repository.download(this,store.chapter(bid,cid));return null;},()->showReader(bid,cid));}}).show();}
+    if(w==0)saveThen(()->adjacent(-1));if(w==1)saveThen(()->adjacent(1));if(w==2)bookmarks();if(w==3){bar.setVisibility(View.GONE);Toast.makeText(this,"Vuốt dọc rồi chạm để hiện công cụ",Toast.LENGTH_SHORT).show();}if(w==4)startDownloads(bookId,Repository.MODE_BOOK_NEXT);if(w==5)Repository.cancel.set(true);if(w==6){Store.Chapter ch=store.chapter(bookId,chapterId);saveThen(()->browse(ch.url));}if(w==7){boolean t=!prefs.getBoolean("taps",true);prefs.edit().putBoolean("taps",t).apply();if(nativeReader!=null)nativeReader.taps(t);}if(w==8&&nativeReader!=null)nativeReader.jump(false);if(w==9&&nativeReader!=null)nativeReader.jump(true);if(w==10)markCaughtUp(store.book(bookId));if(w==11){final String bid=bookId,cid=chapterId;store.state(cid,false,"");task("Tải lại chương…",()->{Repository.cancel.set(false);Repository.download(this,store.chapter(bid,cid));return null;},()->showReader(bid,cid));}}).show();}
   private void confirmBulk() {
-    new AlertDialog.Builder(this)
-        .setTitle("Đồng bộ thư viện")
-        .setMessage(
-            "Tải phạm vi offline của các truyện đã có trong thư viện, kể cả khi không sạc. Truyện"
-                + " chưa chọn vị trí sẽ tải từ chương đầu. Bạn có thể dừng bất cứ lúc nào.")
-        .setPositiveButton("Tải ngay", (d, w) -> startDownloads("", true))
-        .setNegativeButton("Hủy", null)
-        .show();
+    EinkDialog.show(
+        this,
+        "Đồng bộ thư viện",
+        "Tải phạm vi offline của các truyện đã có trong thư viện, kể cả khi không sạc. Bạn có thể dừng bất cứ lúc nào.",
+        "Tải ngay",
+        () -> startDownloads("", Repository.MODE_SYNC_LIBRARY),
+        "Hủy",
+        null);
   }
 
-  private void startDownloads(String id, boolean all) {
-    Intent i = new Intent(this, DownloadService.class).putExtra("book", id).putExtra("all", all);
+  private void startDownloads(String id, int mode) {
+    Intent i = new Intent(this, DownloadService.class).putExtra("book", id).putExtra("mode", mode);
     startForegroundService(i);
   }
 
@@ -685,7 +690,7 @@ public class MainActivity extends Activity {
             (d, w) -> {
               if (w == 0) contents(b);
               if (w == 1) {
-                startDownloads(b.id, true);
+                startDownloads(b.id, Repository.MODE_BOOK_ALL);
                 Toast.makeText(this, "Bắt đầu tải tất cả chương: " + b.title, Toast.LENGTH_SHORT).show();
               }
               if (w == 2) {
@@ -827,7 +832,7 @@ public class MainActivity extends Activity {
     rowBtns.add("◀ Quay lại");rowActs.add(this::goBack);
     rowBtns.add("▶ Đọc tiếp");rowActs.add(() -> openChapter(b.id, targetCh.id));
     rowBtns.add("⬇ Tải tất cả");rowActs.add(() -> {
-      startDownloads(b.id, true);
+      startDownloads(b.id, Repository.MODE_BOOK_ALL);
       Toast.makeText(this, "Đang tải tất cả chương của: " + b.title, Toast.LENGTH_SHORT).show();
     });
     rowBtns.add(b.followed ? "♥ Đã lưu" : "♡ Tủ sách");
@@ -943,7 +948,7 @@ public class MainActivity extends Activity {
         if(isFinishing()||isDestroyed()||!bid.equals(bookId)||!cid.equals(chapterId))return;
         lastPos=p;lastFraction=f;store.position(bid,cid,p,f);store.readChapter(cid);
         if(title!=null)title.setText(c.title+" · "+(page+1)+"/"+count);
-        if(!readerReady){readerReady=true;io.execute(()->store.prune(store.book(bid)));if(!bid.equals("demo"))startDownloads(bid,false);}
+        if(!readerReady){readerReady=true;io.execute(()->store.prune(store.book(bid)));if(!bid.equals("demo"))startDownloads(bid,Repository.MODE_BOOK_NEXT);}
       }
       public void boundary(int dir){
         if(!readerReady)return;
@@ -954,12 +959,14 @@ public class MainActivity extends Activity {
         List<Store.Chapter> allChs=store.chapters(bid);
         boolean isLastChapter=(!allChs.isEmpty()&&allChs.get(allChs.size()-1).id.equals(cid));
         if(dir>0&&isLastChapter){
-          new AlertDialog.Builder(MainActivity.this)
-              .setTitle("Đã đọc đến chương cuối!")
-              .setMessage("Bạn đã đọc đến chương mới nhất của bộ truyện. Cập nhật 'Đã đọc' lên Tủ sách HAKO?")
-              .setPositiveButton("Đã đọc hết",(d,w)->markCaughtUp(store.book(bid)))
-              .setNegativeButton("Để sau",null)
-              .show();
+          EinkDialog.show(
+              MainActivity.this,
+              "Đã đọc đến chương cuối!",
+              "Bạn đã đọc đến chương mới nhất của bộ truyện. Cập nhật 'Đã đọc' lên Tủ sách HAKO?",
+              "Đã đọc hết",
+              () -> markCaughtUp(store.book(bid)),
+              "Để sau",
+              null);
           return;
         }
         showBoundaryPrompt(dir);
@@ -1472,12 +1479,14 @@ public class MainActivity extends Activity {
   }
 
   private void confirmExit() {
-    new AlertDialog.Builder(this)
-        .setTitle("Thoát Hako Pocket")
-        .setMessage("Bạn có muốn thoát ứng dụng?")
-        .setPositiveButton("Thoát", (d, w) -> exitApp())
-        .setNegativeButton("Ở lại", null)
-        .show();
+    EinkDialog.show(
+        this,
+        "Thoát Hako Pocket",
+        "Bạn có muốn thoát ứng dụng?",
+        "Thoát",
+        this::exitApp,
+        "Ở lại",
+        null);
   }
 
   @Override
@@ -1534,13 +1543,13 @@ public class MainActivity extends Activity {
         }else if(web!=null){
           if(dir>0)web.pageDown(false);else web.pageUp(false);
         }else if(currentList!=null&&currentList.isShown()){
-          int first=currentList.getFirstVisiblePosition();
-          int last=currentList.getLastVisiblePosition();
           int count=currentList.getCount();
           if(count>0){
-            int visibleCount=Math.max(1,last-first+1);
-            int target=(dir>0)?Math.min(count-1,last+1):Math.max(0,first-visibleCount);
-            currentList.setSelection(target);
+            int curFirst=currentList.getFirstVisiblePosition();
+            int pageSize=5;
+            int curPage=curFirst/pageSize;
+            int targetPage=(dir>0)?Math.min((count-1)/pageSize,curPage+1):Math.max(0,curPage-1);
+            currentList.setSelection(targetPage*pageSize);
           }
         }else if(currentScroll!=null&&currentScroll.isShown()){
           currentScroll.pageScroll(dir>0?View.FOCUS_DOWN:View.FOCUS_UP);
