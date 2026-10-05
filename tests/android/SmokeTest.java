@@ -222,6 +222,10 @@ public class SmokeTest extends Instrumentation {
       check(chapters.getLastVisiblePosition()-chapters.getFirstVisiblePosition()+1==6,"Chapter selection shows six complete chapter rows");
       check(chapters.getChildAt(chapters.getChildCount()-1).getBottom()<=chapters.getHeight()-chapters.getPaddingBottom(),"Chapter selection final row is not cut");
       shot("contents");
+      // Enter genuine Android touch mode; the first mapped navigation DOWN must still arrive.
+      long tapTime=SystemClock.uptimeMillis();
+      sendPointerSync(MotionEvent.obtain(tapTime,tapTime,MotionEvent.ACTION_DOWN,100,60,0));
+      sendPointerSync(MotionEvent.obtain(tapTime,tapTime+10,MotionEvent.ACTION_UP,100,60,0));settle();
       int chapterStart=chapters.getFirstVisiblePosition();
       key(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_PAGE_UP);SystemClock.sleep(850);
       key(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_PAGE_UP);settle();

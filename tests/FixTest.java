@@ -43,6 +43,13 @@ public class FixTest {
   check(!storeCode.contains("SELECT id,title,url,current,pos,fraction,stamp,dropped,visits,pinned,shelfRank"), "Store.book SQL query uses snake_case column names");
   check(storeCode.contains("shelf_rank") && storeCode.contains("shelf_info"), "Store.java queries shelf_rank and shelf_info");
 
+  check(FetchPolicy.allowCache(false,false,true),"Explicit full cache survives leaving an unfollowed book");
+  check(!FetchPolicy.allowCache(false,false,false),"Temporary unfollowed background chapters are not stored");
+  check(FetchPolicy.allowCache(false,true,false),"Active temporary chapter can be stored");
+  check(FetchPolicy.allowCache(true,false,false),"Followed book background chapter can be stored");
+  check(!FetchPolicy.allowDownload(true,false),"Dropped book does not auto download");
+  check(FetchPolicy.allowDownload(true,true),"Explicit manual full download works for dropped book");
   System.out.println("PASS "+checks+" regression assertions");
  }
 }
+

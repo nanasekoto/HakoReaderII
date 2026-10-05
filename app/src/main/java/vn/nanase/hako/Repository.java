@@ -183,7 +183,7 @@ public final class Repository {
     }
     if(!HakoParser.validContent(d.body().html()))throw new IOException("Nội dung rỗng");
     synchronized(s){Store.Book owner=s.book(c.book);
-    if(owner!=null&&!owner.followed&&!c.book.equals(activeBook))return;
+    if(owner!=null&&!FetchPolicy.allowCache(owner.followed,c.book.equals(activeBook),s.isKeepFull(owner.id)))return;
     Store.write(s.html(c.id), d.body().html());
     s.state(c.id, errors == 0, errors == 0 ? "" : "Thiếu " + errors + " ảnh. " + error);}
   }
@@ -269,7 +269,7 @@ public final class Repository {
         if (todo.isEmpty() || (charging && !ChargeJob.isCharging(ctx))) break;
 
         Store.Book b = todo.remove(0);
-        if (b == null || b.id == null || b.id.isEmpty() || b.dropped) continue;
+        if (b == null || b.id == null || b.id.isEmpty() || !FetchPolicy.allowDownload(b.dropped,mode==MODE_BOOK_ALL && b.id.equals(book))) continue;
 
         // 1. Refresh catalog FIRST to know real chapter count
         catalog(ctx, b);
@@ -386,3 +386,4 @@ public final class Repository {
     return true;
   }
 }
+

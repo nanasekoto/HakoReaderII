@@ -9,5 +9,8 @@ public final class FetchPolicy {
   if(distance<=10)return 30000;
   return 60000;
  }
+ public static boolean allowCache(boolean followed,boolean active,boolean full){return followed||active||full;}
+ public static boolean allowDownload(boolean dropped,boolean manual){return !dropped||manual;}
  public static boolean keep(int ordinal,int current){return ordinal>=Math.max(0,current-BEHIND)&&ordinal<=current+AHEAD;}
 }
+

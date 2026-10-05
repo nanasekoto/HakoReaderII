@@ -72,7 +72,7 @@ public final class Store extends SQLiteOpenHelper {
     int newChsTotal = Math.max(0, total - currentOrd);
     int newChsDownloaded = 0;
     for (int i = currentOrd; i < total; i++) {
-      if (readable(chs.get(i).id)) newChsDownloaded++;
+      if (chs.get(i).ready) newChsDownloaded++;
     }
 
     int pct = Math.min(100, Math.max(0, Math.round((oldChs + newChsDownloaded) * 100f / total)));

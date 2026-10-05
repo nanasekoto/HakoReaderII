@@ -173,6 +173,8 @@ public class MainActivity extends Activity {
     topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0; syncBadge = null;
     root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
+    root.setFocusableInTouchMode(true);
+    root.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);
     root.setBackgroundColor(Color.WHITE);
     FrameLayout shell=new FrameLayout(this);
     shell.addView(root,new FrameLayout.LayoutParams(-1,-1));
@@ -184,6 +186,7 @@ public class MainActivity extends Activity {
     shell.addView(lockIndicator,lockLp);
     lockIndicator.setVisibility(touchLocked?View.VISIBLE:View.GONE);
     setContentView(shell);
+    root.requestFocus();
   }
 
   private void message(String s) {
@@ -715,7 +718,7 @@ public class MainActivity extends Activity {
         int newChsTotal = Math.max(0, totalChs - currentOrd);
         int newChsDownloaded = 0;
         for (int i = currentOrd; i < totalChs; i++) {
-          if (store.readable(chs.get(i).id)) newChsDownloaded++;
+          if (chs.get(i).ready) newChsDownloaded++;
         }
 
         int downloadPct = 100;
@@ -1139,7 +1142,7 @@ public class MainActivity extends Activity {
         card.addView(top);
 
         int downloaded = 0;
-        for (Store.Chapter c : vg.chapters) if (store.readable(c.id)) downloaded++;
+        for (Store.Chapter c : vg.chapters) if (c.ready) downloaded++;
         String info = vg.chapters.size() + " chương · Đã tải " + downloaded + "/" + vg.chapters.size() + " ch";
         TextView subView = new TextView(MainActivity.this);
         subView.setText(info);
