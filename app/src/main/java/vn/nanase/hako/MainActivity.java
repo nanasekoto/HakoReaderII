@@ -108,6 +108,10 @@ public class MainActivity extends Activity {
     return (int) (getResources().getDisplayMetrics().density * x + .5f);
   }
 
+  private int dp(float x) {
+    return (int) (getResources().getDisplayMetrics().density * x + .5f);
+  }
+
   private TextView text(String value, int size) {
     TextView t = new TextView(this);
     t.setText(value);
@@ -120,13 +124,18 @@ public class MainActivity extends Activity {
   private Button button(String label, Runnable r) {
     Button b = new Button(this);
     b.setText(label);
-    b.setTextColor(INK);
-    b.setTextSize(13);
+    b.setTextColor(Color.BLACK);
+    b.setTextSize(12f);
+    b.setTypeface(Typeface.DEFAULT_BOLD);
     b.setAllCaps(false);
-    b.setMinHeight(dp(36));
+    b.setMinHeight(dp(30));
     b.setMinimumWidth(0);
-    b.setPadding(dp(6), 0, dp(6), 0);
-    b.setBackground(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+    b.setPadding(dp(8), 0, dp(8), 0);
+    android.graphics.drawable.GradientDrawable btnBg = new android.graphics.drawable.GradientDrawable();
+    btnBg.setColor(Color.WHITE);
+    btnBg.setStroke(dp(1.2f), Color.BLACK);
+    btnBg.setCornerRadius(dp(6));
+    b.setBackground(btnBg);
     b.setStateListAnimator(null);
     b.setOnClickListener(v -> r.run());
     return b;
@@ -255,15 +264,27 @@ public class MainActivity extends Activity {
         final int x=j;
         LinearLayout cell=new LinearLayout(this);
         cell.setOrientation(1);cell.setGravity(Gravity.CENTER);
-        IconButton icon=new IconButton(this,iconKinds[j],names[j],true,actions[j]);
-        cell.addView(icon,new LinearLayout.LayoutParams(dp(60),dp(60)));
-        TextView label=text(names[j],15);
+        android.graphics.drawable.GradientDrawable cellBg = new android.graphics.drawable.GradientDrawable();
+        cellBg.setColor(Color.WHITE);
+        cellBg.setStroke(dp(1.5f), Color.BLACK);
+        cellBg.setCornerRadius(dp(8));
+        cell.setBackground(cellBg);
+        cell.setPadding(dp(2), dp(6), dp(2), dp(6));
+
+        IconButton icon=new IconButton(this,iconKinds[j],names[j],false,actions[j]);
+        cell.addView(icon,new LinearLayout.LayoutParams(dp(42),dp(42)));
+        TextView label=new TextView(this);
+        label.setText(names[j]);
+        label.setTextSize(13.5f);
+        label.setTextColor(Color.BLACK);
         label.setTypeface(Typeface.DEFAULT_BOLD);
         label.setGravity(Gravity.CENTER);
-        label.setPadding(0,dp(6),0,0);
+        label.setPadding(0,dp(2),0,0);
         cell.addView(label);
-        cell.setBackground(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)); cell.setOnClickListener(v->actions[x].run());
-        line.addView(cell,new LinearLayout.LayoutParams(0,-1,1f));
+        cell.setOnClickListener(v->actions[x].run());
+        LinearLayout.LayoutParams lpCell = new LinearLayout.LayoutParams(0,-1,1f);
+        lpCell.setMargins(dp(3),dp(3),dp(3),dp(3));
+        line.addView(cell,lpCell);
       }
       grid.addView(line,new LinearLayout.LayoutParams(-1,0,1f));
     }
@@ -284,7 +305,9 @@ public class MainActivity extends Activity {
     };
     for(int i=0; i<c1Names.length; i++){
       final int idx = i;
-      catBar1.addView(button(c1Names[i], () -> onlineList(c1Names[idx], c1Urls[idx])), new LinearLayout.LayoutParams(0, dp(32), 1));
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(32), 1f);
+      lp.setMargins(dp(2), dp(1), dp(2), dp(1));
+      catBar1.addView(button(c1Names[i], () -> onlineList(c1Names[idx], c1Urls[idx])), lp);
     }
     root.addView(catBar1);
 
@@ -299,7 +322,9 @@ public class MainActivity extends Activity {
     };
     for(int i=0; i<c2Names.length; i++){
       final int idx = i;
-      catBar2.addView(button(c2Names[i], () -> onlineList(c2Names[idx], c2Urls[idx])), new LinearLayout.LayoutParams(0, dp(32), 1));
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(32), 1f);
+      lp.setMargins(dp(2), dp(1), dp(2), dp(1));
+      catBar2.addView(button(c2Names[i], () -> onlineList(c2Names[idx], c2Urls[idx])), lp);
     }
     root.addView(catBar2);
     final List<HakoParser.Link> stories = new ArrayList<>();
@@ -319,45 +344,40 @@ public class MainActivity extends Activity {
       list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
       list.setDrawSelectorOnTop(false);
       list.setDivider(null);
-      list.setDividerHeight(dp(8));
-      list.setPadding(dp(6),dp(4),dp(6),dp(4));
+      list.setDividerHeight(dp(5));
+      list.setPadding(dp(6),dp(3),dp(6),dp(3));
       list.setClipToPadding(false);
-      final int[] onlineItemH = new int[]{0};
-      list.post(() -> {
-        int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
-        if (listH > 0) {
-          int cardsPerPage = 3;
-          int divH = dp(8);
-          onlineItemH[0] = Math.max(dp(95), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
-          list.invalidateViews();
-        }
-      });
       list.setAdapter(new ArrayAdapter<HakoParser.Link>(this, 0, stories) {
         public View getView(int p, View convert, ViewGroup parent) {
           HakoParser.Link item = getItem(p);
           LinearLayout card = new LinearLayout(MainActivity.this);
           card.setOrientation(LinearLayout.VERTICAL);
           card.setGravity(Gravity.CENTER_VERTICAL);
-          if (onlineItemH[0] > 0) {
-            card.setMinimumHeight(onlineItemH[0]);
-            card.setLayoutParams(new AbsListView.LayoutParams(-1, onlineItemH[0]));
-          }
+          card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+          card.setMinimumHeight(dp(52));
+
           android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
           cardBg.setColor(Color.WHITE);
-          cardBg.setStroke(dp(2), Color.BLACK);
-          cardBg.setCornerRadius(dp(8));
+          cardBg.setStroke(dp(1.8f), Color.BLACK);
+          cardBg.setCornerRadius(dp(6));
           card.setBackground(cardBg);
-          card.setPadding(dp(12), dp(10), dp(12), dp(10));
+          card.setPadding(dp(10), dp(6), dp(10), dp(6));
 
-          TextView titleView = text(item.title, 18);
+          TextView titleView = new TextView(MainActivity.this);
+          titleView.setText(item.title);
+          titleView.setTextSize(14.5f);
           titleView.setTypeface(Typeface.DEFAULT_BOLD);
           titleView.setTextColor(Color.BLACK);
+          titleView.setMaxLines(2);
           card.addView(titleView);
 
           if (!item.info.isEmpty()) {
-            TextView infoView = text(item.info, 13);
-            infoView.setTextColor(Color.BLACK);
-            infoView.setPadding(0, dp(6), 0, 0);
+            TextView infoView = new TextView(MainActivity.this);
+            infoView.setText(item.info);
+            infoView.setTextSize(11.5f);
+            infoView.setTextColor(MUTED);
+            infoView.setSingleLine(true);
+            infoView.setPadding(0, dp(2), 0, 0);
             card.addView(infoView);
           }
           return card;
@@ -432,34 +452,23 @@ public class MainActivity extends Activity {
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
     list.setDividerHeight(dp(5));
-    list.setPadding(dp(6),dp(2),dp(6),dp(2));
+    list.setPadding(dp(6),dp(3),dp(6),dp(3));
     list.setClipToPadding(false);
-    final int[] itemH = new int[]{0};
-    list.post(() -> {
-      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
-      if (listH > 0) {
-        int cardsPerPage = 5;
-        int divH = dp(5);
-        itemH[0] = Math.max(dp(65), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
-        list.invalidateViews();
-      }
-    });
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
         Store.Book b=getItem(p);
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        if(itemH[0] > 0){
-          card.setMinimumHeight(itemH[0]);
-          card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
-        }
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+        card.setMinimumHeight(dp(52));
+
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(2),Color.BLACK);
+        cardBg.setStroke(dp(1.8f),Color.BLACK);
         cardBg.setCornerRadius(dp(6));
         card.setBackground(cardBg);
-        card.setPadding(dp(10),dp(5),dp(10),dp(5));
+        card.setPadding(dp(10),dp(6),dp(10),dp(6));
 
         LinearLayout top=new LinearLayout(MainActivity.this);
         top.setOrientation(LinearLayout.HORIZONTAL);
@@ -498,22 +507,23 @@ public class MainActivity extends Activity {
           if(unread>0)sub.append(" · còn ").append(unread).append(" ch");
           sub.append(" · ").append(android.text.format.DateFormat.format("dd/MM",b.stamp));
         }else if(!chs.isEmpty()){
-          sub.append(chs.size()).append(" chương");
+          sub.append(chs.size()).append(" chương · Chưa đọc");
+        }else if(!b.shelfInfo.isEmpty()){
+          sub.append(b.shelfInfo);
+        }else{
+          sub.append("Chưa mở đọc · Chạm để xem mục lục");
         }
         if(b.dropped){
-          if(sub.length()>0)sub.append(" · ");
-          sub.append("Tạm ngưng");
+          sub.append(" · Tạm ngưng");
         }
 
-        if(sub.length()>0){
-          TextView subView=new TextView(MainActivity.this);
-          subView.setText(sub.toString());
-          subView.setTextSize(11.5f);
-          subView.setTextColor(MUTED);
-          subView.setSingleLine(true);
-          subView.setPadding(0,dp(2),0,0);
-          card.addView(subView);
-        }
+        TextView subView=new TextView(MainActivity.this);
+        subView.setText(sub.toString());
+        subView.setTextSize(11.5f);
+        subView.setTextColor(MUTED);
+        subView.setSingleLine(true);
+        subView.setPadding(0,dp(2),0,0);
+        card.addView(subView);
 
         return card;
       }
@@ -559,15 +569,15 @@ public class MainActivity extends Activity {
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setMinimumHeight(dp(68));
         card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+        card.setMinimumHeight(dp(52));
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
         cardBg.setStroke(dp(2),Color.BLACK);
         cardBg.setCornerRadius(dp(6));
         card.setBackground(cardBg);
-        card.setPadding(dp(10),dp(5),dp(10),dp(5));
+        card.setPadding(dp(10),dp(6),dp(10),dp(6));
 
         LinearLayout top=new LinearLayout(MainActivity.this);
         top.setOrientation(LinearLayout.HORIZONTAL);
