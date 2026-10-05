@@ -74,6 +74,19 @@ public class SmokeTest extends Instrumentation {
     check(after>first && after<=last+(partial?0:1),label+" page forward skips no partial row");
     press(KeyEvent.KEYCODE_VOLUME_UP);
     check(list.getFirstVisiblePosition()==first,label+" page back returns to previous start");
+    int previousStart=list.getFirstVisiblePosition();
+    while (list.getLastVisiblePosition()<list.getCount()-1) {
+      previousStart=list.getFirstVisiblePosition();
+      int previousLast=list.getLastVisiblePosition();
+      press(KeyEvent.KEYCODE_VOLUME_DOWN);
+      check(list.getFirstVisiblePosition()>previousStart && list.getFirstVisiblePosition()<=previousLast+1,
+          label+" later page advances without skipping an item");
+      if(list.getFirstVisiblePosition()<=previousStart) break;
+      View finalCard=list.getChildAt(list.getChildCount()-1);
+      check(finalCard.getBottom()<=list.getHeight()-list.getPaddingBottom(),label+" later page cards fit");
+    }
+    press(KeyEvent.KEYCODE_VOLUME_UP);
+    check(list.getFirstVisiblePosition()==previousStart,label+" short final page returns to exact previous start");
     click("Trang chính");
   }
   public void onCreate(Bundle args) { super.onCreate(args); start(); }
@@ -82,7 +95,7 @@ public class SmokeTest extends Instrumentation {
     try {
       Context ctx=getTargetContext(); Store s=Store.get(ctx);
       ctx.getSharedPreferences("settings",0).edit().putBoolean("charging",false).commit();
-      for(int i=1;i<=20;i++) {
+      for(int i=1;i<=19;i++) {
         String id="fixture-"+i;
         s.putBook(new HakoParser.Link(id,"Truyện thử "+i+" — tựa dài để kiểm tra tiếng Việt trên màn hình nhỏ", ""));
         s.followed(id,true,i); s.position(id,"",0,0); s.visited(id);

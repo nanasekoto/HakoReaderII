@@ -8,6 +8,7 @@ import android.widget.ListView;
 /** Sizes cards from the actual allotted viewport, before ListView lays out rows. */
 final class PagedBookList extends ListView {
   private int rows = 5, base = 1, remainder;
+  private final java.util.ArrayDeque<Integer> previous = new java.util.ArrayDeque<>();
 
   PagedBookList(Context context) {
     super(context);
@@ -38,7 +39,10 @@ final class PagedBookList extends ListView {
     remainder = content%rows;
     for (int i=0;i<getChildCount();i++) {
       View child=getChildAt(i);
-      child.getLayoutParams().height=rowHeight(getFirstVisiblePosition()+i);
+      int height=rowHeight(getFirstVisiblePosition()+i);
+      if (child.getLayoutParams().height!=height) {
+        child.getLayoutParams().height=height; child.requestLayout();
+      }
     }
     super.onMeasure(widthSpec,heightSpec);
   }
@@ -50,6 +54,11 @@ final class PagedBookList extends ListView {
     int first=getFirstVisiblePosition();
     int target=direction>0 ? Math.min(Math.max(0,getCount()-rows),first+rows)
         : Math.max(0,first-rows);
+    if (direction>0 && target>first) previous.push(first);
+    else if (direction<0) {
+      while (!previous.isEmpty() && previous.peek()>=first) previous.pop();
+      if (!previous.isEmpty()) target=previous.pop();
+    }
     setSelectionFromTop(target,0);
   }
 }
