@@ -22,6 +22,8 @@ public final class Repository {
       cancel = new AtomicBoolean(false);
   public static volatile boolean pendingAll = false, manualOverride = false;
   public static volatile String status = "Sẵn sàng", pendingBook = "";
+  public static volatile int syncTotal = 0, syncDone = 0, syncPct = 100;
+  public static volatile boolean isSyncing = false;
 
   public static void notify(Context c, String s) {
     status = s;
@@ -204,6 +206,21 @@ public final class Repository {
       }else{
         Store.Book b=s.book(book);if(b!=null&&!b.id.equals("demo"))todo.add(b);
       }
+      int totalNeed = 0;
+      for (Store.Book tb : todo) {
+        List<Store.Chapter> tchs = s.chapters(tb.id);
+        int cur = 0;
+        for (Store.Chapter ch : tchs) if (ch.id.equals(tb.current)) cur = ch.ord;
+        for (Store.Chapter ch : tchs) {
+          if (ch.ord >= cur && !s.readable(ch.id)) totalNeed++;
+        }
+      }
+      syncTotal = totalNeed;
+      syncDone = 0;
+      isSyncing = (totalNeed > 0);
+      syncPct = totalNeed == 0 ? 100 : 0;
+      notify(ctx, isSyncing ? ("Bắt đầu tải " + syncTotal + " chương mới") : "Tất cả chương mới đã tải đủ");
+
       while(!cancel.get()&&(!todo.isEmpty()||!pendingBook.isEmpty()||pendingAll)){
         if(pendingAll){pendingAll=false;for(Store.Book b:s.books())if(b.followed&&!b.dropped&&!b.id.equals("demo")){boolean exists=false;for(Store.Book t:todo)if(t.id.equals(b.id))exists=true;if(!exists)todo.add(b);}}
         if(!pendingBook.isEmpty()){Store.Book p=s.book(pendingBook);pendingBook="";if(p!=null){todo.removeIf(x->x.id.equals(p.id));todo.add(0,p);}}
@@ -235,6 +252,9 @@ public final class Repository {
             if(!waitFor(ctx,delay,b.id,charging))break;
             try{
               download(ctx,ch);
+              syncDone++;
+              syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
+              notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + ")");
             }catch(Exception e){
               s.state(ch.id,false,e.getMessage());
               notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());
@@ -251,6 +271,9 @@ public final class Repository {
             if(!waitFor(ctx,2500,b.id,charging))break;
             try{
               download(ctx,ch);
+              syncDone++;
+              syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
+              notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + ")");
             }catch(Exception e){
               s.state(ch.id,false,e.getMessage());
               notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());
@@ -261,7 +284,7 @@ public final class Repository {
         Store.Book latest=s.book(b.id);if(latest!=null)s.prune(latest);
       }
       notify(ctx,"✓ Đã tải xong tất cả chương mới. Có thể tắt Wi-Fi!");
-    }finally{busy.set(false);pendingBook="";pendingAll=false;manualOverride=false;}
+    }finally{busy.set(false);pendingBook="";pendingAll=false;manualOverride=false;isSyncing=false;syncPct=100;notify(ctx,"✓ Đã tải xong tất cả chương mới");}
   }
   private static boolean waitFor(Context c,long delay,String id,boolean charging)throws Exception {
     notify(c,"Chờ "+(delay/1000)+" giây trước chương tiếp theo");

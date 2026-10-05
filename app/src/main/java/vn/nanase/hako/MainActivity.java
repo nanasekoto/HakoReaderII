@@ -18,7 +18,7 @@ public class MainActivity extends Activity {
   private Store store;
   private android.content.SharedPreferences prefs;
   private LinearLayout root, bar, topBar, boundaryPrompt; private int boundaryDir = 0; private boolean pendingOpenAtEnd = false;
-  private TextView status, title;
+  private TextView status, title, syncBadge;
   private WebView web;
   private NativeReader nativeReader;
   private ListView currentList;
@@ -45,14 +45,11 @@ public class MainActivity extends Activity {
           public void onReceive(Context c, Intent i) {
             String text = i.getStringExtra("text");
             if (status != null) status.setText(text);
-            if (text != null && !text.isEmpty()) {
-              if (text.contains("Đã tải xong") || text.contains("Đã kết thúc") || text.contains("đã tải đủ")) {
-                Toast.makeText(MainActivity.this, text.contains("tắt Wi-Fi") ? text : (text + " • Có thể tắt Wi-Fi!"), Toast.LENGTH_LONG).show();
-              } else if (text.contains("Bắt đầu tải") || text.startsWith("Đang tải (")) {
-                Toast.makeText(MainActivity.this, text, Toast.LENGTH_SHORT).show();
-              } else if (text.startsWith("Lỗi tải") || text.startsWith("Tạm dừng")) {
-                Toast.makeText(MainActivity.this, text, Toast.LENGTH_SHORT).show();
-              }
+            if (syncBadge != null) {
+              syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : "✓ 100%");
+            }
+            if (nativeReader != null) {
+              nativeReader.setSyncStatus(Repository.isSyncing, Repository.syncPct);
             }
           }
         };
@@ -108,7 +105,7 @@ public class MainActivity extends Activity {
       web = null;
     }
     online = false;
-    topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0;
+    topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0; syncBadge = null;
     root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.WHITE);
@@ -125,10 +122,31 @@ public class MainActivity extends Activity {
   }
 
   private void status() {
-    status = text(Repository.status, 12);
+    LinearLayout bottomBar = new LinearLayout(this);
+    bottomBar.setOrientation(LinearLayout.HORIZONTAL);
+    bottomBar.setGravity(Gravity.CENTER_VERTICAL);
+    bottomBar.setPadding(dp(12), dp(4), dp(12), dp(4));
+
+    status = text(Repository.status, 11);
     status.setTextColor(MUTED);
-    status.setMaxLines(2);
-    root.addView(status);
+    status.setMaxLines(1);
+    status.setPadding(0, 0, 0, 0);
+    bottomBar.addView(status, new LinearLayout.LayoutParams(0, -2, 1f));
+
+    syncBadge = new TextView(this);
+    syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : "✓ 100%");
+    syncBadge.setTextSize(11);
+    syncBadge.setTypeface(Typeface.DEFAULT_BOLD);
+    syncBadge.setTextColor(Color.BLACK);
+    android.graphics.drawable.GradientDrawable pillBg = new android.graphics.drawable.GradientDrawable();
+    pillBg.setColor(Color.WHITE);
+    pillBg.setStroke(dp(1), Color.BLACK);
+    pillBg.setCornerRadius(dp(4));
+    syncBadge.setBackground(pillBg);
+    syncBadge.setPadding(dp(6), dp(2), dp(6), dp(2));
+    bottomBar.addView(syncBadge, new LinearLayout.LayoutParams(-2, -2));
+
+    root.addView(bottomBar);
   }
 
   private void task(String label, Callable<?> work, Runnable done) {
@@ -520,18 +538,33 @@ public class MainActivity extends Activity {
         titleView.setMaxLines(2);
         top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
 
-        // Compute download %
+        // Compute download %: so chuong cu + so chuong moi da tai = 100%
         List<Store.Chapter> chs=store.chapters(b.id);
         int totalChs=chs.size();
-        int downloadedChs=0;
-        for(Store.Chapter ch:chs)if(store.readable(ch.id))downloadedChs++;
-        int downloadPct=totalChs>0?Math.round(downloadedChs*100f/totalChs):0;
+        int currentOrd=0;
+        if(!b.current.isEmpty()){
+          for(int i=0;i<chs.size();i++){if(chs.get(i).id.equals(b.current)){currentOrd=chs.get(i).ord;break;}}
+        }else{
+          for(int i=0;i<chs.size();i++){if(store.wasRead(chs.get(i).id))currentOrd=i;}
+        }
+
+        int oldChs=Math.max(0,currentOrd);
+        int newChsTotal=Math.max(0,totalChs-currentOrd);
+        int newChsDownloaded=0;
+        for(int i=currentOrd;i<totalChs;i++){
+          if(store.readable(chs.get(i).id))newChsDownloaded++;
+        }
+
+        int downloadPct=100;
+        if(totalChs>0){
+          downloadPct=Math.min(100,Math.round((oldChs+newChsDownloaded)*100f/totalChs));
+        }
 
         TextView badge=new TextView(MainActivity.this);
         if(totalChs==0){
           badge.setText("CHƯA TẢI");
           badge.setBackgroundColor(Color.GRAY);
-        }else if(downloadPct==100){
+        }else if(newChsTotal==0||newChsDownloaded>=newChsTotal){
           badge.setText("✓ 100%");
           badge.setBackgroundColor(Color.BLACK);
         }else{
@@ -550,13 +583,11 @@ public class MainActivity extends Activity {
         StringBuilder sub=new StringBuilder();
         if(totalChs==0){
           sub.append("Chưa có mục lục · Cần bật Wi-Fi để cập nhật");
+        }else if(newChsTotal==0||newChsDownloaded>=newChsTotal){
+          sub.append("✓ Đã tải đủ 100% (").append(totalChs).append(" ch) · Đọc offline");
         }else{
-          sub.append(downloadedChs).append("/").append(totalChs).append(" chương đã tải (").append(downloadPct).append("%)");
-          Store.Chapter ch=store.chapter(b.id,b.current);
-          if(ch!=null){
-            int unread=Math.max(0,totalChs-ch.ord-1);
-            if(unread>0)sub.append(" · còn ").append(unread).append(" ch mới");
-          }
+          int unread=newChsTotal-newChsDownloaded;
+          sub.append("Đã tải: ").append(newChsDownloaded).append("/").append(newChsTotal).append(" ch mới (").append(downloadPct).append("%) · còn ").append(unread).append(" ch");
         }
         if(b.stamp>0){
           sub.append(" · ").append(android.text.format.DateFormat.format("dd/MM",b.stamp));
@@ -891,6 +922,7 @@ public class MainActivity extends Activity {
     }
 
     nativeReader.setTitles(b.title, c.title);
+    nativeReader.setSyncStatus(Repository.isSyncing, Repository.syncPct);
     // nativeReader fills 100% of readerFrame
     readerFrame.addView(nativeReader, new FrameLayout.LayoutParams(-1, -1));
 

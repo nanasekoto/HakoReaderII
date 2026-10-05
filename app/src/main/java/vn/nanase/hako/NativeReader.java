@@ -29,6 +29,8 @@ public final class NativeReader extends View {
  private final Paint statusPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
  private int headerHeight=0,footerHeight=0;
  public void setTitles(String book,String chapter){this.bookTitle=book==null?"":book.trim();this.chapterTitle=chapter==null?"":chapter.trim();invalidate();}
+ private boolean isSyncing=false;private int syncPct=100;
+ public void setSyncStatus(boolean syncing,int pct){if(this.isSyncing!=syncing||this.syncPct!=pct){this.isSyncing=syncing;this.syncPct=pct;invalidate();}}
  public NativeReader(Context c,File dir,Listener listener){
   super(c);this.chapterDir=dir;this.listener=listener;setBackgroundColor(Color.WHITE);setFocusable(true);paint.setColor(Color.BLACK);
   statusPaint.setColor(Color.rgb(80,80,80));statusPaint.setTypeface(Typeface.DEFAULT);
@@ -140,15 +142,23 @@ public final class NativeReader extends View {
   layout.draw(c);
   c.restore();
 
-  // 3. Bottom Footer: Page count on left, Percentage on right in 11sp
+  // 3. Bottom Footer: Page count on left, Sync % in center, Reading % on right in 11sp
   float footerY=getHeight()-margin-(footerHeight*0.28f);
+
+  statusPaint.setTextAlign(Paint.Align.LEFT);
   String pageStr=(page+1)+" / "+pages.size();
   c.drawText(pageStr,margin,footerY,statusPaint);
 
+  statusPaint.setTextAlign(Paint.Align.CENTER);
+  String centerStatus=isSyncing?("⤓ "+syncPct+"%"):"✓ 100%";
+  c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
+
+  statusPaint.setTextAlign(Paint.Align.RIGHT);
   int pct=Math.round((page+1)*100f/pages.size());
   String pctStr=pct+"%";
-  float pctW=statusPaint.measureText(pctStr);
-  c.drawText(pctStr,getWidth()-margin-pctW,footerY,statusPaint);
+  c.drawText(pctStr,getWidth()-margin,footerY,statusPaint);
+
+  statusPaint.setTextAlign(Paint.Align.LEFT);
  }
  public void turn(int direction){if(layout==null||pages.isEmpty())return;listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();}
  public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
