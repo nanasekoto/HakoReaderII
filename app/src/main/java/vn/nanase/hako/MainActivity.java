@@ -50,6 +50,13 @@ public class MainActivity extends Activity {
   private Store store;
   private android.content.SharedPreferences prefs;
   private LinearLayout root, bar, topBar, boundaryPrompt; private int boundaryDir = 0; private boolean pendingOpenAtEnd = false;
+  public static final java.util.TimeZone VN_TZ = java.util.TimeZone.getTimeZone("Asia/Ho_Chi_Minh");
+  public static String formatVnDate(long timeMs, String pattern) {
+    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat(pattern, java.util.Locale.ROOT);
+    sdf.setTimeZone(VN_TZ);
+    return sdf.format(new java.util.Date(timeMs));
+  }
+  private static boolean isSyncingShelf = false;
   private TextView status, title, syncBadge;
   private WebView web;
   private NativeReader nativeReader;
@@ -78,7 +85,7 @@ public class MainActivity extends Activity {
   private final int INK = Color.rgb(25, 25, 25), MUTED = Color.rgb(80, 80, 80);
 
   public void onCreate(Bundle state) {
-    super.onCreate(state);
+    super.onCreate(state); java.util.TimeZone.setDefault(VN_TZ);
     store = Store.get(this);
     prefs = getSharedPreferences("settings", 0);
     if(!prefs.getBoolean("migrated_font_v3",false)){prefs.edit().putInt("font2",2).putBoolean("migrated_font_v3",true).apply();}
@@ -227,7 +234,7 @@ public class MainActivity extends Activity {
   }
 
   private void leaveReader(){visitSession="";String old=Repository.activeBook;Repository.activeBook="";if(!old.isEmpty())store.clearTemporary(old);}
-  private void exitApp(){saveThen(()->{leaveReader();Repository.cancel.set(true);stopService(new Intent(this,DownloadService.class));finishAndRemoveTask();});}
+  private void exitApp(){isSyncingShelf=false;saveThen(()->{leaveReader();Repository.cancel.set(true);stopService(new Intent(this,DownloadService.class));finishAndRemoveTask();});}
   private void library() {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
@@ -419,9 +426,33 @@ public class MainActivity extends Activity {
     header.addView(spacer,new LinearLayout.LayoutParams(0,1,1f));
 
     header.addView(button("Trang chính",this::library),new LinearLayout.LayoutParams(-2,dp(32)));
+    TextView syncStatus = new TextView(this);
     Button btnSync=button(shelf?"Cập nhật":"Lịch sử",()->{
-      if(shelf)task("Nhập tủ sách…",()->{Repository.importShelf(this);return null;},()->bookList(true));
-      else browse(HakoParser.ORIGIN+"/lich-su-doc");
+      if(shelf){
+        if(isSyncingShelf)return;
+        isSyncingShelf=true;
+        syncStatus.setText("Đang cập nhật…");
+        io.execute(()->{
+          try{
+            Repository.importShelf(this);
+            prefs.edit().putLong("lastShelfSync",System.currentTimeMillis()).apply();
+            
+            isSyncingShelf=false;
+            runOnUiThread(()->{
+              if(isFinishing())return;
+              bookList(true);
+            });
+          }catch(Exception e){
+            isSyncingShelf=false;
+            runOnUiThread(()->{
+              if(isFinishing())return;
+              syncStatus.setText("Lỗi cập nhật: "+(e.getMessage()!=null?e.getMessage():"Mất mạng"));
+            });
+          }
+        });
+      }else{
+        browse(HakoParser.ORIGIN+"/lich-su-doc");
+      }
     });
     LinearLayout.LayoutParams lpSync=new LinearLayout.LayoutParams(-2,dp(32));
     lpSync.setMargins(dp(4),0,0,0);
@@ -439,13 +470,32 @@ public class MainActivity extends Activity {
           prefs.edit().putBoolean("unreadOnly",!prefs.getBoolean("unreadOnly",false)).apply();
           bookList(true);
         }
-        if(w==4)addDialog();
+        if(w==3)addDialog();
       }).show();
     });
     LinearLayout.LayoutParams lpMore=new LinearLayout.LayoutParams(-2,dp(32));
     lpMore.setMargins(dp(4),0,0,0);
     header.addView(btnMore,lpMore);
     root.addView(header);
+
+    if(shelf){
+      String statusStr;
+      if(isSyncingShelf){
+        statusStr="Đang cập nhật…";
+      }else{
+        long lastSync=prefs.getLong("lastShelfSync",0);
+        if(lastSync>0){
+          statusStr="Đã cập nhật lúc "+formatVnDate(lastSync,"HH:mm dd/MM/yyyy");
+        }else{
+          statusStr="Chưa cập nhật tủ sách";
+        }
+      }
+      syncStatus.setText(statusStr);
+      syncStatus.setTextSize(11.5f);
+      syncStatus.setTextColor(MUTED);
+      syncStatus.setPadding(dp(10),0,dp(10),dp(3));
+      root.addView(syncStatus);
+    }
 
     List<Store.Book> books=new ArrayList<>();
     for(Store.Book b:store.books())if(shelf?(b.followed&&(!prefs.getBoolean("unreadOnly",false)||hasNew(b))):b.stamp>0)books.add(b);
@@ -459,16 +509,11 @@ public class MainActivity extends Activity {
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
 
-    final int[] itemH = new int[]{0};
-    list.post(() -> {
-      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
-      if (listH > 0) {
-        int cardsPerPage = 7;
-        int divH = dp(3.5f);
-        itemH[0] = Math.max(dp(50), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
-        list.invalidateViews();
-      }
-    });
+    int screenH = getResources().getDisplayMetrics().heightPixels;
+    int cardsPerPage = 7;
+    int divH = dp(3.5f);
+    int listH = Math.max(dp(350), screenH - dp(36) - dp(4));
+    final int itemH = Math.max(dp(50), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
@@ -476,11 +521,7 @@ public class MainActivity extends Activity {
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        if(itemH[0] > 0){
-          card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
-        }else{
-          card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
-        }
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH));
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -524,7 +565,7 @@ public class MainActivity extends Activity {
         if(b.stamp>0&&ch!=null){
           sub.append("Đang đọc: ").append(ch.title);
           if(unread>0)sub.append(" · còn ").append(unread).append(" ch");
-          sub.append(" · ").append(android.text.format.DateFormat.format("dd/MM",b.stamp));
+          sub.append(" · ").append(formatVnDate(b.stamp,"dd/MM"));
         }else if(!chs.isEmpty()){
           sub.append(chs.size()).append(" chương · Chưa đọc");
         }else if(!b.shelfInfo.isEmpty()){
@@ -582,16 +623,11 @@ public class MainActivity extends Activity {
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
 
-    final int[] freqItemH = new int[]{0};
-    list.post(() -> {
-      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
-      if (listH > 0) {
-        int cardsPerPage = 7;
-        int divH = dp(3.5f);
-        freqItemH[0] = Math.max(dp(50), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
-        list.invalidateViews();
-      }
-    });
+    int screenH = getResources().getDisplayMetrics().heightPixels;
+    int cardsPerPage = 7;
+    int divH = dp(3.5f);
+    int listH = Math.max(dp(350), screenH - dp(36) - dp(4));
+    final int itemH = Math.max(dp(50), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
@@ -599,11 +635,7 @@ public class MainActivity extends Activity {
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        if(freqItemH[0] > 0){
-          card.setLayoutParams(new AbsListView.LayoutParams(-1, freqItemH[0]));
-        }else{
-          card.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
-        }
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH));
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -656,7 +688,7 @@ public class MainActivity extends Activity {
              .append(" chương mới (").append(prog.percent).append("%) · còn ").append(unread).append(" ch");
         }
         if(b.stamp>0){
-          sub.append(" · ").append(android.text.format.DateFormat.format("dd/MM",b.stamp));
+          sub.append(" · ").append(formatVnDate(b.stamp,"dd/MM"));
         }
 
         TextView subView=new TextView(MainActivity.this);
@@ -1712,44 +1744,50 @@ public class MainActivity extends Activity {
   private boolean isPageUpKey(int code){
     return code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_PAGE_UP||code==KeyEvent.KEYCODE_DPAD_UP||code==KeyEvent.KEYCODE_DPAD_LEFT;
   }
-  private boolean volUpHeld=false,volDownHeld=false;
+  private long volDownPressTime=0,volUpPressTime=0;
+  private boolean volLongTriggered=false;
   private long lastComboLockTime=0;
   @Override public boolean dispatchKeyEvent(KeyEvent event){
     int code=event.getKeyCode();
     int action=event.getAction();
+    long now=SystemClock.elapsedRealtime();
 
-    // Check simultaneous Volume Up + Volume Down press to toggle touch lock
-    if(code==KeyEvent.KEYCODE_VOLUME_UP){
-      if(action==KeyEvent.ACTION_DOWN){
-        volUpHeld=true;
-        if(volDownHeld&&SystemClock.elapsedRealtime()-lastComboLockTime>600){
-          lastComboLockTime=SystemClock.elapsedRealtime();
-          toggleTouchLock();
-          return true;
-        }
-      }else if(action==KeyEvent.ACTION_UP){
-        volUpHeld=false;
-        if(SystemClock.elapsedRealtime()-lastComboLockTime<400){
-          return true;
-        }
-      }
-    }else if(code==KeyEvent.KEYCODE_VOLUME_DOWN){
-      if(action==KeyEvent.ACTION_DOWN){
-        volDownHeld=true;
-        if(volUpHeld&&SystemClock.elapsedRealtime()-lastComboLockTime>600){
-          lastComboLockTime=SystemClock.elapsedRealtime();
-          toggleTouchLock();
-          return true;
-        }
-      }else if(action==KeyEvent.ACTION_UP){
-        volDownHeld=false;
-        if(SystemClock.elapsedRealtime()-lastComboLockTime<400){
-          return true;
+    // Check long-press (>=1000ms) or 2-key combo (<350ms) to toggle touch lock
+    if(code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_VOLUME_DOWN){
+      if(nativeReader!=null){
+        if(action==KeyEvent.ACTION_DOWN){
+          if(event.getRepeatCount()==0){
+            volLongTriggered=false;
+            if(code==KeyEvent.KEYCODE_VOLUME_DOWN)volDownPressTime=now;
+            if(code==KeyEvent.KEYCODE_VOLUME_UP)volUpPressTime=now;
+            if(Math.abs(volDownPressTime-volUpPressTime)<350&&volDownPressTime>0&&volUpPressTime>0&&(now-lastComboLockTime>800)){
+              lastComboLockTime=now;
+              volLongTriggered=true;
+              toggleTouchLock();
+              return true;
+            }
+          }else{
+            long dur=(code==KeyEvent.KEYCODE_VOLUME_DOWN)?(now-volDownPressTime):(now-volUpPressTime);
+            if(dur>=1000&&!volLongTriggered&&(now-lastComboLockTime>800)){
+              volLongTriggered=true;
+              lastComboLockTime=now;
+              toggleTouchLock();
+              return true;
+            }
+          }
+        }else if(action==KeyEvent.ACTION_UP){
+          if(volLongTriggered){
+            volLongTriggered=false;
+            return true;
+          }
+          if(now-lastComboLockTime<400){
+            return true;
+          }
         }
       }
     }
 
-    if(SystemClock.elapsedRealtime()-lastComboLockTime<400){
+    if(now-lastComboLockTime<400){
       return true;
     }
     boolean down=isPageDownKey(code);
