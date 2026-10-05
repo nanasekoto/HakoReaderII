@@ -56,7 +56,7 @@ public class MainActivity extends Activity {
     sdf.setTimeZone(VN_TZ);
     return sdf.format(new java.util.Date(timeMs));
   }
-  private static boolean isSyncingShelf = false;
+  private static boolean isSyncingShelf = false; private boolean isBookListScreen = false;
   private TextView status, title, syncBadge;
   private WebView web;
   private NativeReader nativeReader;
@@ -166,7 +166,7 @@ public class MainActivity extends Activity {
       web = null;
     }
     online = false;
-    topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0; syncBadge = null;
+    topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0; syncBadge = null; isBookListScreen = false;
     root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.WHITE);
@@ -509,21 +509,14 @@ public class MainActivity extends Activity {
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
 
+    isBookListScreen = true;
     int screenH = getResources().getDisplayMetrics().heightPixels;
-    int cardsPerPage = 6;
     int divH = dp(4);
-    int listH = Math.max(dp(350), screenH - dp(36) - dp(4));
-    final int[] itemH = new int[]{ Math.max(dp(62), (listH - (cardsPerPage - 1) * divH) / cardsPerPage) };
-    list.post(() -> {
-      int actualH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
-      if (actualH > 0) {
-        int targetH = (actualH - (cardsPerPage - 1) * divH) / cardsPerPage;
-        if (targetH > 0 && targetH != itemH[0]) {
-          itemH[0] = targetH;
-          list.invalidateViews();
-        }
-      }
-    });
+    int listPad = dp(4);
+    int topOccupied = dp(shelf ? 56 : 36);
+    // Page 1: exactly 5 cards with header. Page 2+: exactly 6 cards without header. Single pass render!
+    final int h1 = Math.max(dp(70), (screenH - topOccupied - listPad - 4 * divH) / 5);
+    final int h2 = Math.max(dp(65), (screenH - listPad - 5 * divH) / 6);
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
@@ -531,7 +524,8 @@ public class MainActivity extends Activity {
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
+        int cardH = (p < 5) ? h1 : h2;
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, cardH));
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -546,10 +540,11 @@ public class MainActivity extends Activity {
 
         TextView titleView=new TextView(MainActivity.this);
         titleView.setText(b.title);
-        titleView.setTextSize(13.5f);
+        titleView.setTextSize(14f);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
-        titleView.setSingleLine(true);
+        titleView.setMaxLines(2);
+        titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
 
         int newCount=newChapterCount(b);
@@ -633,21 +628,13 @@ public class MainActivity extends Activity {
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
 
+    isBookListScreen = true;
     int screenH = getResources().getDisplayMetrics().heightPixels;
-    int cardsPerPage = 6;
     int divH = dp(4);
-    int listH = Math.max(dp(350), screenH - dp(36) - dp(4));
-    final int[] itemH = new int[]{ Math.max(dp(62), (listH - (cardsPerPage - 1) * divH) / cardsPerPage) };
-    list.post(() -> {
-      int actualH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
-      if (actualH > 0) {
-        int targetH = (actualH - (cardsPerPage - 1) * divH) / cardsPerPage;
-        if (targetH > 0 && targetH != itemH[0]) {
-          itemH[0] = targetH;
-          list.invalidateViews();
-        }
-      }
-    });
+    int listPad = dp(4);
+    int topOccupied = dp(36);
+    final int h1 = Math.max(dp(70), (screenH - topOccupied - listPad - 4 * divH) / 5);
+    final int h2 = Math.max(dp(65), (screenH - listPad - 5 * divH) / 6);
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
@@ -655,7 +642,8 @@ public class MainActivity extends Activity {
         LinearLayout card=new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
+        int cardH = (p < 5) ? h1 : h2;
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, cardH));
 
         android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -670,10 +658,11 @@ public class MainActivity extends Activity {
 
         TextView titleView=new TextView(MainActivity.this);
         titleView.setText((b.pinned?"★ ":"")+b.title);
-        titleView.setTextSize(13.5f);
+        titleView.setTextSize(14f);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
-        titleView.setSingleLine(true);
+        titleView.setMaxLines(2);
+        titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
 
         Store.BookProgress prog = store.progress(b);
@@ -1784,92 +1773,134 @@ public class MainActivity extends Activity {
   private boolean isPageUpKey(int code){
     return code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_PAGE_UP||code==KeyEvent.KEYCODE_DPAD_UP||code==KeyEvent.KEYCODE_DPAD_LEFT;
   }
-  private long volDownPressTime=0,volUpPressTime=0;
-  private boolean volLongTriggered=false;
-  private long lastComboLockTime=0;
-  @Override public boolean dispatchKeyEvent(KeyEvent event){
-    int code=event.getKeyCode();
-    int action=event.getAction();
-    long now=SystemClock.elapsedRealtime();
 
-    // Check long-press (>=1000ms) or 2-key combo (<350ms) to toggle touch lock
-    if(code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_VOLUME_DOWN){
-      if(nativeReader!=null){
-        if(action==KeyEvent.ACTION_DOWN){
-          if(event.getRepeatCount()==0){
-            volLongTriggered=false;
-            if(code==KeyEvent.KEYCODE_VOLUME_DOWN)volDownPressTime=now;
-            if(code==KeyEvent.KEYCODE_VOLUME_UP)volUpPressTime=now;
-            if(Math.abs(volDownPressTime-volUpPressTime)<350&&volDownPressTime>0&&volUpPressTime>0&&(now-lastComboLockTime>800)){
-              lastComboLockTime=now;
-              volLongTriggered=true;
-              toggleTouchLock();
-              return true;
-            }
-          }else{
-            long dur=(code==KeyEvent.KEYCODE_VOLUME_DOWN)?(now-volDownPressTime):(now-volUpPressTime);
-            if(dur>=1000&&!volLongTriggered&&(now-lastComboLockTime>800)){
-              volLongTriggered=true;
-              lastComboLockTime=now;
-              toggleTouchLock();
-              return true;
-            }
-          }
-        }else if(action==KeyEvent.ACTION_UP){
-          if(volLongTriggered){
-            volLongTriggered=false;
-            return true;
-          }
-          if(now-lastComboLockTime<400){
-            return true;
-          }
+  private boolean isVolUpHeld = false, isVolDownHeld = false, chordComboTriggered = false;
+  private Runnable pendingVolAction = null;
+  private final Handler mainHandler = new Handler(Looper.getMainLooper());
+  private static final long CHORD_DELAY_MS = 250;
+
+  @Override
+  public boolean dispatchTouchEvent(MotionEvent ev) {
+    if (nativeReader != null && nativeReader.isTouchLocked()) {
+      return true; // Completely block all touch across entire window
+    }
+    return super.dispatchTouchEvent(ev);
+  }
+
+  private void handleSingleKeyAction(int dir) {
+    if (isBoundaryPromptVisible()) {
+      if (boundaryDir > 0) {
+        if (dir > 0) {
+          int d = boundaryDir;
+          hideBoundaryPrompt();
+          adjacent(d);
+        } else {
+          hideBoundaryPrompt();
         }
+      } else if (boundaryDir < 0) {
+        if (dir < 0) {
+          int d = boundaryDir;
+          hideBoundaryPrompt();
+          adjacent(d);
+        } else {
+          hideBoundaryPrompt();
+        }
+      }
+      return;
+    }
+    if (nativeReader != null) {
+      hideToolbar();
+      nativeReader.turn(dir);
+    }
+  }
+
+  @Override public boolean dispatchKeyEvent(KeyEvent event){
+    int code = event.getKeyCode();
+    int action = event.getAction();
+
+    // 1. Detect Volume Up + Volume Down chord combination with delay window
+    boolean isVolUp = (code == KeyEvent.KEYCODE_VOLUME_UP);
+    boolean isVolDown = (code == KeyEvent.KEYCODE_VOLUME_DOWN);
+
+    if ((isVolUp || isVolDown) && nativeReader != null) {
+      if (action == KeyEvent.ACTION_DOWN) {
+        if (event.getRepeatCount() == 0) {
+          if (isVolUp) isVolUpHeld = true;
+          if (isVolDown) isVolDownHeld = true;
+
+          // Check if BOTH volume buttons are pressed within the allowed delay window
+          if (isVolUpHeld && isVolDownHeld) {
+            if (pendingVolAction != null) {
+              mainHandler.removeCallbacks(pendingVolAction);
+              pendingVolAction = null;
+            }
+            chordComboTriggered = true;
+            toggleTouchLock();
+            return true;
+          }
+
+          // Single volume key pressed: schedule page turn after CHORD_DELAY_MS delay
+          // If the other key is pressed within this window, the chord cancels this single turn!
+          if (pendingVolAction != null) {
+            mainHandler.removeCallbacks(pendingVolAction);
+          }
+          final int dir = isVolDown ? 1 : -1;
+          pendingVolAction = () -> {
+            pendingVolAction = null;
+            if (!chordComboTriggered) {
+              handleSingleKeyAction(dir);
+            }
+          };
+          mainHandler.postDelayed(pendingVolAction, CHORD_DELAY_MS);
+          return true;
+        } else {
+          if (chordComboTriggered) return true;
+          return true;
+        }
+      } else if (action == KeyEvent.ACTION_UP) {
+        if (isVolUp) isVolUpHeld = false;
+        if (isVolDown) isVolDownHeld = false;
+        if (!isVolUpHeld && !isVolDownHeld) {
+          chordComboTriggered = false;
+        }
+        return true;
       }
     }
 
-    if(now-lastComboLockTime<400){
-      return true;
-    }
-    boolean down=isPageDownKey(code);
-    boolean up=isPageUpKey(code);
-    if(down||up){
-      if(event.getAction()==KeyEvent.ACTION_DOWN){
-        if(isBoundaryPromptVisible()){
-          if(boundaryDir > 0){
-            // At END of chapter: Vol Down (Tiếp tục) confirms, Vol Up (Ở lại) cancels
-            if(down){
-              int d = boundaryDir;
-              hideBoundaryPrompt();
-              adjacent(d);
-            }else if(up){
-              hideBoundaryPrompt();
-            }
-          }else if(boundaryDir < 0){
-            // At START of chapter: Vol Up (Quay lại) confirms, Vol Down (Ở lại) cancels
-            if(up){
-              int d = boundaryDir;
-              hideBoundaryPrompt();
-              adjacent(d);
-            }else if(down){
-              hideBoundaryPrompt();
-            }
-          }
-          return true;
-        }
-        int dir=down?1:-1;
-        if(nativeReader!=null){
-          hideToolbar();
-          nativeReader.turn(dir);
-        }else if(web!=null){
+    // 2. Hardware keys when not caught by volume chord (or for other keys: Page Up/Down, D-pad, etc.)
+    boolean down = isPageDownKey(code);
+    boolean up = isPageUpKey(code);
+    if (down || up) {
+      if (action == KeyEvent.ACTION_DOWN) {
+        int dir = down ? 1 : -1;
+        if (nativeReader != null) {
+          handleSingleKeyAction(dir);
+        } else if (web != null) {
           if(dir>0)web.pageDown(false);else web.pageUp(false);
         }else if(currentList!=null&&currentList.isShown()){
           int count=currentList.getCount();
           if(count>0){
             int curFirst=currentList.getFirstVisiblePosition();
-            int pageSize=7;
-            int curPage=curFirst/pageSize;
-            int targetPage=(dir>0)?Math.min((count-1)/pageSize,curPage+1):Math.max(0,curPage-1);
-            currentList.setSelection(targetPage*pageSize);
+            int target;
+            if(isBookListScreen){
+              if(curFirst < 5){
+                target = (dir > 0) ? Math.min(count - 1, 5) : 0;
+              }else{
+                int pageIdx = 2 + (curFirst - 5) / 6;
+                if(dir > 0){
+                  int nextFirst = 5 + (pageIdx - 1) * 6;
+                  target = Math.min(count - 1, nextFirst);
+                }else{
+                  if(pageIdx == 2) target = 0;
+                  else target = 5 + (pageIdx - 3) * 6;
+                }
+              }
+            }else{
+              int last=currentList.getLastVisiblePosition();
+              int visibleCount=Math.max(1, last - curFirst + 1);
+              target = (dir > 0) ? Math.min(count - 1, last + 1) : Math.max(0, curFirst - visibleCount);
+            }
+            currentList.setSelection(target);
           }
         }else if(currentScroll!=null&&currentScroll.isShown()){
           currentScroll.pageScroll(dir>0?View.FOCUS_DOWN:View.FOCUS_UP);
@@ -1881,7 +1912,12 @@ public class MainActivity extends Activity {
   }
   public boolean onKeyUp(int key,KeyEvent event){if(nativeReader!=null&&(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN))return true;return super.onKeyUp(key,event);}
   public boolean onKeyDown(int key, KeyEvent event) {
-    if(nativeReader!=null){hideToolbar();if(key==KeyEvent.KEYCODE_VOLUME_DOWN||key==KeyEvent.KEYCODE_PAGE_DOWN||key==KeyEvent.KEYCODE_DPAD_RIGHT){nativeReader.turn(1);return true;}if(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_PAGE_UP||key==KeyEvent.KEYCODE_DPAD_LEFT){nativeReader.turn(-1);return true;}}
+    if(nativeReader!=null){
+      if(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN) return true;
+      hideToolbar();
+      if(key==KeyEvent.KEYCODE_PAGE_DOWN||key==KeyEvent.KEYCODE_DPAD_RIGHT){nativeReader.turn(1);return true;}
+      if(key==KeyEvent.KEYCODE_PAGE_UP||key==KeyEvent.KEYCODE_DPAD_LEFT){nativeReader.turn(-1);return true;}
+    }
     return super.onKeyDown(key, event);
   }
 }
