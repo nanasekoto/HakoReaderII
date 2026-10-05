@@ -56,7 +56,7 @@ public class MainActivity extends Activity {
     sdf.setTimeZone(VN_TZ);
     return sdf.format(new java.util.Date(timeMs));
   }
-  private static boolean isSyncingShelf = false; private boolean isBookListScreen = false;
+  private static boolean isSyncingShelf = false;
   private TextView status, title, syncBadge;
   private WebView web;
   private NativeReader nativeReader;
@@ -166,7 +166,7 @@ public class MainActivity extends Activity {
       web = null;
     }
     online = false;
-    topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0; syncBadge = null; isBookListScreen = false;
+    topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0; syncBadge = null;
     root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.WHITE);
@@ -409,310 +409,376 @@ public class MainActivity extends Activity {
 
   private void bookList(boolean shelf){
     leaveReader();reset();bookId="";chapterId="";
-    LinearLayout header=new LinearLayout(this);
+    LinearLayout topBar = new LinearLayout(this);
+    topBar.setOrientation(LinearLayout.VERTICAL);
+    topBar.setPadding(dp(10), dp(3), dp(10), dp(2));
+
+    LinearLayout header = new LinearLayout(this);
     header.setOrientation(LinearLayout.HORIZONTAL);
     header.setGravity(Gravity.CENTER_VERTICAL);
-    header.setPadding(dp(10),dp(2),dp(10),dp(2));
 
-    TextView headerTitle=new TextView(this);
-    headerTitle.setText(shelf?"Tủ sách":"Vừa đọc");
-    headerTitle.setTextSize(18);
+    TextView headerTitle = new TextView(this);
+    headerTitle.setText(shelf ? "Tủ sách" : "Vừa đọc");
+    headerTitle.setTextSize(17f);
     headerTitle.setTypeface(Typeface.DEFAULT_BOLD);
     headerTitle.setTextColor(INK);
     headerTitle.setSingleLine(true);
-    header.addView(headerTitle,new LinearLayout.LayoutParams(-2,-2));
+    header.addView(headerTitle, new LinearLayout.LayoutParams(0, -2, 1f));
 
-    View spacer=new View(this);
-    header.addView(spacer,new LinearLayout.LayoutParams(0,1,1f));
+    header.addView(button("Trang chính", this::library), new LinearLayout.LayoutParams(-2, dp(30)));
 
-    header.addView(button("Trang chính",this::library),new LinearLayout.LayoutParams(-2,dp(32)));
-    TextView syncStatus = new TextView(this);
-    Button btnSync=button(shelf?"Cập nhật":"Lịch sử",()->{
-      if(shelf){
-        if(isSyncingShelf)return;
-        isSyncingShelf=true;
-        syncStatus.setText("Đang cập nhật…");
-        io.execute(()->{
-          try{
+    final TextView syncStatus = new TextView(this);
+    Button btnSync = button(shelf ? "Cập nhật" : "Lịch sử", () -> {
+      if (shelf) {
+        if (isSyncingShelf) return;
+        isSyncingShelf = true;
+        syncStatus.setText("Đang cập nhật tủ sách từ HAKO…");
+        io.execute(() -> {
+          try {
             Repository.importShelf(this);
-            prefs.edit().putLong("lastShelfSync",System.currentTimeMillis()).apply();
-            
-            isSyncingShelf=false;
-            runOnUiThread(()->{
-              if(isFinishing())return;
+            prefs.edit().putLong("lastShelfSync", System.currentTimeMillis()).apply();
+            isSyncingShelf = false;
+            runOnUiThread(() -> {
+              if (isFinishing()) return;
               bookList(true);
             });
-          }catch(Exception e){
-            isSyncingShelf=false;
-            runOnUiThread(()->{
-              if(isFinishing())return;
-              syncStatus.setText("Lỗi cập nhật: "+(e.getMessage()!=null?e.getMessage():"Mất mạng"));
+          } catch (Exception e) {
+            isSyncingShelf = false;
+            runOnUiThread(() -> {
+              if (isFinishing()) return;
+              syncStatus.setText("Lỗi cập nhật: " + (e.getMessage() != null ? e.getMessage() : "Mất mạng"));
             });
           }
         });
-      }else{
-        browse(HakoParser.ORIGIN+"/lich-su-doc");
+      } else {
+        browse(HakoParser.ORIGIN + "/lich-su-doc");
       }
     });
-    LinearLayout.LayoutParams lpSync=new LinearLayout.LayoutParams(-2,dp(32));
-    lpSync.setMargins(dp(4),0,0,0);
-    header.addView(btnSync,lpSync);
+    LinearLayout.LayoutParams lpSync = new LinearLayout.LayoutParams(-2, dp(30));
+    lpSync.setMargins(dp(4), 0, 0, 0);
+    header.addView(btnSync, lpSync);
 
-    Button btnMore=button("⋯",()->{
+    Button btnMore = button("⋯", () -> {
       new AlertDialog.Builder(this).setItems(new String[]{
-        "Dừng tải","HAKO / Tủ sách",
-        prefs.getBoolean("unreadOnly",false)?"Hiện tất cả truyện":"Chỉ bộ còn chương mới",
+        "Dừng tải", "HAKO / Tủ sách",
+        prefs.getBoolean("unreadOnly", false) ? "Hiện tất cả truyện" : "Chỉ bộ còn chương mới",
         "Thêm link truyện (dán URL)"
-      },(d,w)->{
-        if(w==0)Repository.cancel.set(true);
-        if(w==1)browse(HakoParser.ORIGIN+"/ke-sach");
-        if(w==2){
-          prefs.edit().putBoolean("unreadOnly",!prefs.getBoolean("unreadOnly",false)).apply();
+      }, (d, w) -> {
+        if (w == 0) Repository.cancel.set(true);
+        if (w == 1) browse(HakoParser.ORIGIN + "/ke-sach");
+        if (w == 2) {
+          prefs.edit().putBoolean("unreadOnly", !prefs.getBoolean("unreadOnly", false)).apply();
           bookList(true);
         }
-        if(w==3)addDialog();
+        if (w == 3) addDialog();
       }).show();
     });
-    LinearLayout.LayoutParams lpMore=new LinearLayout.LayoutParams(-2,dp(32));
-    lpMore.setMargins(dp(4),0,0,0);
-    header.addView(btnMore,lpMore);
-    root.addView(header);
+    LinearLayout.LayoutParams lpMore = new LinearLayout.LayoutParams(-2, dp(30));
+    lpMore.setMargins(dp(4), 0, 0, 0);
+    header.addView(btnMore, lpMore);
+    topBar.addView(header);
 
-    if(shelf){
-      String statusStr;
-      if(isSyncingShelf){
-        statusStr="Đang cập nhật…";
-      }else{
-        long lastSync=prefs.getLong("lastShelfSync",0);
-        if(lastSync>0){
-          statusStr="Đã cập nhật lúc "+formatVnDate(lastSync,"HH:mm dd/MM/yyyy");
-        }else{
-          statusStr="Chưa cập nhật tủ sách";
+    String statusStr;
+    if (shelf) {
+      if (isSyncingShelf) {
+        statusStr = "Đang cập nhật tủ sách từ HAKO…";
+      } else {
+        long lastSync = prefs.getLong("lastShelfSync", 0);
+        int totalFollowed = 0;
+        for (Store.Book b : store.books()) if (b.followed) totalFollowed++;
+        if (lastSync > 0) {
+          statusStr = "Đã cập nhật lúc " + formatVnDate(lastSync, "HH:mm dd/MM/yyyy") + (totalFollowed > 0 ? " · " + totalFollowed + " bộ" : "");
+        } else {
+          statusStr = "Chưa cập nhật tủ sách" + (totalFollowed > 0 ? " · " + totalFollowed + " bộ" : "");
         }
       }
-      syncStatus.setText(statusStr);
-      syncStatus.setTextSize(11.5f);
-      syncStatus.setTextColor(MUTED);
-      syncStatus.setPadding(dp(10),0,dp(10),dp(3));
-      root.addView(syncStatus);
+    } else {
+      int readCount = 0;
+      for (Store.Book b : store.books()) if (b.stamp > 0) readCount++;
+      statusStr = "Lịch sử đọc trên máy · " + readCount + " bộ";
     }
+    syncStatus.setText(statusStr);
+    syncStatus.setTextSize(11f);
+    syncStatus.setTextColor(MUTED);
+    syncStatus.setSingleLine(true);
+    syncStatus.setPadding(0, dp(1), 0, 0);
+    topBar.addView(syncStatus);
 
-    List<Store.Book> books=new ArrayList<>();
-    for(Store.Book b:store.books())if(shelf?(b.followed&&(!prefs.getBoolean("unreadOnly",false)||hasNew(b))):b.stamp>0)books.add(b);
-    if(shelf)java.util.Collections.sort(books,(a,b)->Integer.compare(a.shelfRank,b.shelfRank));
+    root.addView(topBar);
 
-    ListView list=new ListView(this);currentList=list;
+    List<Store.Book> books = new ArrayList<>();
+    for (Store.Book b : store.books()) if (shelf ? (b.followed && (!prefs.getBoolean("unreadOnly", false) || hasNew(b))) : b.stamp > 0) books.add(b);
+    if (shelf) Collections.sort(books, (a, b) -> Integer.compare(a.shelfRank, b.shelfRank));
+
+    ListView list = new ListView(this);
+    currentList = list;
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
-    list.setDividerHeight(dp(4));
-    list.setPadding(dp(6),dp(2),dp(6),dp(2));
+    list.setDividerHeight(dp(3));
+    list.setPadding(dp(6), dp(2), dp(6), dp(2));
     list.setClipToPadding(false);
 
-    isBookListScreen = true;
     int screenH = getResources().getDisplayMetrics().heightPixels;
-    int divH = dp(4);
+    int divH = dp(3);
+    int topOccupied = dp(52);
     int listPad = dp(4);
-    int topOccupied = dp(shelf ? 56 : 36);
-    // Page 1: exactly 5 cards with header. Page 2+: exactly 6 cards without header. Single pass render!
-    final int h1 = Math.max(dp(70), (screenH - topOccupied - listPad - 4 * divH) / 5);
-    final int h2 = Math.max(dp(65), (screenH - listPad - 5 * divH) / 6);
+    int initialCardH = Math.max(dp(60), (screenH - topOccupied - listPad - 5 * divH) / 6);
+    final int[] itemH = new int[]{ initialCardH };
 
-    list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
-      public View getView(int p,View convert,ViewGroup parent){
-        Store.Book b=getItem(p);
-        LinearLayout card=new LinearLayout(MainActivity.this);
+    list.post(() -> {
+      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
+      if (listH > 0) {
+        int cardsPerPage = 6;
+        itemH[0] = Math.max(dp(60), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        list.invalidateViews();
+      }
+    });
+
+    list.setAdapter(new ArrayAdapter<Store.Book>(this, 0, books) {
+      public View getView(int p, View convert, ViewGroup parent) {
+        Store.Book b = getItem(p);
+        LinearLayout card = new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        int cardH = (p < 5) ? h1 : h2;
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, cardH));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
 
-        android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
+        android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(1.5f),Color.BLACK);
-        cardBg.setCornerRadius(dp(5));
+        cardBg.setStroke(dp(1.5f), Color.BLACK);
+        cardBg.setCornerRadius(dp(4));
         card.setBackground(cardBg);
-        card.setPadding(dp(8),dp(3),dp(8),dp(3));
+        card.setPadding(dp(8), dp(2.5f), dp(8), dp(2.5f));
 
-        LinearLayout top=new LinearLayout(MainActivity.this);
+        LinearLayout top = new LinearLayout(MainActivity.this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView titleView=new TextView(MainActivity.this);
+        TextView titleView = new TextView(MainActivity.this);
         titleView.setText(b.title);
-        titleView.setTextSize(14f);
+        titleView.setTextSize(13.5f);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
         titleView.setMaxLines(2);
         titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
+        top.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
 
-        int newCount=newChapterCount(b);
-        if(newCount>0){
-          TextView badge=new TextView(MainActivity.this);
-          badge.setText("+"+newCount+" mới");
-          badge.setTextSize(10.5f);
+        int newCount = newChapterCount(b);
+        if (newCount > 0) {
+          TextView badge = new TextView(MainActivity.this);
+          badge.setText("+" + newCount + " mới");
+          badge.setTextSize(10f);
           badge.setTextColor(Color.WHITE);
           badge.setBackgroundColor(Color.BLACK);
           badge.setTypeface(Typeface.DEFAULT_BOLD);
-          badge.setPadding(dp(4),dp(1),dp(4),dp(1));
-          LinearLayout.LayoutParams lpBadge=new LinearLayout.LayoutParams(-2,-2);
-          lpBadge.setMargins(dp(5),0,0,0);
-          top.addView(badge,lpBadge);
+          badge.setPadding(dp(4), dp(1), dp(4), dp(1));
+          LinearLayout.LayoutParams lpBadge = new LinearLayout.LayoutParams(-2, -2);
+          lpBadge.setMargins(dp(5), 0, 0, 0);
+          top.addView(badge, lpBadge);
         }
         card.addView(top);
 
-        List<Store.Chapter> chs=store.chapters(b.id);
-        Store.Chapter ch=store.chapter(b.id,b.current);
-        int unread=ch==null?-1:Math.max(0,chs.size()-ch.ord-1);
+        List<Store.Chapter> chs = store.chapters(b.id);
+        Store.Chapter ch = store.chapter(b.id, b.current);
+        int unread = ch == null ? -1 : Math.max(0, chs.size() - ch.ord - 1);
 
-        StringBuilder sub=new StringBuilder();
-        if(b.stamp>0&&ch!=null){
+        StringBuilder sub = new StringBuilder();
+        if (b.stamp > 0 && ch != null) {
           sub.append("Đang đọc: ").append(ch.title);
-          if(unread>0)sub.append(" · còn ").append(unread).append(" ch");
-          sub.append(" · ").append(formatVnDate(b.stamp,"dd/MM"));
-        }else if(!chs.isEmpty()){
+          if (unread > 0) sub.append(" · còn ").append(unread).append(" ch");
+          sub.append(" · ").append(formatVnDate(b.stamp, "dd/MM"));
+        } else if (!chs.isEmpty()) {
           sub.append(chs.size()).append(" chương · Chưa đọc");
-        }else if(!b.shelfInfo.isEmpty()){
+        } else if (!b.shelfInfo.isEmpty()) {
           sub.append(b.shelfInfo);
-        }else{
+        } else {
           sub.append("Chưa mở đọc · Chạm để xem mục lục");
         }
-        if(b.dropped){
+        if (b.dropped) {
           sub.append(" · Tạm ngưng");
         }
 
-        TextView subView=new TextView(MainActivity.this);
+        TextView subView = new TextView(MainActivity.this);
         subView.setText(sub.toString());
         subView.setTextSize(11f);
         subView.setTextColor(MUTED);
         subView.setSingleLine(true);
-        subView.setPadding(0,dp(1),0,0);
+        subView.setPadding(0, dp(1), 0, 0);
         card.addView(subView);
 
         return card;
       }
     });
-    list.setOnItemClickListener((a,v,p,id)->{navStack.push(()->bookList(shelf));openBook(books.get(p));});
-    list.setOnItemLongClickListener((a,v,p,id)->{bookMenu(books.get(p));return true;});
-    root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
-    if(books.isEmpty())root.addView(text(shelf?"Bấm Cập nhật sau khi đăng nhập HAKO.":"Chưa có lịch sử đọc trong APK.",14));
+    list.setOnItemClickListener((a, v, p, id) -> { navStack.push(() -> bookList(shelf)); openBook(books.get(p)); });
+    list.setOnItemLongClickListener((a, v, p, id) -> { bookMenu(books.get(p)); return true; });
+    root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+    if (books.isEmpty()) root.addView(text(shelf ? "Bấm Cập nhật sau khi đăng nhập HAKO." : "Chưa có lịch sử đọc trong APK.", 14));
   }
   private boolean hasNew(Store.Book b){try{return Integer.parseInt(b.shelfInfo.split(" ")[0])>0;}catch(Exception e){return false;}}
   private void frequentList(){
     leaveReader();reset();bookId="";chapterId="";
-    LinearLayout header=new LinearLayout(this);
+    LinearLayout topBar = new LinearLayout(this);
+    topBar.setOrientation(LinearLayout.VERTICAL);
+    topBar.setPadding(dp(10), dp(3), dp(10), dp(2));
+
+    LinearLayout header = new LinearLayout(this);
     header.setOrientation(LinearLayout.HORIZONTAL);
     header.setGravity(Gravity.CENTER_VERTICAL);
-    header.setPadding(dp(10),dp(2),dp(10),dp(2));
 
-    TextView headerTitle=new TextView(this);
+    TextView headerTitle = new TextView(this);
     headerTitle.setText("Thường xuyên đọc");
-    headerTitle.setTextSize(18);
+    headerTitle.setTextSize(17f);
     headerTitle.setTypeface(Typeface.DEFAULT_BOLD);
     headerTitle.setTextColor(INK);
-    header.addView(headerTitle,new LinearLayout.LayoutParams(0,-2,1f));
+    headerTitle.setSingleLine(true);
+    header.addView(headerTitle, new LinearLayout.LayoutParams(0, -2, 1f));
 
-    header.addView(button("Trang chính",this::library),new LinearLayout.LayoutParams(-2,dp(32)));
-    root.addView(header);
+    header.addView(button("Trang chính", this::library), new LinearLayout.LayoutParams(-2, dp(30)));
+    topBar.addView(header);
 
-    List<Store.Book> books=new ArrayList<>();
-    for(Store.Book b:store.books())if(b.visits>0||b.pinned)books.add(b);
-    Collections.sort(books,(a,b)->{if(a.pinned!=b.pinned)return a.pinned?-1:1;int n=Integer.compare(b.visits,a.visits);return n!=0?n:Long.compare(b.stamp,a.stamp);});
+    List<Store.Book> books = new ArrayList<>();
+    for (Store.Book b : store.books()) if (b.visits > 0 || b.pinned) books.add(b);
+    Collections.sort(books, (a, b) -> {
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      int n = Integer.compare(b.visits, a.visits);
+      return n != 0 ? n : Long.compare(b.stamp, a.stamp);
+    });
 
-    ListView list=new ListView(this);currentList=list;
+    TextView infoView = new TextView(this);
+    infoView.setText("Truyện đọc nhiều trên máy · " + books.size() + " bộ");
+    infoView.setTextSize(11f);
+    infoView.setTextColor(MUTED);
+    infoView.setSingleLine(true);
+    infoView.setPadding(0, dp(1), 0, 0);
+    topBar.addView(infoView);
+
+    root.addView(topBar);
+
+    ListView list = new ListView(this);
+    currentList = list;
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
-    list.setDividerHeight(dp(4));
-    list.setPadding(dp(6),dp(2),dp(6),dp(2));
+    list.setDividerHeight(dp(3));
+    list.setPadding(dp(6), dp(2), dp(6), dp(2));
     list.setClipToPadding(false);
 
-    isBookListScreen = true;
     int screenH = getResources().getDisplayMetrics().heightPixels;
-    int divH = dp(4);
+    int divH = dp(3);
+    int topOccupied = dp(52);
     int listPad = dp(4);
-    int topOccupied = dp(36);
-    final int h1 = Math.max(dp(70), (screenH - topOccupied - listPad - 4 * divH) / 5);
-    final int h2 = Math.max(dp(65), (screenH - listPad - 5 * divH) / 6);
+    int initialCardH = Math.max(dp(60), (screenH - topOccupied - listPad - 5 * divH) / 6);
+    final int[] itemH = new int[]{ initialCardH };
 
-    list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
-      public View getView(int p,View convert,ViewGroup parent){
-        Store.Book b=getItem(p);
-        LinearLayout card=new LinearLayout(MainActivity.this);
+    list.post(() -> {
+      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
+      if (listH > 0) {
+        int cardsPerPage = 6;
+        itemH[0] = Math.max(dp(60), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+        list.invalidateViews();
+      }
+    });
+
+    list.setAdapter(new ArrayAdapter<Store.Book>(this, 0, books) {
+      public View getView(int p, View convert, ViewGroup parent) {
+        Store.Book b = getItem(p);
+        LinearLayout card = new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        int cardH = (p < 5) ? h1 : h2;
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, cardH));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
 
-        android.graphics.drawable.GradientDrawable cardBg=new android.graphics.drawable.GradientDrawable();
+        android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(1.5f),Color.BLACK);
-        cardBg.setCornerRadius(dp(5));
+        cardBg.setStroke(dp(1.5f), Color.BLACK);
+        cardBg.setCornerRadius(dp(4));
         card.setBackground(cardBg);
-        card.setPadding(dp(8),dp(3),dp(8),dp(3));
+        card.setPadding(dp(8), dp(2.5f), dp(8), dp(2.5f));
 
-        LinearLayout top=new LinearLayout(MainActivity.this);
+        LinearLayout top = new LinearLayout(MainActivity.this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView titleView=new TextView(MainActivity.this);
-        titleView.setText((b.pinned?"★ ":"")+b.title);
-        titleView.setTextSize(14f);
+        TextView titleView = new TextView(MainActivity.this);
+        titleView.setText((b.pinned ? "★ " : "") + b.title);
+        titleView.setTextSize(13.5f);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setTextColor(Color.BLACK);
         titleView.setMaxLines(2);
         titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        top.addView(titleView,new LinearLayout.LayoutParams(0,-2,1f));
+        top.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
 
-        Store.BookProgress prog = store.progress(b);
-        TextView badge=new TextView(MainActivity.this);
-        if(prog.totalChs==0){
+        List<Store.Chapter> chs = store.chapters(b.id);
+        int totalChs = chs.size();
+        int currentOrd = 0;
+        if (!b.current.isEmpty()) {
+          for (int i = 0; i < chs.size(); i++) {
+            if (chs.get(i).id.equals(b.current)) { currentOrd = chs.get(i).ord; break; }
+          }
+        } else {
+          for (int i = 0; i < chs.size(); i++) {
+            if (store.wasRead(chs.get(i).id)) currentOrd = i;
+          }
+        }
+
+        int oldChs = Math.max(0, currentOrd);
+        int newChsTotal = Math.max(0, totalChs - currentOrd);
+        int newChsDownloaded = 0;
+        for (int i = currentOrd; i < totalChs; i++) {
+          if (store.readable(chs.get(i).id)) newChsDownloaded++;
+        }
+
+        int downloadPct = 100;
+        if (totalChs > 0) {
+          downloadPct = Math.min(100, Math.round((oldChs + newChsDownloaded) * 100f / totalChs));
+        }
+
+        TextView badge = new TextView(MainActivity.this);
+        if (totalChs == 0) {
           badge.setText("CHƯA TẢI");
           badge.setBackgroundColor(Color.GRAY);
-        }else if(prog.percent==100||prog.newChsTotal==0||prog.newChsDownloaded>=prog.newChsTotal){
+        } else if (newChsTotal == 0 || newChsDownloaded >= newChsTotal) {
           badge.setText("✓ 100%");
           badge.setBackgroundColor(Color.BLACK);
-        }else{
-          badge.setText("ĐÃ TẢI "+prog.percent+"%");
+        } else {
+          badge.setText("ĐÃ TẢI " + downloadPct + "%");
           badge.setBackgroundColor(Color.BLACK);
         }
-        badge.setTextSize(10.5f);
+        badge.setTextSize(10f);
         badge.setTextColor(Color.WHITE);
         badge.setTypeface(Typeface.DEFAULT_BOLD);
-        badge.setPadding(dp(4),dp(1),dp(4),dp(1));
-        LinearLayout.LayoutParams lpBadge=new LinearLayout.LayoutParams(-2,-2);
-        lpBadge.setMargins(dp(6),0,0,0);
-        top.addView(badge,lpBadge);
+        badge.setPadding(dp(4), dp(1), dp(4), dp(1));
+        LinearLayout.LayoutParams lpBadge = new LinearLayout.LayoutParams(-2, -2);
+        lpBadge.setMargins(dp(5), 0, 0, 0);
+        top.addView(badge, lpBadge);
         card.addView(top);
 
-        StringBuilder sub=new StringBuilder();
-        if(prog.totalChs==0){
+        StringBuilder sub = new StringBuilder();
+        if (totalChs == 0) {
           sub.append("Chưa có mục lục · Cần bật Wi-Fi để cập nhật");
-        }else if(prog.newChsTotal==0||prog.newChsDownloaded>=prog.newChsTotal){
-          sub.append("✓ Đã tải 100% (").append(prog.totalChs).append(" ch) · Đọc offline");
-        }else{
-          int unread=prog.newChsTotal-prog.newChsDownloaded;
-          sub.append("Đã tải: ").append(prog.newChsDownloaded).append("/").append(prog.newChsTotal)
-             .append(" chương mới (").append(prog.percent).append("%) · còn ").append(unread).append(" ch");
+        } else if (newChsTotal == 0 || newChsDownloaded >= newChsTotal) {
+          sub.append("✓ Đã tải đủ 100% (").append(totalChs).append(" ch) · Đọc offline");
+        } else {
+          int unread = newChsTotal - newChsDownloaded;
+          sub.append("Đã tải: ").append(newChsDownloaded).append("/").append(newChsTotal).append(" ch mới (").append(downloadPct).append("%) · còn ").append(unread).append(" ch");
         }
-        if(b.stamp>0){
-          sub.append(" · ").append(formatVnDate(b.stamp,"dd/MM"));
+        if (b.stamp > 0) {
+          sub.append(" · ").append(formatVnDate(b.stamp, "dd/MM"));
         }
 
-        TextView subView=new TextView(MainActivity.this);
+        TextView subView = new TextView(MainActivity.this);
         subView.setText(sub.toString());
         subView.setTextSize(11f);
         subView.setTextColor(MUTED);
         subView.setSingleLine(true);
-        subView.setPadding(0,dp(1),0,0);
+        subView.setPadding(0, dp(1), 0, 0);
         card.addView(subView);
+
         return card;
       }
     });
-    list.setOnItemClickListener((a,v,i,id)->{navStack.push(this::frequentList);openBook(books.get(i));});
-    list.setOnItemLongClickListener((a,v,i,id)->{bookMenu(books.get(i));return true;});
-    root.addView(list,new LinearLayout.LayoutParams(-1,0,1));status();
+    list.setOnItemClickListener((a, v, i, id) -> { navStack.push(this::frequentList); openBook(books.get(i)); });
+    list.setOnItemLongClickListener((a, v, i, id) -> { bookMenu(books.get(i)); return true; });
+    root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
   }
   private void saveBook(){Store.Book b=store.book(bookId);if(b==null)return;if(b.followed){message("Bộ này đã trong tủ sách HAKO.");return;}Repository.cancel.set(false);task("Đang lưu lên HAKO…",()->{RenderedPage.action(this,b.url,"follow");store.followed(b.id,true,b.shelfRank);return null;},()->Toast.makeText(this,"Đã lưu vào tủ sách HAKO",Toast.LENGTH_SHORT).show());}
   private void markCaughtUp(Store.Book b){
@@ -1881,25 +1947,8 @@ public class MainActivity extends Activity {
           int count=currentList.getCount();
           if(count>0){
             int curFirst=currentList.getFirstVisiblePosition();
-            int target;
-            if(isBookListScreen){
-              if(curFirst < 5){
-                target = (dir > 0) ? Math.min(count - 1, 5) : 0;
-              }else{
-                int pageIdx = 2 + (curFirst - 5) / 6;
-                if(dir > 0){
-                  int nextFirst = 5 + (pageIdx - 1) * 6;
-                  target = Math.min(count - 1, nextFirst);
-                }else{
-                  if(pageIdx == 2) target = 0;
-                  else target = 5 + (pageIdx - 3) * 6;
-                }
-              }
-            }else{
-              int last=currentList.getLastVisiblePosition();
-              int visibleCount=Math.max(1, last - curFirst + 1);
-              target = (dir > 0) ? Math.min(count - 1, last + 1) : Math.max(0, curFirst - visibleCount);
-            }
+            int curPage=curFirst / 6;
+            int target=(dir > 0) ? Math.min(count - 1, (curPage + 1) * 6) : Math.max(0, (curPage - 1) * 6);
             currentList.setSelection(target);
           }
         }else if(currentScroll!=null&&currentScroll.isShown()){
