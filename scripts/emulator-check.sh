@@ -8,7 +8,7 @@ printf '\nhw.lcd.width=480\nhw.lcd.height=800\nhw.lcd.density=220\nhw.ramSize=20
 trap 'adb emu kill || true' EXIT
 booted=false
 for n in $(seq 1 120); do
-  if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then booted=true; break; fi
+  if [ "$(timeout 5 adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then booted=true; break; fi
   sleep 2
 done
 if [ "$booted" != true ]; then tail -80 build/evidence/emulator.log; exit 1; fi
@@ -28,8 +28,9 @@ for density in 160 220 240; do
   mkdir -p "build/evidence/dpi-${density}"
   adb shell wm size > "build/evidence/dpi-${density}/display.txt"
   adb shell wm density >> "build/evidence/dpi-${density}/display.txt"
-  adb shell am instrument -w vn.nanase.hako.tests/vn.nanase.hako.tests.SmokeTest | tee "build/evidence/dpi-${density}/instrumentation.txt"
+  timeout 120 adb shell am instrument -w vn.nanase.hako.tests/vn.nanase.hako.tests.SmokeTest | tee "build/evidence/dpi-${density}/instrumentation.txt" || failed=1
   if ! grep -q 'PASS TOTAL' "build/evidence/dpi-${density}/instrumentation.txt"; then failed=1; fi
+  timeout 10 adb exec-out screencap -p > "build/evidence/dpi-${density}/last-screen.png" || true
   adb pull /sdcard/Android/data/vn.nanase.hako/files/ui-evidence "build/evidence/dpi-${density}/" || true
   adb logcat -d -s AndroidRuntime > "build/evidence/dpi-${density}/crashes.txt"
 done

@@ -18,6 +18,7 @@ public class SmokeTest extends Instrumentation {
   void check(boolean value, String label) {
     if (!value) failures++;
     checks++; log.append(value ? "PASS " : "FAIL ").append(label).append('\n');
+    Bundle progress=new Bundle();progress.putString("stream",(value?"PASS ":"FAIL ")+label+"\n");sendStatus(0,progress);
   }
   Object field(Object object, String name) throws Exception {
     Field f = object.getClass().getDeclaredField(name); f.setAccessible(true); return f.get(object);
