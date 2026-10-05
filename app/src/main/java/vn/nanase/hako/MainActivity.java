@@ -520,20 +520,11 @@ public class MainActivity extends Activity {
     list.setClipToPadding(false);
 
     int screenH = getResources().getDisplayMetrics().heightPixels;
-    int divH = dp(3);
-    int topOccupied = dp(52);
-    int listPad = dp(4);
-    int initialCardH = Math.max(dp(60), (screenH - topOccupied - listPad - 5 * divH) / 6);
-    final int[] itemH = new int[]{ initialCardH };
-
-    list.post(() -> {
-      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
-      if (listH > 0) {
-        int cardsPerPage = 6;
-        itemH[0] = Math.max(dp(60), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
-        list.invalidateViews();
-      }
-    });
+    int topOccupied = dp(42);
+    int divH = dp(4);
+    int cardsPerPage = 5;
+    int availH = screenH - topOccupied - dp(6);
+    final int itemH = Math.max(dp(65), (availH - (cardsPerPage - 1) * divH) / cardsPerPage);
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this, 0, books) {
       public View getView(int p, View convert, ViewGroup parent) {
@@ -541,7 +532,7 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH));
 
         android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -664,20 +655,11 @@ public class MainActivity extends Activity {
     list.setClipToPadding(false);
 
     int screenH = getResources().getDisplayMetrics().heightPixels;
-    int divH = dp(3);
-    int topOccupied = dp(52);
-    int listPad = dp(4);
-    int initialCardH = Math.max(dp(60), (screenH - topOccupied - listPad - 5 * divH) / 6);
-    final int[] itemH = new int[]{ initialCardH };
-
-    list.post(() -> {
-      int listH = list.getHeight() - list.getPaddingTop() - list.getPaddingBottom();
-      if (listH > 0) {
-        int cardsPerPage = 6;
-        itemH[0] = Math.max(dp(60), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
-        list.invalidateViews();
-      }
-    });
+    int topOccupied = dp(42);
+    int divH = dp(4);
+    int cardsPerPage = 5;
+    int availH = screenH - topOccupied - dp(6);
+    final int itemH = Math.max(dp(65), (availH - (cardsPerPage - 1) * divH) / cardsPerPage);
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this, 0, books) {
       public View getView(int p, View convert, ViewGroup parent) {
@@ -685,7 +667,7 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH[0]));
+        card.setLayoutParams(new AbsListView.LayoutParams(-1, itemH));
 
         android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
@@ -1360,7 +1342,7 @@ public class MainActivity extends Activity {
     readerFrame.addView(bar, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
 
     root.addView(readerFrame, new LinearLayout.LayoutParams(-1, -1));
-    try{applyReaderStyle();nativeReader.content(Store.read(store.html(cid)),pos,fraction);}catch(Exception e){message(e.getMessage());}
+    try{nativeReader.content(Store.read(store.html(cid)),pos,fraction);applyReaderStyle();}catch(Exception e){message(e.getMessage());}
   }
 
   private void saveThen(Runnable next){if(nativeReader!=null&&readerReady)store.position(bookId,chapterId,lastPos,lastFraction);next.run();}

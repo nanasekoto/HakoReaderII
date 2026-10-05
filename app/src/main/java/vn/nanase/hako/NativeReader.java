@@ -33,7 +33,15 @@ public final class NativeReader extends View {
  private int headerHeight=0,footerHeight=0;
  public void setTitles(String book,String chapter){this.bookTitle=book==null?"":book.trim();this.chapterTitle=chapter==null?"":chapter.trim();invalidate();}
  private boolean isSyncing=false;private int syncPct=100;
- public void setSyncStatus(boolean syncing,int pct){if(this.isSyncing!=syncing||this.syncPct!=pct){this.isSyncing=syncing;this.syncPct=pct;invalidate();}}
+ public void setSyncStatus(boolean syncing,int pct){
+  if(this.isSyncing!=syncing||this.syncPct!=pct){
+   this.isSyncing=syncing;this.syncPct=pct;
+   int footerTop=getHeight()-margin-footerHeight;
+   if(getWidth()>0&&footerTop>0){
+    postInvalidate(0,footerTop,getWidth(),getHeight());
+   }
+  }
+ }
  public NativeReader(Context c,File dir,Listener listener){
   super(c);this.chapterDir=dir;this.listener=listener;setBackgroundColor(Color.WHITE);setFocusable(true);paint.setColor(Color.BLACK);
   statusPaint.setColor(Color.rgb(80,80,80));statusPaint.setTypeface(Typeface.DEFAULT);
@@ -88,7 +96,7 @@ public final class NativeReader extends View {
   }
   if(anchors.isEmpty()){anchors.add(0);text.append(body.text().trim().isEmpty()?"Chương chưa có nội dung hoặc đang tải...":body.text());}
   for(URLSpan span:text.getSpans(0,text.length(),URLSpan.class)){String n=notes.get(span.getURL());if(n!=null){int a=text.getSpanStart(span),b=text.getSpanEnd(span);text.removeSpan(span);text.setSpan(new Note(n),a,b,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);}}
-  requestLayout();invalidate();
+  if(getWidth()>0&&getHeight()>0)reflow();else requestLayout();
  }
  private Drawable image(String source){
   try{String name=android.net.Uri.parse(source).getLastPathSegment();if(name==null||!name.matches("image-[a-f0-9]+\\.bin"))return null;
@@ -102,7 +110,7 @@ public final class NativeReader extends View {
  private int offset(){return layout==null||pages.isEmpty()?0:layout.getLineStart(pages.get(page));}
  private void capture(){if(layout==null||pages.isEmpty())return;int off=offset(),p=0;for(int i=0;i<anchors.size();i++)if(anchors.get(i)<=off)p=i;pendingParagraph=p;int end=p+1<anchors.size()?anchors.get(p+1):text.length();pendingFraction=(float)(off-anchors.get(p))/Math.max(1,end-anchors.get(p));}
  private void publish(){capture();listener.position(pendingParagraph,pendingFraction,page,pages.size());}
- protected void onSizeChanged(int w,int h,int ow,int oh){capture();reflow();}
+ protected void onSizeChanged(int w,int h,int ow,int oh){if(w!=ow||h!=oh){capture();reflow();}}
  private void reflow(){
   int width=getWidth()-2*margin;
   int textTop=headerHeight,textBottom=getHeight()-footerHeight;
