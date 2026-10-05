@@ -505,15 +505,15 @@ public class MainActivity extends Activity {
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
-    list.setDividerHeight(dp(3.5f));
+    list.setDividerHeight(dp(4));
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
 
     int screenH = getResources().getDisplayMetrics().heightPixels;
-    int cardsPerPage = 7;
-    int divH = dp(3.5f);
+    int cardsPerPage = 6;
+    int divH = dp(4);
     int listH = Math.max(dp(350), screenH - dp(36) - dp(4));
-    final int itemH = Math.max(dp(50), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+    final int itemH = Math.max(dp(56), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
@@ -619,15 +619,15 @@ public class MainActivity extends Activity {
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
-    list.setDividerHeight(dp(3.5f));
+    list.setDividerHeight(dp(4));
     list.setPadding(dp(6),dp(2),dp(6),dp(2));
     list.setClipToPadding(false);
 
     int screenH = getResources().getDisplayMetrics().heightPixels;
-    int cardsPerPage = 7;
-    int divH = dp(3.5f);
+    int cardsPerPage = 6;
+    int divH = dp(4);
     int listH = Math.max(dp(350), screenH - dp(36) - dp(4));
-    final int itemH = Math.max(dp(50), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
+    final int itemH = Math.max(dp(56), (listH - (cardsPerPage - 1) * divH) / cardsPerPage);
 
     list.setAdapter(new ArrayAdapter<Store.Book>(this,0,books){
       public View getView(int p,View convert,ViewGroup parent){
