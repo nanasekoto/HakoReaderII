@@ -369,7 +369,7 @@ public class MainActivity extends Activity {
           cardBg.setStroke(dp(1.8f), Color.BLACK);
           cardBg.setCornerRadius(dp(6));
           card.setBackground(cardBg);
-          card.setPadding(dp(10), dp(6), dp(10), dp(6));
+          card.setPadding(dp(10), dp(2), dp(10), dp(2));
 
           TextView titleView = new TextView(MainActivity.this);
           titleView.setText(item.title);
@@ -1861,9 +1861,10 @@ public class MainActivity extends Activity {
   private final ListPaging listPaging = new ListPaging();
   private final Handler lockHandler=new Handler(Looper.getMainLooper());
   private final HoldKey lockKey=new HoldKey();
-  private final Runnable lockHold=()->{if(lockKey.hold())toggleTouchLock();};
+  private long lockDownTime;
+  private final Runnable lockHold=()->{android.util.Log.d("HakoKeys","hold timer, locked="+touchLocked);if(lockKey.hold())toggleTouchLock();};
 
-  private void cancelLockKey(){lockHandler.removeCallbacks(lockHold);lockKey.reset();}
+  private void cancelLockKey(){android.util.Log.d("HakoKeys","cancel hold");lockHandler.removeCallbacks(lockHold);lockKey.reset();}
 
   @Override public boolean dispatchTouchEvent(MotionEvent event) {
     if (touchLocked) return true;
@@ -1919,10 +1920,12 @@ public class MainActivity extends Activity {
 
     // Hold Volume Up for 700 ms to lock/unlock; consume repeats and the final release.
     if(isPageUpKey(code) && web==null){
+      android.util.Log.d("HakoKeys","code="+code+" action="+action+" repeat="+event.getRepeatCount()+" locked="+touchLocked);
       if(action==KeyEvent.ACTION_DOWN){
-        if(lockKey.down())lockHandler.postDelayed(lockHold,700);
+        if(lockKey.down()){lockDownTime=SystemClock.uptimeMillis();lockHandler.postDelayed(lockHold,700);}
       }else if(action==KeyEvent.ACTION_UP){
         lockHandler.removeCallbacks(lockHold);
+        if(!event.isCanceled() && SystemClock.uptimeMillis()-lockDownTime>=700 && lockKey.hold())toggleTouchLock();
         if(lockKey.up(event.isCanceled()))performPageAction(-1);
       }
       return true;

@@ -32,7 +32,7 @@ final class PagedBookList extends ListView {
     int available = Math.max(1, View.MeasureSpec.getSize(heightSpec)
         - getPaddingTop() - getPaddingBottom());
     // Two title lines, two metadata lines and card padding at the configured font scale.
-    int minimum = (int)Math.ceil(68 * getResources().getDisplayMetrics().scaledDensity);
+    int minimum = (int)Math.ceil(62 * getResources().getDisplayMetrics().scaledDensity);
     rows = Math.max(1, Math.min(6, (available+getDividerHeight())/(minimum+getDividerHeight())));
     int content = Math.max(rows, available-(rows-1)*getDividerHeight());
     base = content/rows;

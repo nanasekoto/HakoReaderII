@@ -36,6 +36,7 @@ for density in 160 220 240; do
   if ! grep -q 'PASS TOTAL' "build/evidence/dpi-${density}/instrumentation.txt"; then failed=1; fi
   timeout 10 adb exec-out screencap -p > "build/evidence/dpi-${density}/last-screen.png" || true
   adb exec-out run-as vn.nanase.hako tar -C files/ui-evidence -cf - . > "build/evidence/dpi-${density}/screenshots.tar" || true
+  adb logcat -d -s HakoKeys > "build/evidence/dpi-${density}/keys.txt"
   adb logcat -d -s AndroidRuntime > "build/evidence/dpi-${density}/crashes.txt"
 done
 exit "$failed"
