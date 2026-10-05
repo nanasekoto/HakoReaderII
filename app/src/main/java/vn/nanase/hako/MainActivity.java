@@ -812,19 +812,98 @@ public class MainActivity extends Activity {
     }
   }
 
+  private static class VolumeGroup {
+    String name;
+    List<Store.Chapter> chapters = new ArrayList<>();
+    List<String> cleanTitles = new ArrayList<>();
+  }
+
+  private List<VolumeGroup> groupChapters(List<Store.Chapter> chs) {
+    List<VolumeGroup> list = new ArrayList<>();
+    if (chs == null || chs.isEmpty()) return list;
+
+    boolean hasExplicit = false;
+    for (Store.Chapter c : chs) {
+      if (c.title != null && (c.title.contains(" · ") || c.title.matches("^(?i)(Tập\\s*\\d+|Vol\\s*\\d+|Quyển\\s*\\d+|Arc\\s*\\d+|Phần\\s*\\d+).*"))) {
+        hasExplicit = true;
+        break;
+      }
+    }
+
+    if (hasExplicit) {
+      Map<String, VolumeGroup> map = new LinkedHashMap<>();
+      for (Store.Chapter c : chs) {
+        String volName = "Tập khác";
+        String cleanTitle = c.title;
+        if (c.title.contains(" · ")) {
+          String[] parts = c.title.split(" · ", 2);
+          volName = parts[0].trim();
+          cleanTitle = parts[1].trim();
+        } else {
+          java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(?i)(Tập\\s*\\d+[^:-]*|Vol\\s*\\d+[^:-]*|Quyển\\s*\\d+[^:-]*|Arc\\s*\\d+[^:-]*|Phần\\s*\\d+[^:-]*)[\\s:-]*(.*)$").matcher(c.title);
+          if (m.find()) {
+            volName = m.group(1).trim();
+            cleanTitle = (m.group(2) != null && !m.group(2).trim().isEmpty()) ? m.group(2).trim() : c.title;
+          }
+        }
+        VolumeGroup vg = map.get(volName);
+        if (vg == null) {
+          vg = new VolumeGroup();
+          vg.name = volName;
+          map.put(volName, vg);
+          list.add(vg);
+        }
+        vg.chapters.add(c);
+        vg.cleanTitles.add(cleanTitle);
+      }
+    } else if (chs.size() > 20) {
+      int blockSize = 20;
+      for (int i = 0; i < chs.size(); i++) {
+        int volIdx = i / blockSize + 1;
+        int startCh = (volIdx - 1) * blockSize + 1;
+        int endCh = Math.min(chs.size(), volIdx * blockSize);
+        String volName = "Tập " + volIdx + " (Chương " + startCh + " – " + endCh + ")";
+        VolumeGroup vg = null;
+        for (VolumeGroup existing : list) {
+          if (existing.name.equals(volName)) { vg = existing; break; }
+        }
+        if (vg == null) {
+          vg = new VolumeGroup();
+          vg.name = volName;
+          list.add(vg);
+        }
+        vg.chapters.add(chs.get(i));
+        vg.cleanTitles.add(chs.get(i).title);
+      }
+    } else {
+      VolumeGroup vg = new VolumeGroup();
+      vg.name = "Toàn bộ chương";
+      vg.chapters.addAll(chs);
+      for (Store.Chapter c : chs) vg.cleanTitles.add(c.title);
+      list.add(vg);
+    }
+    return list;
+  }
+
   private void contents(Store.Book b) {
     List<Store.Chapter> chs = store.chapters(b.id);
     if (chs.isEmpty()) {
       message("Chưa có mục lục. Kết nối mạng và chọn Tải lại mục lục.");
       return;
     }
+    List<VolumeGroup> groups = groupChapters(chs);
+    if (groups.size() == 1) {
+      volumeChapters(b, groups.get(0));
+      return;
+    }
+
     leaveReader();reset();bookId=b.id;chapterId="";
     int targetIdx = resolveTargetIndex(b, chs);
     Store.Chapter targetCh = chs.get(targetIdx);
 
     root.addView(text(b.title, 18));
     int newCount = newChapterCount(b);
-    String sub = chs.size() + " chương" + (newCount > 0 ? " · " + newCount + " chương mới" : "");
+    String sub = groups.size() + " tập · " + chs.size() + " chương" + (newCount > 0 ? " · " + newCount + " chương mới" : "");
     root.addView(text(sub, 12));
 
     List<String> rowBtns = new ArrayList<>();
@@ -840,45 +919,135 @@ public class MainActivity extends Activity {
     rowBtns.add("⋯ Menu");rowActs.add(() -> bookMenu(b));
     row(rowBtns.toArray(new String[0]), rowActs.toArray(new Runnable[0]));
 
+    ListView list = new ListView(this);
+    currentList = list;
+    list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+    list.setDrawSelectorOnTop(false);
+    list.setDivider(new android.graphics.drawable.ColorDrawable(Color.BLACK));
+    list.setDividerHeight(dp(1));
+
+    list.setAdapter(new ArrayAdapter<VolumeGroup>(this, 0, groups) {
+      public View getView(int p, View convert, ViewGroup parent) {
+        VolumeGroup vg = getItem(p);
+        boolean containsTarget = false;
+        for (Store.Chapter c : vg.chapters) {
+          if (c.id.equals(targetCh.id)) { containsTarget = true; break; }
+        }
+
+        LinearLayout card = new LinearLayout(MainActivity.this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.setBackgroundColor(containsTarget ? Color.rgb(240, 240, 240) : Color.WHITE);
+
+        LinearLayout top = new LinearLayout(MainActivity.this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView titleView = new TextView(MainActivity.this);
+        titleView.setText(vg.name);
+        titleView.setTextSize(16);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleView.setTextColor(Color.BLACK);
+        top.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        if (containsTarget) {
+          TextView badge = new TextView(MainActivity.this);
+          badge.setText("ĐANG ĐỌC");
+          badge.setTextSize(11);
+          badge.setTextColor(Color.WHITE);
+          badge.setBackgroundColor(Color.BLACK);
+          badge.setTypeface(Typeface.DEFAULT_BOLD);
+          badge.setPadding(dp(5), dp(1), dp(5), dp(1));
+          LinearLayout.LayoutParams lpBadge = new LinearLayout.LayoutParams(-2, -2);
+          lpBadge.setMargins(dp(6), 0, 0, 0);
+          top.addView(badge, lpBadge);
+        }
+        card.addView(top);
+
+        int downloaded = 0;
+        for (Store.Chapter c : vg.chapters) if (store.readable(c.id)) downloaded++;
+        String info = vg.chapters.size() + " chương · Đã tải " + downloaded + "/" + vg.chapters.size() + " ch";
+        TextView subView = new TextView(MainActivity.this);
+        subView.setText(info);
+        subView.setTextSize(12);
+        subView.setTextColor(MUTED);
+        subView.setPadding(0, dp(4), 0, 0);
+        card.addView(subView);
+
+        return card;
+      }
+    });
+
+    list.setOnItemClickListener((a, v, p, id) -> {
+      navStack.push(() -> contents(b));
+      volumeChapters(b, groups.get(p));
+    });
+
+    root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+    status();
+  }
+
+  private void volumeChapters(Store.Book b, VolumeGroup vg) {
+    leaveReader();reset();bookId=b.id;chapterId="";
+    List<Store.Chapter> allChs = store.chapters(b.id);
+    int targetIdx = resolveTargetIndex(b, allChs);
+    Store.Chapter targetCh = allChs.get(targetIdx);
+
+    root.addView(text(b.title + " · " + vg.name, 17));
+    root.addView(text(vg.chapters.size() + " chương trong tập này", 12));
+
+    List<String> rowBtns = new ArrayList<>();
+    List<Runnable> rowActs = new ArrayList<>();
+    rowBtns.add("◀ Chọn tập khác");rowActs.add(this::goBack);
+    rowBtns.add("▶ Đọc tiếp");rowActs.add(() -> openChapter(b.id, targetCh.id));
+    rowBtns.add("⋯ Menu");rowActs.add(() -> bookMenu(b));
+    row(rowBtns.toArray(new String[0]), rowActs.toArray(new Runnable[0]));
+
     List<String> labels = new ArrayList<>();
-    for (int n = 0; n < chs.size(); n++) {
-      Store.Chapter c = chs.get(n);
-      boolean isTarget = (n == targetIdx);
+    for (int n = 0; n < vg.chapters.size(); n++) {
+      Store.Chapter c = vg.chapters.get(n);
+      boolean isTarget = c.id.equals(targetCh.id);
       boolean wasRead = store.wasRead(c.id);
-      String prefix = isTarget ? "▶ [Đọc tiếp] " : wasRead ? "✓ [Đã đọc] " : "• ";
+      String prefix = isTarget ? "▶ [Đang đọc] " : wasRead ? "✓ [Đã đọc] " : "• ";
       String statusIcon = c.ready ? "✓ đủ" : store.html(c.id).isFile() ? "◐" : "↓";
-      labels.add(prefix + c.title + " (" + statusIcon + ")");
+      String chTitle = (n < vg.cleanTitles.size()) ? vg.cleanTitles.get(n) : c.title;
+      labels.add(prefix + chTitle + " (" + statusIcon + ")");
     }
 
     ListView list = new ListView(this);
     currentList = list;
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
-    final int finalSelectedPos = targetIdx;
     list.setDivider(new android.graphics.drawable.ColorDrawable(Color.BLACK));
     list.setDividerHeight(dp(1));
+
     list.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, labels) {
       public View getView(int p, View v, ViewGroup parent) {
         TextView t = (TextView) super.getView(p, v, parent);
-        boolean isTarget = (p == finalSelectedPos);
+        Store.Chapter c = vg.chapters.get(p);
+        boolean isTarget = c.id.equals(targetCh.id);
         t.setTextColor(Color.BLACK);
         t.setTypeface(isTarget ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-        t.setTextSize(16);
-        t.setPadding(dp(12), dp(12), dp(12), dp(12));
-        if(isTarget){
-          t.setBackgroundColor(Color.rgb(230,230,230));
+        t.setTextSize(15);
+        t.setPadding(dp(12), dp(10), dp(12), dp(10));
+        if (isTarget) {
+          t.setBackgroundColor(Color.rgb(230, 230, 230));
         } else {
           t.setBackgroundColor(Color.WHITE);
         }
         return t;
       }
     });
-    list.setOnItemClickListener((a, v, p, id) -> { navStack.push(() -> contents(b)); openChapter(b.id, chs.get(p).id); });
+
+    list.setOnItemClickListener((a, v, p, id) -> {
+      navStack.push(() -> volumeChapters(b, vg));
+      openChapter(b.id, vg.chapters.get(p).id);
+    });
+
     root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
-    list.post(() -> list.setSelection(Math.max(0, finalSelectedPos - 1)));
+    // Note: Starts from TOP (Chapter 1) by default! No auto-scrolling to hide Chapter 1!
     status();
   }
-
   private void openChapter(String bid, String cid) {
     Store.Chapter c = store.chapter(bid, cid);
     if (c == null) {

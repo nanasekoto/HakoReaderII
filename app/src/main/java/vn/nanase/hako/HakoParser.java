@@ -131,10 +131,27 @@ public final class HakoParser {
     if (scope == null) scope = d;
     LinkedHashMap<String, Link> out = new LinkedHashMap<>();
     String sid = storyId(storyUrl(base));
-    for (Element a : scope.select("a[href]")) {
-      String u = normalize(a.absUrl("href")), id = chapterId(u);
-      if (!id.isEmpty() && storyId(storyUrl(u)).equals(sid) && !out.containsKey(id))
-        out.put(id, new Link(id, a.text().isEmpty() ? "Chương" : a.text(), u));
+    org.jsoup.select.Elements volSections = scope.select(".volume-list, .basic-section, section");
+    if (!volSections.isEmpty()) {
+      for (Element sec : volSections) {
+        Element vt = sec.selectFirst(".sect-title, .volume-title, .volume-header, header span, header");
+        String vName = vt != null ? vt.text().trim() : "";
+        for (Element a : sec.select("a[href]")) {
+          String u = normalize(a.absUrl("href")), id = chapterId(u);
+          if (!id.isEmpty() && storyId(storyUrl(u)).equals(sid) && !out.containsKey(id)) {
+            String chTitle = a.text().isEmpty() ? "Chương" : a.text();
+            String fullTitle = vName.isEmpty() ? chTitle : (vName + " · " + chTitle);
+            out.put(id, new Link(id, fullTitle, u));
+          }
+        }
+      }
+    }
+    if (out.isEmpty()) {
+      for (Element a : scope.select("a[href]")) {
+        String u = normalize(a.absUrl("href")), id = chapterId(u);
+        if (!id.isEmpty() && storyId(storyUrl(u)).equals(sid) && !out.containsKey(id))
+          out.put(id, new Link(id, a.text().isEmpty() ? "Chương" : a.text(), u));
+      }
     }
     return new ArrayList<>(out.values());
   }
