@@ -34,9 +34,9 @@ public final class NativeReader extends View {
  public NativeReader(Context c,File dir,Listener listener){
   super(c);this.chapterDir=dir;this.listener=listener;setBackgroundColor(Color.WHITE);setFocusable(true);paint.setColor(Color.BLACK);
   statusPaint.setColor(Color.rgb(80,80,80));statusPaint.setTypeface(Typeface.DEFAULT);
-  float sp11=11f*getResources().getDisplayMetrics().scaledDensity;statusPaint.setTextSize(sp11);
-  headerHeight=(int)(22*getResources().getDisplayMetrics().density);
-  footerHeight=(int)(22*getResources().getDisplayMetrics().density);
+  float sp10=10f*getResources().getDisplayMetrics().scaledDensity;statusPaint.setTextSize(sp10);
+  headerHeight=(int)(15*getResources().getDisplayMetrics().density);
+  footerHeight=(int)(15*getResources().getDisplayMetrics().density);
  }
  public void content(String html,int paragraph,float fraction){
   rawHtml=html;pendingParagraph=paragraph;pendingFraction=fraction;anchors.clear();notes.clear();imageSizes.clear();
@@ -102,7 +102,7 @@ public final class NativeReader extends View {
  protected void onSizeChanged(int w,int h,int ow,int oh){capture();reflow();}
  private void reflow(){
   int width=getWidth()-2*margin;
-  int textTop=margin+headerHeight,textBottom=getHeight()-margin-footerHeight;
+  int textTop=headerHeight,textBottom=getHeight()-footerHeight;
   int height=textBottom-textTop;
   if(width<=0||height<=0||text.length()==0)return;
   for(ImageSpan span:text.getSpans(0,text.length(),ImageSpan.class)){Drawable d=span.getDrawable();int[] original=imageSizes.get(d);if(original==null){original=new int[]{Math.max(1,d.getBounds().width()),Math.max(1,d.getBounds().height())};imageSizes.put(d,original);}float scale=Math.min(1f,Math.min((float)width/original[0],Math.max(1,height-2*paint.getTextSize())/original[1]));d.setBounds(0,0,Math.max(1,(int)(original[0]*scale)),Math.max(1,(int)(original[1]*scale)));}
@@ -116,11 +116,12 @@ public final class NativeReader extends View {
  }
  protected void onDraw(Canvas c){
   super.onDraw(c);if(layout==null||pages.isEmpty())return;
-  int textTop=margin+headerHeight,textBottom=getHeight()-margin-footerHeight;
+  int textTop=headerHeight,textBottom=getHeight()-footerHeight;
   int availW=getWidth()-2*margin;
 
-  // 1. Top Header: Book title & Chapter title in 11sp
-  float headerY=margin+(headerHeight*0.72f);
+  // 1. Top Header: Flush to the top edge (within 15dp header)
+  float headerY=(int)(11.5f*getResources().getDisplayMetrics().density);
+  statusPaint.setTextAlign(Paint.Align.LEFT);
   if(!bookTitle.isEmpty()||!chapterTitle.isEmpty()){
    String headerText=bookTitle.isEmpty()?chapterTitle:(chapterTitle.isEmpty()?bookTitle:bookTitle+" · "+chapterTitle);
    float textW=statusPaint.measureText(headerText);
@@ -142,15 +143,15 @@ public final class NativeReader extends View {
   layout.draw(c);
   c.restore();
 
-  // 3. Bottom Footer: Page count on left, Sync % in center, Reading % on right in 11sp
-  float footerY=getHeight()-margin-(footerHeight*0.28f);
+  // 3. Bottom Footer: Flush to the bottom edge (within 15dp footer)
+  float footerY=getHeight()-(int)(3.5f*getResources().getDisplayMetrics().density);
 
   statusPaint.setTextAlign(Paint.Align.LEFT);
   String pageStr=(page+1)+" / "+pages.size();
   c.drawText(pageStr,margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.CENTER);
-  String centerStatus=isSyncing?("⤓ "+syncPct+"%"):"✓ 100%";
+  String centerStatus=isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ 100%":(syncPct+"%"));
   c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.RIGHT);

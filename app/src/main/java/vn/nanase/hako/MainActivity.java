@@ -46,7 +46,7 @@ public class MainActivity extends Activity {
             String text = i.getStringExtra("text");
             if (status != null) status.setText(text);
             if (syncBadge != null) {
-              syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : "✓ 100%");
+              syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : (Repository.syncPct >= 100 ? "✓ 100%" : (Repository.syncPct + "%")));
             }
             if (nativeReader != null) {
               nativeReader.setSyncStatus(Repository.isSyncing, Repository.syncPct);
@@ -134,7 +134,7 @@ public class MainActivity extends Activity {
     bottomBar.addView(status, new LinearLayout.LayoutParams(0, -2, 1f));
 
     syncBadge = new TextView(this);
-    syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : "✓ 100%");
+    syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : (Repository.syncPct >= 100 ? "✓ 100%" : (Repository.syncPct + "%")));
     syncBadge.setTextSize(11);
     syncBadge.setTypeface(Typeface.DEFAULT_BOLD);
     syncBadge.setTextColor(Color.BLACK);
@@ -185,9 +185,9 @@ public class MainActivity extends Activity {
       "Đọc tiếp","Vừa đọc","Tủ sách",
       "Mới cập nhật","Thường đọc","Tìm kiếm",
       "Cài đặt","Tài khoản","Đổi tên miền",
-      "Đọc mẫu","Dán link","Thoát"
+      "Đọc mẫu","Cập nhật","Thoát"
     };
-    int[] iconKinds={12,7,2,8,9,10,13,11,14,3,1,6};
+    int[] iconKinds={12,7,2,8,9,10,13,11,14,3,8,6};
     Runnable[] actions={
       ()->{Store.Book b=store.book(prefs.getString("lastBook",""));if(b!=null){navStack.push(this::library);openBook(b);}else bookList(false);},
       ()->{navStack.push(this::library);bookList(false);},
@@ -199,7 +199,7 @@ public class MainActivity extends Activity {
       ()->browse(HakoParser.ORIGIN+"/login"),
       this::domain,
       this::demo,
-      this::addDialog,
+      ()->{Repository.cancel.set(false);startDownloads("",true);},
       this::exitApp
     };
     int cols=3;
@@ -359,7 +359,8 @@ public class MainActivity extends Activity {
     Button btnMore=button("⋯",()->{
       new AlertDialog.Builder(this).setItems(new String[]{
         "Đồng bộ ngay","Dừng tải","HAKO / Tủ sách",
-        prefs.getBoolean("unreadOnly",false)?"Hiện tất cả truyện":"Chỉ bộ còn chương mới"
+        prefs.getBoolean("unreadOnly",false)?"Hiện tất cả truyện":"Chỉ bộ còn chương mới",
+        "Thêm link truyện (dán URL)"
       },(d,w)->{
         if(w==0)confirmBulk();
         if(w==1)Repository.cancel.set(true);
@@ -368,6 +369,7 @@ public class MainActivity extends Activity {
           prefs.edit().putBoolean("unreadOnly",!prefs.getBoolean("unreadOnly",false)).apply();
           bookList(true);
         }
+        if(w==4)addDialog();
       }).show();
     });
     LinearLayout.LayoutParams lpMore=new LinearLayout.LayoutParams(-2,dp(32));
@@ -556,6 +558,7 @@ public class MainActivity extends Activity {
         }
 
         int downloadPct=100;
+        int newPct = newChsTotal > 0 ? Math.round(newChsDownloaded * 100f / newChsTotal) : 100;
         if(totalChs>0){
           downloadPct=Math.min(100,Math.round((oldChs+newChsDownloaded)*100f/totalChs));
         }
@@ -568,7 +571,7 @@ public class MainActivity extends Activity {
           badge.setText("✓ 100%");
           badge.setBackgroundColor(Color.BLACK);
         }else{
-          badge.setText("ĐÃ TẢI "+downloadPct+"%");
+          badge.setText("ĐÃ TẢI "+newPct+"%");
           badge.setBackgroundColor(Color.BLACK);
         }
         badge.setTextSize(11);
@@ -587,7 +590,7 @@ public class MainActivity extends Activity {
           sub.append("✓ Đã tải đủ 100% (").append(totalChs).append(" ch) · Đọc offline");
         }else{
           int unread=newChsTotal-newChsDownloaded;
-          sub.append("Đã tải: ").append(newChsDownloaded).append("/").append(newChsTotal).append(" ch mới (").append(downloadPct).append("%) · còn ").append(unread).append(" ch");
+          sub.append("Đã tải: ").append(newChsDownloaded).append("/").append(newChsTotal).append(" chương mới (").append(newPct).append("%) · còn ").append(unread).append(" ch");
         }
         if(b.stamp>0){
           sub.append(" · ").append(android.text.format.DateFormat.format("dd/MM",b.stamp));
@@ -1127,7 +1130,7 @@ public class MainActivity extends Activity {
     SeekBar para=new SeekBar(this);para.setMax(10);para.setProgress(prefs.getInt("paraSpaceDp",8)/2);box.addView(para);
     TextView indentLabel=text("Thụt đầu dòng mỗi đoạn",14);box.addView(indentLabel);
     SeekBar indent=new SeekBar(this);indent.setMax(10);indent.setProgress(prefs.getInt("indentDp",9)/3);box.addView(indent);
-    TextView marginLabel=text("Lề mép màn hình",14);box.addView(marginLabel);SeekBar margin=new SeekBar(this);margin.setMax(28);margin.setProgress(prefs.getInt("margin",10));box.addView(margin);
+    TextView marginLabel=text("Lề mép màn hình",14);box.addView(marginLabel);SeekBar margin=new SeekBar(this);margin.setMax(28);margin.setProgress(prefs.getInt("margin",5));box.addView(margin);
     CheckBox bold=check("Nét đậm (thử trên màn E Ink)",prefs.getInt("weight",400)>400);box.addView(bold);
     Runnable update=()->{
       float fs=12+size.getProgress()/2f;
@@ -1172,7 +1175,7 @@ public class MainActivity extends Activity {
 
   private void applyReaderStyle(){if(nativeReader==null)return;android.graphics.Typeface face;int choice=prefs.getInt("font2",2);try{face=choice==0?android.graphics.Typeface.createFromAsset(getAssets(),"Tinos.ttf"):choice==1?android.graphics.Typeface.createFromAsset(getAssets(),"DejaVu.ttf"):choice==2?android.graphics.Typeface.createFromAsset(getAssets(),"LiberationSerif.ttf"):choice==3?android.graphics.Typeface.createFromAsset(getAssets(),"LiberationSans.ttf"):choice==4?android.graphics.Typeface.SANS_SERIF:android.graphics.Typeface.createFromFile(new File(getFilesDir(),"reader-font.ttf"));}catch(Exception e){face=android.graphics.Typeface.SERIF;}
     face=android.graphics.Typeface.create(face,prefs.getInt("weight",400)>=700?android.graphics.Typeface.BOLD:android.graphics.Typeface.NORMAL);
-    nativeReader.style(prefs.getFloat("size2",22f),prefs.getInt("margin",10),prefs.getFloat("line",1.30f),prefs.getInt("paraSpaceDp",8),prefs.getInt("indentDp",9),face,prefs.getBoolean("taps",true));
+    nativeReader.style(prefs.getFloat("size2",22f),prefs.getInt("margin",5),prefs.getFloat("line",1.30f),prefs.getInt("paraSpaceDp",8),prefs.getInt("indentDp",9),face,prefs.getBoolean("taps",true));
   }
 
   private void help() {

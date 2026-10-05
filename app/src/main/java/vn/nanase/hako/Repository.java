@@ -140,7 +140,7 @@ public final class Repository {
     Store s = Store.get(ctx);
     if (s.readable(c.id) && c.ready) return;
     allowed(ctx);
-    long pause=Math.max(0,2000-(android.os.SystemClock.elapsedRealtime()-lastNetwork));
+    long pause=Math.max(0,1500-(android.os.SystemClock.elapsedRealtime()-lastNetwork));
     if(pause>0)Thread.sleep(pause);
     lastNetwork=android.os.SystemClock.elapsedRealtime();
     File dir = s.dir(c.id);
@@ -248,17 +248,28 @@ public final class Repository {
             if(charging&&!ChargeJob.isCharging(ctx))break;
             count++;
             notify(ctx,"Đang tải ("+count+"/"+needDownload.size()+"): "+ch.title);
-            long delay=charging?2000:3000;
+            long delay=1500;
             if(!waitFor(ctx,delay,b.id,charging))break;
             try{
               download(ctx,ch);
               syncDone++;
               syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
-              notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + ")");
+              notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
             }catch(Exception e){
-              s.state(ch.id,false,e.getMessage());
-              notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());
-              Thread.sleep(1500);
+              // Retry once after short pause
+              try {
+                Thread.sleep(3000);
+                if (!cancel.get()) {
+                  download(ctx, ch);
+                  syncDone++;
+                  syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
+                  notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
+                }
+              } catch (Exception retryEx) {
+                s.state(ch.id,false,retryEx.getMessage());
+                notify(ctx,"Lỗi tải "+ch.title+": "+retryEx.getMessage());
+                Thread.sleep(1500);
+              }
             }
           }
         }
@@ -268,35 +279,51 @@ public final class Repository {
             if(ch.ord>=current||s.readable(ch.id))continue;
             if(charging&&!ChargeJob.isCharging(ctx))break;
             notify(ctx,"Tải bổ sung: "+ch.title);
-            if(!waitFor(ctx,2500,b.id,charging))break;
+            if(!waitFor(ctx,1500,b.id,charging))break;
             try{
               download(ctx,ch);
               syncDone++;
               syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
-              notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + ")");
+              notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
             }catch(Exception e){
-              s.state(ch.id,false,e.getMessage());
-              notify(ctx,"Lỗi tải "+ch.title+": "+e.getMessage());
-              Thread.sleep(1500);
+              // Retry once after short pause
+              try {
+                Thread.sleep(3000);
+                if (!cancel.get()) {
+                  download(ctx, ch);
+                  syncDone++;
+                  syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
+                  notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
+                }
+              } catch (Exception retryEx) {
+                s.state(ch.id,false,retryEx.getMessage());
+                notify(ctx,"Lỗi tải "+ch.title+": "+retryEx.getMessage());
+                Thread.sleep(1500);
+              }
             }
           }
         }
         Store.Book latest=s.book(b.id);if(latest!=null)s.prune(latest);
       }
       notify(ctx,"✓ Đã tải xong tất cả chương mới. Có thể tắt Wi-Fi!");
-    }finally{busy.set(false);pendingBook="";pendingAll=false;manualOverride=false;isSyncing=false;syncPct=100;notify(ctx,"✓ Đã tải xong tất cả chương mới");}
+    }finally{
+      busy.set(false);pendingBook="";pendingAll=false;manualOverride=false;isSyncing=false;
+      boolean completedAll = (syncTotal > 0 && syncDone >= syncTotal) || (syncTotal == 0);
+      if(completedAll){
+        syncPct = 100;
+        notify(ctx, "✓ Đã tải xong tất cả chương mới");
+      }else{
+        syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 0;
+        notify(ctx, "Tạm dừng tải: " + syncDone + "/" + syncTotal + " (" + syncPct + "%)");
+      }
+    }
   }
   private static boolean waitFor(Context c,long delay,String id,boolean charging)throws Exception {
-    notify(c,"Chờ "+(delay/1000)+" giây trước chương tiếp theo");
     long end=android.os.SystemClock.elapsedRealtime()+delay;
     while(android.os.SystemClock.elapsedRealtime()<end){
-      if(cancel.get()||!pendingBook.isEmpty())return false;
+      if(cancel.get())return false;
       if(charging&&!ChargeJob.isCharging(c))return false;
-      if(!manualOverride&&!ChargeJob.isCharging(c)){
-        android.os.PowerManager pm=c.getSystemService(android.os.PowerManager.class);
-        if(!id.equals(activeBook)||!pm.isInteractive())return false;
-      }
-      Thread.sleep(Math.min(1000,Math.max(1,end-android.os.SystemClock.elapsedRealtime())));
+      Thread.sleep(Math.min(500,Math.max(1,end-android.os.SystemClock.elapsedRealtime())));
     }
     allowed(c);return true;
   }
