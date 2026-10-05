@@ -302,41 +302,27 @@ public class MainActivity extends Activity {
     status();
   }
     private void onlineList(String title, String url) {
-    leaveReader();reset();bookId="";chapterId="";root.addView(text(title,18));
-    row(new String[]{"◀ Quay lại","🔍 Tìm kiếm","Mở web"},new Runnable[]{this::goBack,this::searchDialog,()->browse(url)});
-    LinearLayout catBar1 = new LinearLayout(this);
-    catBar1.setOrientation(0);
-    catBar1.setPadding(dp(2), dp(1), dp(2), dp(1));
-    String[] c1Names = {"Truyện Dịch", "Convert", "Sáng Tác"};
-    String[] c1Urls = {
-        HakoParser.ORIGIN + "/danh-sach?truyendich=1&sapxep=capnhat",
-        HakoParser.ORIGIN + "/danh-sach?convert=1&sapxep=capnhat",
-        HakoParser.ORIGIN + "/danh-sach?sangtac=1&sapxep=capnhat"
-    };
-    for(int i=0; i<c1Names.length; i++){
-      final int idx = i;
-      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(32), 1f);
-      lp.setMargins(dp(2), dp(1), dp(2), dp(1));
-      catBar1.addView(button(c1Names[i], () -> onlineList(c1Names[idx], c1Urls[idx])), lp);
-    }
-    root.addView(catBar1);
-
-    LinearLayout catBar2 = new LinearLayout(this);
-    catBar2.setOrientation(0);
-    catBar2.setPadding(dp(2), dp(1), dp(2), dp(1));
-    String[] c2Names = {"Mới Đăng", "Hoàn Thành", "Nổi Bật"};
-    String[] c2Urls = {
-        HakoParser.ORIGIN + "/danh-sach?truyendich=1&sapxep=truyenmoi",
-        HakoParser.ORIGIN + "/danh-sach?hoanthanh=1&sapxep=capnhat",
-        HakoParser.ORIGIN + "/danh-sach?sapxep=top"
-    };
-    for(int i=0; i<c2Names.length; i++){
-      final int idx = i;
-      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(32), 1f);
-      lp.setMargins(dp(2), dp(1), dp(2), dp(1));
-      catBar2.addView(button(c2Names[i], () -> onlineList(c2Names[idx], c2Urls[idx])), lp);
-    }
-    root.addView(catBar2);
+    leaveReader();reset();bookId="";chapterId="";
+    String[] categories={"Truyện Dịch","Convert","Sáng Tác","Mới Đăng","Hoàn Thành","Nổi Bật"};
+    String[] queries={"truyendich=1&sapxep=capnhat","convert=1&sapxep=capnhat",
+        "sangtac=1&sapxep=capnhat","truyendich=1&sapxep=truyenmoi",
+        "hoanthanh=1&sapxep=capnhat","sapxep=top"};
+    LinearLayout header=new LinearLayout(this);
+    header.setGravity(Gravity.CENTER_VERTICAL);
+    header.addView(new IconButton(this,4,"Quay lại",this::goBack),new LinearLayout.LayoutParams(dp(38),dp(38)));
+    TextView heading=new TextView(this);
+    heading.setText(title); heading.setTextSize(17); heading.setTypeface(Typeface.DEFAULT_BOLD);
+    heading.setTextColor(INK); heading.setSingleLine(true);
+    heading.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    heading.setOnLongClickListener(v->{message(title);return true;});
+    header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+    header.addView(new IconButton(this,10,"Tìm kiếm",this::searchDialog),new LinearLayout.LayoutParams(dp(38),dp(38)));
+    header.addView(new IconButton(this,13,"Bộ lọc",()->new AlertDialog.Builder(this)
+        .setTitle("Chọn danh sách").setItems(categories,(d,index)->onlineList(categories[index],
+          HakoParser.ORIGIN+"/danh-sach?"+queries[index])).setNegativeButton("Đóng",null).show()),
+        new LinearLayout.LayoutParams(dp(38),dp(38)));
+    header.addView(new IconButton(this,14,"Mở web",()->browse(url)),new LinearLayout.LayoutParams(dp(38),dp(38)));
+    root.addView(header);
     final PagedBookList list = new PagedBookList(this);
     currentList = list;
     root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -397,6 +383,11 @@ public class MainActivity extends Activity {
           return card;
         }
       });
+      status.setText(stories.size()+" truyện");
+      list.setOnItemLongClickListener((a,v,p,id)->{
+        HakoParser.Link item=stories.get(p);
+        message(item.title+(item.info.isEmpty()?"":"\n\n"+item.info));return true;
+      });
       list.setOnItemClickListener((a, v, p, id) -> {
         navStack.push(() -> onlineList(title, url));
         addUrl(stories.get(p).url);
@@ -431,10 +422,10 @@ public class MainActivity extends Activity {
     headerTitle.setSingleLine(true);
     header.addView(headerTitle, new LinearLayout.LayoutParams(0, -2, 1f));
 
-    header.addView(button("Trang chính", this::library), new LinearLayout.LayoutParams(-2, dp(30)));
+    header.addView(new IconButton(this,0,"Trang chính",this::library), new LinearLayout.LayoutParams(dp(34), dp(30)));
 
     final TextView syncStatus = new TextView(this);
-    Button btnSync = button(shelf ? "Cập nhật" : "Lịch sử", () -> {
+    IconButton btnSync = new IconButton(this,shelf?8:7,shelf ? "Cập nhật" : "Lịch sử", () -> {
       if (shelf) {
         if (isSyncingShelf) return;
         isSyncingShelf = true;
@@ -460,7 +451,7 @@ public class MainActivity extends Activity {
         browse(HakoParser.ORIGIN + "/lich-su-doc");
       }
     });
-    LinearLayout.LayoutParams lpSync = new LinearLayout.LayoutParams(-2, dp(30));
+    LinearLayout.LayoutParams lpSync = new LinearLayout.LayoutParams(dp(34), dp(30));
     lpSync.setMargins(dp(4), 0, 0, 0);
     header.addView(btnSync, lpSync);
 
@@ -626,7 +617,7 @@ public class MainActivity extends Activity {
     headerTitle.setSingleLine(true);
     header.addView(headerTitle, new LinearLayout.LayoutParams(0, -2, 1f));
 
-    header.addView(button("Trang chính", this::library), new LinearLayout.LayoutParams(-2, dp(30)));
+    header.addView(new IconButton(this,0,"Trang chính",this::library), new LinearLayout.LayoutParams(dp(34), dp(30)));
     topBar.addView(header);
 
     List<Store.Book> books = new ArrayList<>();
