@@ -26,6 +26,24 @@ public class MainActivity extends Activity {
   private final java.util.ArrayDeque<Runnable> navStack = new java.util.ArrayDeque<>();
   private String visitSession="";
   private boolean online = false, readerReady = false;
+  private boolean volumeUpPressed = false;
+  private long volumeUpPressTime = 0;
+  private int calculateCardHeight(int cardsPerPage, int reservedDp) {
+    int screenH = getResources().getDisplayMetrics().heightPixels;
+    float density = getResources().getDisplayMetrics().density;
+    int densityH = (int)(screenH / density);
+    int availDp = Math.max(200, densityH - reservedDp);
+    int divDp = 4;
+    return dp(Math.max(54, (availDp - (cardsPerPage - 1) * divDp) / cardsPerPage));
+  }
+  private void toggleTouchLock() {
+    if (nativeReader != null) {
+      boolean next = !nativeReader.isTouchLocked();
+      nativeReader.setTouchLocked(next);
+      hideToolbar();
+      Toast.makeText(this, next ? "🔒 ĐÃ KHÓA CẢM ỨNG (Chỉ lật bằng phím cứng)" : "🔓 ĐÃ MỞ KHÓA CẢM ỨNG", Toast.LENGTH_SHORT).show();
+    }
+  }
   private volatile String bookId = "", chapterId = "";
   private int generation = 0;
   private final ExecutorService io = Executors.newSingleThreadExecutor();
@@ -912,12 +930,7 @@ public class MainActivity extends Activity {
         return null;
       },()->showReader(bid,cid));
     }),new LinearLayout.LayoutParams(0,dp(36),1));
-    topIcons.addView(new IconButton(this,16,"Bật/Tắt chạm lật (phím cứng)",()->{
-      boolean nxt=!prefs.getBoolean("taps",true);
-      prefs.edit().putBoolean("taps",nxt).apply();
-      if(nativeReader!=null)nativeReader.taps(nxt);
-      Toast.makeText(this,nxt?"Chạm lật: BẬT":"Chạm lật: TẮT (Chỉ dùng phím)",Toast.LENGTH_SHORT).show();
-    }),new LinearLayout.LayoutParams(0,dp(36),1));
+    topIcons.addView(new IconButton(this,16,"Khóa/Mở cảm ứng",this::toggleTouchLock),new LinearLayout.LayoutParams(0,dp(36),1));
     topIcons.addView(new IconButton(this,14,"Mở trên web HAKO",()->{
       saveThen(()->browse(c.url));
     }),new LinearLayout.LayoutParams(0,dp(36),1));
@@ -1371,7 +1384,7 @@ public class MainActivity extends Activity {
     btnRow.setGravity(Gravity.CENTER);
 
     Button btnStay = new Button(this);
-    btnStay.setText(dir > 0 ? "Ở lại (Vol +)" : "Ở lại (Vol -)");
+    btnStay.setText("Ở lại (Vol +)");
     btnStay.setTextSize(13);
     btnStay.setTypeface(Typeface.DEFAULT_BOLD);
     btnStay.setTextColor(Color.BLACK);
@@ -1387,7 +1400,7 @@ public class MainActivity extends Activity {
     btnRow.addView(btnStay, lpStay);
 
     Button btnConfirm = new Button(this);
-    btnConfirm.setText(dir > 0 ? "Tiếp tục (Vol -)" : "Quay lại (Vol +)");
+    btnConfirm.setText(dir > 0 ? "Tiếp tục (Vol -)" : "Quay lại (Vol -)");
     btnConfirm.setTextSize(13);
     btnConfirm.setTypeface(Typeface.DEFAULT_BOLD);
     btnConfirm.setTextColor(Color.WHITE);
@@ -1480,17 +1493,37 @@ public class MainActivity extends Activity {
   }
   @Override public boolean dispatchKeyEvent(KeyEvent event){
     int code=event.getKeyCode();
+    if(code==KeyEvent.KEYCODE_VOLUME_UP){
+      if(event.getAction()==KeyEvent.ACTION_DOWN){
+        volumeUpPressed=true;
+        volumeUpPressTime=SystemClock.elapsedRealtime();
+      }else if(event.getAction()==KeyEvent.ACTION_UP){
+        volumeUpPressed=false;
+        if(SystemClock.elapsedRealtime()-volumeUpPressTime>1200){
+          toggleTouchLock();
+          return true;
+        }
+      }
+    }
+    if(event.getAction()==KeyEvent.ACTION_DOWN){
+      // Toggle touch lock when Volume Up is held and Power or Volume Down is pressed
+      if((code==KeyEvent.KEYCODE_POWER||code==KeyEvent.KEYCODE_VOLUME_DOWN)&&volumeUpPressed){
+        toggleTouchLock();
+        return true;
+      }
+    }
     boolean down=isPageDownKey(code);
     boolean up=isPageUpKey(code);
     if(down||up){
       if(event.getAction()==KeyEvent.ACTION_DOWN){
         if(isBoundaryPromptVisible()){
-          if(boundaryDir > 0){
-            if(down){ hideBoundaryPrompt(); adjacent(1); }
-            else if(up){ hideBoundaryPrompt(); }
-          }else if(boundaryDir < 0){
-            if(up){ hideBoundaryPrompt(); adjacent(-1); }
-            else if(down){ hideBoundaryPrompt(); }
+          // Volume Down ALWAYS CONFIRMS, Volume Up ALWAYS CANCELS / STAYS!
+          if(down){
+            int d = boundaryDir;
+            hideBoundaryPrompt();
+            adjacent(d);
+          }else if(up){
+            hideBoundaryPrompt();
           }
           return true;
         }

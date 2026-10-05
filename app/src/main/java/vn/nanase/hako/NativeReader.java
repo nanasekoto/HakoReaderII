@@ -24,7 +24,10 @@ public final class NativeReader extends View {
  private final Map<Drawable,int[]> imageSizes=new IdentityHashMap<>();
  private StaticLayout layout;
  private int page=0,margin=10,pendingParagraph=0;private float pendingFraction=0,line=1.30f;private int paraSpaceDp=8,indentDp=9;private String rawHtml="";
- private boolean taps=true,swiped=false,openAtEnd=false;private float downX,downY; public void setOpenAtEnd(boolean end){this.openAtEnd=end;}
+ private boolean taps=true,swiped=false,openAtEnd=false,touchLocked=false;private float downX,downY;
+ 
+ public void setTouchLocked(boolean locked){this.touchLocked=locked;invalidate();}
+ public boolean isTouchLocked(){return touchLocked;} public void setOpenAtEnd(boolean end){this.openAtEnd=end;} 
  private String bookTitle="",chapterTitle="";
  private final Paint statusPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
  private int headerHeight=0,footerHeight=0;
@@ -151,7 +154,7 @@ public final class NativeReader extends View {
   c.drawText(pageStr,margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.CENTER);
-  String centerStatus=isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ 100%":(syncPct+"%"));
+  String centerStatus=(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ 100%":(syncPct+"%")));
   c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.RIGHT);
@@ -163,7 +166,7 @@ public final class NativeReader extends View {
  }
  public void turn(int direction){if(layout==null||pages.isEmpty())return;listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();}
  public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
- public boolean onTouchEvent(MotionEvent e){if(e.getAction()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();return true;}if(e.getAction()==MotionEvent.ACTION_UP){if(Math.abs(e.getY()-downY)>40){swiped=true;return true;}if(Math.abs(e.getX()-downX)>25)return true;performClick();if(swiped){swiped=false;listener.toolbar();return true;}
+ public boolean onTouchEvent(MotionEvent e){if(touchLocked)return true;if(e.getAction()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();return true;}if(e.getAction()==MotionEvent.ACTION_UP){if(Math.abs(e.getY()-downY)>40){swiped=true;return true;}if(Math.abs(e.getX()-downX)>25)return true;performClick();if(swiped){swiped=false;listener.toolbar();return true;}
    if(layout!=null&&!pages.isEmpty()){float x=e.getX()-margin,y=e.getY()-margin+layout.getLineTop(pages.get(page));int ln=layout.getLineForVertical((int)y);if(x>=layout.getLineLeft(ln)&&x<=layout.getLineRight(ln)){int off=layout.getOffsetForHorizontal(ln,x);Note[] ns=text.getSpans(off,Math.min(text.length(),off+1),Note.class);if(ns.length>0){new AlertDialog.Builder(getContext()).setTitle("Chú thích").setMessage(ns[0].value).setPositiveButton("Đóng",null).show();return true;}}}
    if(!taps){listener.toolbar();return true;}float h=getHeight();if(e.getY()<h*0.35f)turn(-1);else if(e.getY()>h*0.65f)turn(1);else listener.toolbar();return true;}return true;}
  public boolean performClick(){super.performClick();return true;}
