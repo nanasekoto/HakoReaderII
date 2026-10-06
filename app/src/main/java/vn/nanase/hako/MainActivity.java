@@ -259,7 +259,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.1",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.2",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -300,10 +300,10 @@ public class MainActivity extends Activity {
         cell.setPadding(dp(2), dp(6), dp(2), dp(6));
 
         IconButton icon=new IconButton(this,iconKinds[j],names[j],false,actions[j]);
-        cell.addView(icon,new LinearLayout.LayoutParams(dp(32),dp(32)));
+        cell.addView(icon,new LinearLayout.LayoutParams(dp(40),dp(40)));
         TextView label=new TextView(this);
         label.setText(names[j]);
-        label.setTextSize(15f);
+        label.setTextSize(16f);
         label.setTextColor(Color.BLACK);
         label.setTypeface(UI_MEDIUM);
         label.setGravity(Gravity.CENTER);
@@ -314,11 +314,11 @@ public class MainActivity extends Activity {
         lpCell.setMargins(dp(3),dp(3),dp(3),dp(3));
         line.addView(cell,lpCell);
       }
-      grid.addView(line,new LinearLayout.LayoutParams(-1,dp(88)));
+      grid.addView(line,new LinearLayout.LayoutParams(-1,0,1f));
     }
-    root.addView(grid,new LinearLayout.LayoutParams(-1,-2));
+    root.addView(grid,new LinearLayout.LayoutParams(-1,0,1f));
     Store.Book last=store.book(prefs.getString("lastBook",""));
-    TextView summary=text(last==null?"Chọn truyện để đọc · Đồng bộ trước khi tắt Wi-Fi":"Đọc tiếp: "+last.title,15);summary.setMaxLines(3);root.addView(summary,new LinearLayout.LayoutParams(-1,0,1));
+    TextView summary=text(last==null?"Chọn truyện để đọc · Đồng bộ trước khi tắt Wi-Fi":"Đọc tiếp: "+last.title,15);summary.setMaxLines(2);summary.setEllipsize(android.text.TextUtils.TruncateAt.END);root.addView(summary,new LinearLayout.LayoutParams(-1,-2));
     status();
   }
     private void onlineList(String title, String url) {
@@ -1591,7 +1591,7 @@ public class MainActivity extends Activity {
 
   private void help() {
     new AlertDialog.Builder(this)
-        .setTitle("Hako Pocket 0.6.1 • Bản thử nghiệm")
+        .setTitle("Hako Pocket 0.6.2 • Bản thử nghiệm")
         .setMessage(
             "Đăng nhập HAKO → Nhập kệ sách → chọn truyện → chọn chương.\n\n"
                 + "✓ là chương có đủ nội dung/ảnh. ◐ là đã có chữ nhưng thiếu ảnh. Nhấn giữ truyện"

@@ -132,7 +132,14 @@ public class SmokeTest extends Instrumentation {
         s.followed(id,true,i); s.position(id,"",0,0); s.visited(id);s.visited(id);s.visited(id);
       }
       activity=(MainActivity)startActivitySync(new Intent().setClassName("vn.nanase.hako","vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));settle();
-      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.6.1"),"Installed version 0.6.1 (behavior fix)");
+      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.6.2"),"Installed version 0.6.2 (behavior fix)");
+      View homeLabel=find(activity.getWindow().getDecorView(),"Vừa đọc");
+      LinearLayout homeCell=(LinearLayout)homeLabel.getParent();
+      LinearLayout homeRow=(LinearLayout)homeCell.getParent();
+      LinearLayout homeGrid=(LinearLayout)homeRow.getParent();
+      check(homeGrid.getChildCount()==3 && homeRow.getChildCount()==3,"Home retains nine shortcuts");
+      check(homeGrid.getHeight()>activity.getWindow().getDecorView().getHeight()/2,"Home grid uses majority of display height");
+      check(Math.abs(homeGrid.getChildAt(0).getHeight()-homeGrid.getChildAt(2).getHeight())<=2,"Home rows share available height equally");
       shot("home"); listCheck("Vừa đọc"); listCheck("Tủ sách"); listCheck("Yêu thích");
       s.putBook(new HakoParser.Link("partial-full","Bộ tải full còn thiếu chương cũ", ""));
       List<HakoParser.Link> partialLinks=new ArrayList<>();
