@@ -35,7 +35,7 @@ public final class GeckoClient {
    Message msg=Message.obtain(null,1);msg.arg1=id;msg.replyTo=reply;msg.setData(b);server.send(msg);
    long end=SystemClock.elapsedRealtime()+60000;
    while(!done.await(250,TimeUnit.MILLISECONDS)){if(authenticating||(!canceledAtStart&&Repository.cancel.get()))throw new IOException("Đã dừng tải");if(SystemClock.elapsedRealtime()>end)throw new IOException("Gecko quá thời gian chờ");}
-   if(error.get()!=null){if(error.get().contains("HTTP 403")||error.get().contains("HTTP 429")||error.get().contains("Cần xác minh"))Repository.cooldown(app,30*60*1000L);throw new IOException(error.get());}
+   if(error.get()!=null){if(error.get().contains("HTTP 403")||error.get().contains("HTTP 429")||error.get().contains("xác minh")||error.get().contains("giới hạn")||error.get().contains("đăng nhập HAKO trước"))Repository.cooldown(app,30*60*1000L);throw new IOException(error.get());}
    try(InputStream in=new FileInputStream(output);ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buf=new byte[8192];int n,total=0;while((n=in.read(buf))!=-1){total+=n;if(total>max)throw new IOException("Tài nguyên quá lớn");out.write(buf,0,n);}return out.toByteArray();}
   }finally{output.delete();if(!Repository.busy.get())release();}
  }

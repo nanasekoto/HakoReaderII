@@ -148,6 +148,9 @@ public class SmokeTest extends Instrumentation {
       View infoCopy=find(activity.getWindow().getDecorView(),"Sao chép");
       // Dialogs have their own window; inspect through the current accessibility tree.
       android.view.accessibility.AccessibilityNodeInfo infoRoot=getUiAutomation().getRootInActiveWindow();
+      long dialogReady=SystemClock.elapsedRealtime()+3000;
+      while((infoRoot==null||infoRoot.findAccessibilityNodeInfosByText("CPU hỗ trợ:").isEmpty())&&SystemClock.elapsedRealtime()<dialogReady){SystemClock.sleep(100);infoRoot=getUiAutomation().getRootInActiveWindow();}
+      shot("device-info");
       check(infoRoot!=null && !infoRoot.findAccessibilityNodeInfosByText("CPU hỗ trợ:").isEmpty(),"Device dialog displays supported CPU ABIs");
       check(infoRoot!=null && !infoRoot.findAccessibilityNodeInfosByText("Gói:").isEmpty(),"Device dialog displays active WebView package");
       getUiAutomation().performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);settle();

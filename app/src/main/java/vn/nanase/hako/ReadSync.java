@@ -26,6 +26,7 @@ public final class ReadSync extends JobService {
   private static final Object mutex=new Object();
   public static boolean process(Context c){
     synchronized(mutex){
+      Repository.init(c);
       if(Repository.busy.get())return true;
       if(!wifi(c))return false;
       Store s=Store.get(c);boolean retry=false;

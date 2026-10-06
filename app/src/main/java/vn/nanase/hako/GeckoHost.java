@@ -15,7 +15,7 @@ final class GeckoHost {
  static void active(){ui.removeCallbacks(shutdown);}
  static GeckoRuntime get(Context c){
   active();if(closing)throw new IllegalStateException("Gecko đang đóng; thử lại sau vài giây");
-  if(runtime==null){runtime=GeckoRuntime.create(c.getApplicationContext(),new GeckoRuntimeSettings.Builder().debugLogging(false).consoleOutput(false).remoteDebuggingEnabled(false).build());
+  if(runtime==null){boolean debug=(c.getApplicationInfo().flags&android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0;runtime=GeckoRuntime.create(c.getApplicationContext(),new GeckoRuntimeSettings.Builder().debugLogging(false).consoleOutput(debug).remoteDebuggingEnabled(false).build());
    runtime.setDelegate(new GeckoRuntime.Delegate(){public void onShutdown(){android.os.Process.killProcess(android.os.Process.myPid());}});
   }return runtime;
  }

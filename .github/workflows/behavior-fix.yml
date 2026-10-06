@@ -61,7 +61,10 @@ jobs:
         if: success()
         with:
           name: Hako-0.7.0-Lite-tested-APK
-          path: build/lite/
+          path: |
+            build/lite/Hako-Pocket-0.7.0-Lite-arm32.apk
+            build/lite/gecko-version.txt
+            build/lite/SHA256.txt
       - uses: actions/upload-artifact@v4
         if: success()
         with:

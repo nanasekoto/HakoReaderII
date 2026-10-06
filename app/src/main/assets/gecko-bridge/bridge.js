@@ -4,7 +4,7 @@
  addEventListener('pagehide',history,{once:true});
  addEventListener('DOMContentLoaded',()=>setTimeout(history,1000),{once:true});
  let command;
- try{command=await browser.runtime.sendNativeMessage('hako',{hello:true});}catch(e){return;}
+ try{command=await browser.runtime.sendNativeMessage('hako',{hello:true});}catch(e){console.error('Hako bridge hello failed: '+e.name+' '+e.message);return;}
  if(!command||!command.script)return; // Interactive login has no extraction delegate.
  const send=value=>browser.runtime.sendNativeMessage('hako',value).catch(()=>{});
  const restore=()=>{try{let a=JSON.parse(localStorage.getItem('reading_series')||'[]');if(a.length&&new URL(a[0].chapter_url,location.origin).pathname===location.pathname){if(previous===null)localStorage.removeItem('reading_series');else localStorage.setItem('reading_series',previous);}}catch(e){}};
