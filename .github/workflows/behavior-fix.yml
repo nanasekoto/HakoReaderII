@@ -24,15 +24,7 @@ jobs:
           gradle-version: '9.3.1'
       - name: Resolve stable Gecko version
         run: |
-          if [ ! -f gecko-version.txt ]; then
-            curl --fail --retry 2 --max-time 60 https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml -o /tmp/gecko.xml
-            python3 - <<'PY'
-          import re, xml.etree.ElementTree as E
-          vs=[v.text for v in E.parse('/tmp/gecko.xml').findall('.//version') if re.fullmatch(r'\d+\.0\.\d+',v.text)]
-          assert vs
-          open('gecko-version.txt','w').write(max(vs,key=lambda s:tuple(map(int,s.split('.'))))+'\n')
-          PY
-          fi
+          python3 scripts/select-gecko.py
           cat gecko-version.txt
       - name: Build ARM32 Lite and emulator APK
         run: |
