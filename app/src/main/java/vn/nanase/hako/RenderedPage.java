@@ -60,7 +60,11 @@ public final class RenderedPage {
      public void onReceivedHttpError(WebView view,WebResourceRequest r,WebResourceResponse response){
       if(r.isForMainFrame()){
        int code=response.getStatusCode();
-       if(code==403||code==503){challengeUntil.set(SystemClock.elapsedRealtime()+5000);return;}
+       if(code==403||code==503){
+        java.util.Map<String,String> headers=response.getResponseHeaders();boolean challenged=false;
+        if(headers!=null)for(java.util.Map.Entry<String,String> h:headers.entrySet())if("cf-mitigated".equalsIgnoreCase(h.getKey())&&"challenge".equalsIgnoreCase(h.getValue()))challenged=true;
+        if(challenged){challengeUntil.set(SystemClock.elapsedRealtime()+5000);return;}
+       }
        if(code==429)Repository.cooldown(context,30*60*1000L);
        fail("HAKO trả HTTP "+code+". Đã dừng tải; mở web để kiểm tra.");
       }
