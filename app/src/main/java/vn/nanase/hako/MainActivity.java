@@ -259,7 +259,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.0",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.1",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -521,6 +521,17 @@ public class MainActivity extends Activity {
         Store.Book b = getItem(p);
         LinearLayout card = new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
+        // A focusable download child suppresses ListView's item click. Own the
+        // card action explicitly; the download child keeps its separate click.
+        card.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        card.setOnClickListener(v -> {
+          navStack.push(() -> bookList(shelf));
+          openBook(store.book(b.id));
+        });
+        card.setOnLongClickListener(v -> {
+          bookMenu(store.book(b.id));
+          return true;
+        });
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setLayoutParams(new AbsListView.LayoutParams(-1, list.rowHeight(p)));
 
@@ -1580,7 +1591,7 @@ public class MainActivity extends Activity {
 
   private void help() {
     new AlertDialog.Builder(this)
-        .setTitle("Hako Pocket 0.6.0 • Bản thử nghiệm")
+        .setTitle("Hako Pocket 0.6.1 • Bản thử nghiệm")
         .setMessage(
             "Đăng nhập HAKO → Nhập kệ sách → chọn truyện → chọn chương.\n\n"
                 + "✓ là chương có đủ nội dung/ảnh. ◐ là đã có chữ nhưng thiếu ảnh. Nhấn giữ truyện"
