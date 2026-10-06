@@ -13,6 +13,7 @@ final class PagedBookList extends ListView {
   PagedBookList(Context context) {
     super(context);
     setVerticalScrollBarEnabled(false);
+    setOverScrollMode(View.OVER_SCROLL_NEVER);
     setOnScrollListener(new OnScrollListener() {
       public void onScroll(AbsListView v, int first, int visible, int total) {}
       public void onScrollStateChanged(AbsListView v, int state) {

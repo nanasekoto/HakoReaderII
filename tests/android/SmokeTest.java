@@ -69,6 +69,22 @@ public class SmokeTest extends Instrumentation {
     try(FileOutputStream out=new FileOutputStream(new File(dir,name+".png"))) { image.compress(Bitmap.CompressFormat.PNG,100,out); }
     image.recycle();
   }
+  void idleCheck(String name) throws Exception {
+    settle();SystemClock.sleep(400);waitForIdleSync();
+    java.util.concurrent.atomic.AtomicInteger draws=new java.util.concurrent.atomic.AtomicInteger();
+    View decor=activity.getWindow().getDecorView();
+    android.view.ViewTreeObserver.OnDrawListener listener=()->draws.incrementAndGet();
+    runOnMainSync(()->decor.getViewTreeObserver().addOnDrawListener(listener));
+    long cpu=android.os.Process.getElapsedCpuTime(),start=SystemClock.elapsedRealtime();
+    SystemClock.sleep(3000);
+    long delta=android.os.Process.getElapsedCpuTime()-cpu,elapsed=SystemClock.elapsedRealtime()-start;
+    runOnMainSync(()->decor.getViewTreeObserver().removeOnDrawListener(listener));
+    log.append("IDLE ").append(name).append(" cpuMs=").append(delta).append(" elapsedMs=").append(elapsed).append(" draws=").append(draws.get()).append('\n');
+    check(delta<300,"Idle "+name+" uses under 300 ms process CPU in 3 seconds (emulator)");
+    check(draws.get()==0,"Idle "+name+" redraws zero frames without input or progress changes");
+    check(!Repository.busy.get()&&!Repository.isSyncing,"Idle "+name+" has no active download");
+    check((activity.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)==0,"Idle "+name+" does not force screen on");
+  }
   void listCheck(String label) throws Exception {
     click(label); ListView list=(ListView)field(activity,"currentList");
     check(list!=null && list.getCount()>=18,label+" has fixture rows"); shot(label.replace(' ','-'));
@@ -111,7 +127,7 @@ public class SmokeTest extends Instrumentation {
         s.followed(id,true,i); s.position(id,"",0,0); s.visited(id);
       }
       activity=(MainActivity)startActivitySync(new Intent().setClassName("vn.nanase.hako","vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));settle();
-      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.5.2"),"Installed version 0.5.2 (behavior fix)");
+      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.5.3"),"Installed version 0.5.3 (behavior fix)");
       shot("home"); listCheck("Vừa đọc"); listCheck("Tủ sách"); listCheck("Yêu thích");
       s.putBook(new HakoParser.Link("partial-full","Bộ tải full còn thiếu chương cũ", ""));
       List<HakoParser.Link> partialLinks=new ArrayList<>();
@@ -164,6 +180,11 @@ public class SmokeTest extends Instrumentation {
         activity.dispatchTouchEvent(down);activity.dispatchTouchEvent(up);down.recycle();up.recycle();
       });settle();
       check((Integer)field(reader,"page")==page,"Locked touch does not turn page");
+      press(KeyEvent.KEYCODE_MENU);
+      check(((View)field(activity,"topBar")).getVisibility()!=View.VISIBLE,"Locked hardware Menu cannot reveal app toolbar");
+      check(find(activity.getWindow().getDecorView(),"KHÓA · Giữ Vol+ để mở")==null,"No lock text overlay covers chapter content");
+      check(Repository.pocketPaused,"Pocket lock pauses automatic battery downloads");
+      idleCheck("locked-reader");
       press(KeyEvent.KEYCODE_BACK);
       check(field(activity,"nativeReader")==reader && reader.isTouchLocked(),"Pocket Back cannot leave reader or unlock touch");
       call("openChapter",new Class<?>[]{String.class,String.class},"demo","demo-2");
@@ -171,6 +192,8 @@ public class SmokeTest extends Instrumentation {
       key(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_VOLUME_UP);SystemClock.sleep(850);
       key(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_VOLUME_UP);settle();
       check(!reader.isTouchLocked(),"Single Volume Up hold unlocks");
+      check(!Repository.pocketPaused,"Unlock restores foreground automatic download eligibility");
+      idleCheck("unlocked-reader");
       press(KeyEvent.KEYCODE_VOLUME_DOWN);press(KeyEvent.KEYCODE_VOLUME_UP);
       check(!reader.isTouchLocked(),"Opposite short page presses do not lock touch");
       key(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_VOLUME_UP);SystemClock.sleep(1500);

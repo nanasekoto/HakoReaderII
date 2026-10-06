@@ -71,3 +71,12 @@ Tài liệu này lưu trữ toàn bộ các nguyên nhân gốc rễ và quy chu
 * Yêu thích gồm các bộ chọn theo dõi đặc biệt, bấm tải full, và có lượt đọc; ưu tiên bộ chọn riêng, tải full, rồi lượt đọc cao. Không xếp theo cập nhật. Chạm tựa mở chọn chương.
 * Vừa đọc có icon tải toàn bộ từng truyện; bấm tải full lưu chế độ giữ đủ và đưa vào nhóm ưu tiên Yêu thích.
 * Cuối chương mới nhất chỉ có một xác nhận cập nhật HAKO; xác nhận gọi thẳng thao tác cập nhật, không gọi một hàm mở xác nhận thứ hai. Kết quả thành công hiển thị chân trang.
+
+## 0.5.3 — visual weight and quiescent reading
+
+- UI titles use system sans-serif weight 500, 16sp; headings 18sp. Body reader fonts/size chosen by the user are retained. Large icon geometry remains, strokes are 1.35 vector units; card borders 1dp.
+- No lock text overlay. Native reader footer remains the lock indicator. Touch and Menu/Enter are consumed while locked. Android notification shade is outside this lock; ordinary app privileges cannot disable it. No global overlay or fake kiosk lock is installed.
+- On battery, locking or leaving the Activity pauses automatic downloads after the in-flight chapter. Manual full/sync requests and charging jobs remain explicit exceptions. Unlock does not start a new network request itself.
+- DownloadService waits on completion notification instead of polling every 500ms. No app wake lock or forced screen-on flag. WebView browsing is paused on Activity pause; native cached reading has no refresh timer.
+- Disable window transition animation and list overscroll glow. Retain necessary input scrolling only.
+- Emulator idle tests sample process CPU over three seconds, count redraws, verify no download and no forced screen-on flag. These are app behavior checks, not battery measurements or proof that the whole SoC is idle.

@@ -73,15 +73,16 @@ public class MainActivity extends Activity {
     prefs.edit().putBoolean("touch_lock",touchLocked).apply();
     if(nativeReader!=null)nativeReader.setTouchLocked(touchLocked);
     hideToolbar(); hideBoundaryPrompt();
-    if(lockIndicator!=null)lockIndicator.setVisibility(touchLocked?View.VISIBLE:View.GONE);
+    Repository.pocketPaused=touchLocked;
   }
-  private TextView lockIndicator;
   private volatile String bookId = "", chapterId = "";
   private int generation = 0;
   private final ExecutorService io = Executors.newSingleThreadExecutor();
   private BroadcastReceiver updates;
   private volatile int lastPos = 0;
   private volatile float lastFraction = 0;
+  private static final Typeface UI_REGULAR=Typeface.create("sans-serif",Typeface.NORMAL);
+  private static final Typeface UI_MEDIUM=Typeface.create(UI_REGULAR,500,false);
   private final int INK = Color.rgb(25, 25, 25), MUTED = Color.rgb(80, 80, 80);
 
   public void onCreate(Bundle state) {
@@ -125,6 +126,7 @@ public class MainActivity extends Activity {
     t.setText(value);
     t.setTextColor(INK);
     t.setTextSize(size);
+    t.setTypeface(UI_REGULAR);
     t.setPadding(dp(12), dp(8), dp(12), dp(8));
     return t;
   }
@@ -134,14 +136,14 @@ public class MainActivity extends Activity {
     b.setText(label);
     b.setTextColor(Color.BLACK);
     b.setTextSize(12f);
-    b.setTypeface(Typeface.DEFAULT_BOLD);
+    b.setTypeface(UI_MEDIUM);
     b.setAllCaps(false);
     b.setMinHeight(dp(30));
     b.setMinimumWidth(0);
     b.setPadding(dp(8), 0, dp(8), 0);
     android.graphics.drawable.GradientDrawable btnBg = new android.graphics.drawable.GradientDrawable();
     btnBg.setColor(Color.WHITE);
-    btnBg.setStroke(dp(1.2f), Color.BLACK);
+    btnBg.setStroke(dp(1), Color.BLACK);
     btnBg.setCornerRadius(dp(6));
     b.setBackground(btnBg);
     b.setStateListAnimator(null);
@@ -178,13 +180,6 @@ public class MainActivity extends Activity {
     root.setBackgroundColor(Color.WHITE);
     FrameLayout shell=new FrameLayout(this);
     shell.addView(root,new FrameLayout.LayoutParams(-1,-1));
-    lockIndicator=new TextView(this);
-    lockIndicator.setText("KHÓA · Giữ Vol+ để mở");lockIndicator.setTextSize(12);
-    lockIndicator.setTextColor(Color.WHITE);lockIndicator.setBackgroundColor(Color.BLACK);
-    lockIndicator.setPadding(dp(6),dp(2),dp(6),dp(2));
-    FrameLayout.LayoutParams lockLp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.RIGHT);
-    shell.addView(lockIndicator,lockLp);
-    lockIndicator.setVisibility(touchLocked?View.VISIBLE:View.GONE);
     setContentView(shell);
     root.requestFocus();
   }
@@ -213,7 +208,7 @@ public class MainActivity extends Activity {
     syncBadge = new TextView(this);
     syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : (Repository.syncPct >= 100 ? "✓ 100%" : (Repository.syncPct + "%")));
     syncBadge.setTextSize(11);
-    syncBadge.setTypeface(Typeface.DEFAULT_BOLD);
+    syncBadge.setTypeface(UI_MEDIUM);
     syncBadge.setTextColor(Color.BLACK);
     android.graphics.drawable.GradientDrawable pillBg = new android.graphics.drawable.GradientDrawable();
     pillBg.setColor(Color.WHITE);
@@ -255,7 +250,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.5.2",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.5.3",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -289,7 +284,7 @@ public class MainActivity extends Activity {
         cell.setOrientation(1);cell.setGravity(Gravity.CENTER);
         android.graphics.drawable.GradientDrawable cellBg = new android.graphics.drawable.GradientDrawable();
         cellBg.setColor(Color.WHITE);
-        cellBg.setStroke(dp(1.5f), Color.BLACK);
+        cellBg.setStroke(dp(1), Color.BLACK);
         cellBg.setCornerRadius(dp(8));
         cell.setBackground(cellBg);
         cell.setPadding(dp(2), dp(6), dp(2), dp(6));
@@ -300,7 +295,7 @@ public class MainActivity extends Activity {
         label.setText(names[j]);
         label.setTextSize(13.5f);
         label.setTextColor(Color.BLACK);
-        label.setTypeface(Typeface.DEFAULT_BOLD);
+        label.setTypeface(UI_MEDIUM);
         label.setGravity(Gravity.CENTER);
         label.setPadding(0,dp(2),0,0);
         cell.addView(label);
@@ -324,7 +319,7 @@ public class MainActivity extends Activity {
     header.setGravity(Gravity.CENTER_VERTICAL);
     header.addView(new IconButton(this,4,"Quay lại",this::goBack),new LinearLayout.LayoutParams(dp(42),dp(42)));
     TextView heading=new TextView(this);
-    heading.setText(title); heading.setTextSize(17); heading.setTypeface(Typeface.DEFAULT_BOLD);
+    heading.setText(title); heading.setTextSize(16); heading.setTypeface(UI_MEDIUM);
     heading.setTextColor(INK); heading.setSingleLine(true);
     heading.setEllipsize(android.text.TextUtils.TruncateAt.END);
     heading.setOnLongClickListener(v->{message(title);return true;});
@@ -369,15 +364,15 @@ public class MainActivity extends Activity {
 
           android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
           cardBg.setColor(Color.WHITE);
-          cardBg.setStroke(dp(1.8f), Color.BLACK);
+          cardBg.setStroke(dp(1), Color.BLACK);
           cardBg.setCornerRadius(dp(6));
           card.setBackground(cardBg);
           card.setPadding(dp(10), dp(2), dp(10), dp(2));
 
           TextView titleView = new TextView(MainActivity.this);
           titleView.setText(item.title);
-          titleView.setTextSize(17f);
-          titleView.setTypeface(Typeface.DEFAULT_BOLD);
+          titleView.setTextSize(16f);
+          titleView.setTypeface(UI_MEDIUM);
           titleView.setTextColor(Color.BLACK);
           titleView.setMaxLines(2);
           titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -429,8 +424,8 @@ public class MainActivity extends Activity {
 
     TextView headerTitle = new TextView(this);
     headerTitle.setText(shelf ? "Tủ sách" : "Vừa đọc");
-    headerTitle.setTextSize(19f);
-    headerTitle.setTypeface(Typeface.DEFAULT_BOLD);
+    headerTitle.setTextSize(18f);
+    headerTitle.setTypeface(UI_MEDIUM);
     headerTitle.setTextColor(INK);
     headerTitle.setSingleLine(true);
     header.addView(headerTitle, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -541,7 +536,7 @@ public class MainActivity extends Activity {
 
         android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(1.5f), Color.BLACK);
+        cardBg.setStroke(dp(1), Color.BLACK);
         cardBg.setCornerRadius(dp(4));
         card.setBackground(cardBg);
         card.setPadding(dp(8), dp(2.5f), dp(8), dp(2.5f));
@@ -552,8 +547,8 @@ public class MainActivity extends Activity {
 
         TextView titleView = new TextView(MainActivity.this);
         titleView.setText(b.title);
-        titleView.setTextSize(17f);
-        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleView.setTextSize(16f);
+        titleView.setTypeface(UI_MEDIUM);
         titleView.setTextColor(Color.BLACK);
         titleView.setMaxLines(2);
         titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -566,7 +561,7 @@ public class MainActivity extends Activity {
           badge.setTextSize(10f);
           badge.setTextColor(Color.WHITE);
           badge.setBackgroundColor(Color.BLACK);
-          badge.setTypeface(Typeface.DEFAULT_BOLD);
+          badge.setTypeface(UI_MEDIUM);
           badge.setPadding(dp(4), dp(1), dp(4), dp(1));
           LinearLayout.LayoutParams lpBadge = new LinearLayout.LayoutParams(-2, -2);
           lpBadge.setMargins(dp(5), 0, 0, 0);
@@ -629,8 +624,8 @@ public class MainActivity extends Activity {
 
     TextView headerTitle = new TextView(this);
     headerTitle.setText("Yêu thích");
-    headerTitle.setTextSize(19f);
-    headerTitle.setTypeface(Typeface.DEFAULT_BOLD);
+    headerTitle.setTextSize(18f);
+    headerTitle.setTypeface(UI_MEDIUM);
     headerTitle.setTextColor(INK);
     headerTitle.setSingleLine(true);
     header.addView(headerTitle, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -681,7 +676,7 @@ public class MainActivity extends Activity {
 
         android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(1.5f), Color.BLACK);
+        cardBg.setStroke(dp(1), Color.BLACK);
         cardBg.setCornerRadius(dp(4));
         card.setBackground(cardBg);
         card.setPadding(dp(8), dp(2.5f), dp(8), dp(2.5f));
@@ -692,8 +687,8 @@ public class MainActivity extends Activity {
 
         TextView titleView = new TextView(MainActivity.this);
         titleView.setText((b.pinned ? "★ " : store.isKeepFull(b.id) ? "↓ " : "") + b.title);
-        titleView.setTextSize(17f);
-        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleView.setTextSize(16f);
+        titleView.setTypeface(UI_MEDIUM);
         titleView.setTextColor(Color.BLACK);
         titleView.setMaxLines(2);
         titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -739,7 +734,7 @@ public class MainActivity extends Activity {
         }
         badge.setTextSize(10f);
         badge.setTextColor(Color.WHITE);
-        badge.setTypeface(Typeface.DEFAULT_BOLD);
+        badge.setTypeface(UI_MEDIUM);
         badge.setPadding(dp(4), dp(1), dp(4), dp(1));
         LinearLayout.LayoutParams lpBadge = new LinearLayout.LayoutParams(-2, -2);
         lpBadge.setMargins(dp(5), 0, 0, 0);
@@ -951,7 +946,7 @@ public class MainActivity extends Activity {
     LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
     header.addView(new IconButton(this,4,"Quay lại",this::goBack),new LinearLayout.LayoutParams(dp(40),dp(40)));
     TextView name=new TextView(this);name.setText(b.title);name.setTextColor(INK);
-    name.setTextSize(18);name.setTypeface(Typeface.DEFAULT_BOLD);name.setMaxLines(2);
+    name.setTextSize(18);name.setTypeface(UI_MEDIUM);name.setMaxLines(2);
     name.setEllipsize(android.text.TextUtils.TruncateAt.END);
     header.addView(name,new LinearLayout.LayoutParams(0,-2,1));
     header.addView(new IconButton(this,12,"Đọc tiếp",()->openChapter(b.id,target.id)),new LinearLayout.LayoutParams(dp(40),dp(40)));
@@ -1121,9 +1116,9 @@ public class MainActivity extends Activity {
 
         TextView titleView = new TextView(MainActivity.this);
         titleView.setText(vg.name);
-        titleView.setTextSize(17);
+        titleView.setTextSize(16);
         titleView.setMaxLines(2);titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleView.setTypeface(UI_MEDIUM);
         titleView.setTextColor(Color.BLACK);
         top.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
 
@@ -1133,7 +1128,7 @@ public class MainActivity extends Activity {
           badge.setTextSize(11);
           badge.setTextColor(Color.WHITE);
           badge.setBackgroundColor(Color.BLACK);
-          badge.setTypeface(Typeface.DEFAULT_BOLD);
+          badge.setTypeface(UI_MEDIUM);
           badge.setPadding(dp(5), dp(1), dp(5), dp(1));
           LinearLayout.LayoutParams lpBadge = new LinearLayout.LayoutParams(-2, -2);
           lpBadge.setMargins(dp(6), 0, 0, 0);
@@ -1197,8 +1192,8 @@ public class MainActivity extends Activity {
         Store.Chapter c = vg.chapters.get(p);
         boolean isTarget = c.id.equals(targetCh.id);
         t.setTextColor(Color.BLACK);
-        t.setTypeface(isTarget ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-        t.setTextSize(17);
+        t.setTypeface(isTarget ? UI_MEDIUM : UI_REGULAR);
+        t.setTextSize(16);
         t.setSingleLine(false);
         t.setMaxLines(2);
         t.setLayoutParams(new AbsListView.LayoutParams(-1,list.rowHeight(p)));
@@ -1243,11 +1238,11 @@ public class MainActivity extends Activity {
         card.setPadding(dp(18), dp(16), dp(18), dp(16));
         android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
         cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(2), Color.BLACK);
+        cardBg.setStroke(dp(1), Color.BLACK);
         cardBg.setCornerRadius(dp(10));
         card.setBackground(cardBg);
         TextView tv = text("Đang tải " + c.title + "…\nVui lòng đợi trong giây lát.", 15);
-        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setTypeface(UI_MEDIUM);
         tv.setTextColor(Color.BLACK);
         tv.setGravity(Gravity.CENTER);
         card.addView(tv);
@@ -1572,14 +1567,14 @@ public class MainActivity extends Activity {
     CheckBox taps=check("Chạm trên/dưới để lật trang",prefs.getBoolean("taps",true));box.addView(taps);CheckBox charging=check("Đồng bộ tủ sách khi sạc",prefs.getBoolean("charging",true));box.addView(charging);CheckBox touchLockBox=check("Khóa cảm ứng khi đọc (chống chạm túi, chỉ mở bằng phím cứng)",prefs.getBoolean("touch_lock",false));box.addView(touchLockBox);
     box.addView(button("Nhập font TTF / OTF",()->startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),88)));
     box.addView(button("Tên miền HAKO",this::domain));box.addView(button("Đọc mẫu offline",this::demo));
-    box.addView(text("Tải trước 1–2: chờ 4s; 3–5: 12s; 6–10: 30s; 11–15: 60s. Màn hình tắt: ngừng tải trước khi dùng pin. Đọc bản lưu không cần chạy trang HAKO.",12));
+    box.addView(text("Tải trước 1–2: chờ 4s; 3–5: 12s; 6–10: 30s; 11–15: 60s. Khóa hoặc rời app: dừng tải tự động sau chương đang tải khi dùng pin. Tải full thủ công vẫn tiếp tục. Đọc bản lưu không cần chạy trang HAKO.",12));
     ScrollView scroll=new ScrollView(this);scroll.addView(box);
     new AlertDialog.Builder(this).setTitle("Chữ & tải nội dung").setView(scroll).setPositiveButton("Áp dụng",(d,w)->{
       if(fonts.getSelectedItemPosition()==5&&!new File(getFilesDir(),"reader-font.ttf").isFile()){message("Chưa nhập font. Đang giữ lựa chọn cũ.");return;}
       float ls=Math.round((0.70f+line.getProgress()*0.05f)*100f)/100f;
       int pDp=para.getProgress()*2;
       int iDp=indent.getProgress()*3;
-      prefs.edit().putInt("font2",fonts.getSelectedItemPosition()).putFloat("size2",12+size.getProgress()/2f).putFloat("line",ls).putInt("paraSpaceDp",pDp).putInt("indentDp",iDp).putInt("margin",margin.getProgress()).putInt("weight",bold.isChecked()?700:400).putBoolean("taps",taps.isChecked()).putBoolean("charging",charging.isChecked()).putBoolean("touch_lock",touchLockBox.isChecked()).apply();touchLocked=touchLockBox.isChecked();if(nativeReader!=null)nativeReader.setTouchLocked(touchLocked);if(lockIndicator!=null)lockIndicator.setVisibility(touchLocked?View.VISIBLE:View.GONE);
+      prefs.edit().putInt("font2",fonts.getSelectedItemPosition()).putFloat("size2",12+size.getProgress()/2f).putFloat("line",ls).putInt("paraSpaceDp",pDp).putInt("indentDp",iDp).putInt("margin",margin.getProgress()).putInt("weight",bold.isChecked()?700:400).putBoolean("taps",taps.isChecked()).putBoolean("charging",charging.isChecked()).putBoolean("touch_lock",touchLockBox.isChecked()).apply();touchLocked=touchLockBox.isChecked();if(nativeReader!=null)nativeReader.setTouchLocked(touchLocked);Repository.pocketPaused=touchLocked;if(touchLocked){hideToolbar();hideBoundaryPrompt();}
       ChargeJob.schedule(this,charging.isChecked());
       if(nativeReader!=null)applyReaderStyle();
     }).setNegativeButton("Đóng",null).show();
@@ -1600,7 +1595,7 @@ public class MainActivity extends Activity {
 
   private void help() {
     new AlertDialog.Builder(this)
-        .setTitle("Hako Pocket 0.5.2 • Bản thử nghiệm")
+        .setTitle("Hako Pocket 0.5.3 • Bản thử nghiệm")
         .setMessage(
             "Đăng nhập HAKO → Nhập kệ sách → chọn truyện → chọn chương.\n\n"
                 + "✓ là chương có đủ nội dung/ảnh. ◐ là đã có chữ nhưng thiếu ảnh. Nhấn giữ truyện"
@@ -1680,10 +1675,18 @@ public class MainActivity extends Activity {
   protected void onPause() {
     cancelLockKey();
     if(nativeReader!=null&&readerReady)store.position(bookId,chapterId,lastPos,lastFraction);
+    Repository.pocketPaused=true;
     if (web != null) {
+      web.onPause();
       CookieManager.getInstance().flush();
     }
     super.onPause();
+  }
+
+  @Override protected void onResume(){
+    super.onResume();
+    Repository.pocketPaused=touchLocked;
+    if(web!=null)web.onResume();
   }
 
   protected void onDestroy() {
@@ -1726,12 +1729,12 @@ public class MainActivity extends Activity {
 
     android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
     cardBg.setColor(Color.WHITE);
-    cardBg.setStroke(dp(2), Color.BLACK);
+    cardBg.setStroke(dp(1), Color.BLACK);
     cardBg.setCornerRadius(dp(10));
     card.setBackground(cardBg);
 
     TextView titleView = text(dir > 0 ? "ĐÃ ĐỌC HẾT CHƯƠNG" : "ĐANG Ở ĐẦU CHƯƠNG", 16);
-    titleView.setTypeface(Typeface.DEFAULT_BOLD);
+    titleView.setTypeface(UI_MEDIUM);
     titleView.setTextColor(Color.BLACK);
     titleView.setGravity(Gravity.CENTER);
     titleView.setPadding(0, 0, 0, dp(6));
@@ -1753,7 +1756,7 @@ public class MainActivity extends Activity {
     Button btnStay = new Button(this);
     btnStay.setText("Ở lại (Vol +)");
     btnStay.setTextSize(13);
-    btnStay.setTypeface(Typeface.DEFAULT_BOLD);
+    btnStay.setTypeface(UI_MEDIUM);
     btnStay.setTextColor(Color.BLACK);
     android.graphics.drawable.GradientDrawable btnStayBg = new android.graphics.drawable.GradientDrawable();
     btnStayBg.setColor(Color.WHITE);
@@ -1769,7 +1772,7 @@ public class MainActivity extends Activity {
     Button btnConfirm = new Button(this);
     btnConfirm.setText(dir > 0 ? "Tiếp tục (Vol -)" : "Quay lại (Vol -)");
     btnConfirm.setTextSize(13);
-    btnConfirm.setTypeface(Typeface.DEFAULT_BOLD);
+    btnConfirm.setTypeface(UI_MEDIUM);
     btnConfirm.setTextColor(Color.WHITE);
     android.graphics.drawable.GradientDrawable btnConfirmBg = new android.graphics.drawable.GradientDrawable();
     btnConfirmBg.setColor(Color.BLACK);
@@ -1908,6 +1911,8 @@ public class MainActivity extends Activity {
   @Override public boolean dispatchKeyEvent(KeyEvent event){
     int code = event.getKeyCode();
     int action = event.getAction();
+
+    if(touchLocked && (code==KeyEvent.KEYCODE_MENU || code==KeyEvent.KEYCODE_DPAD_CENTER || code==KeyEvent.KEYCODE_ENTER))return true;
 
     // 1. Hardware Menu / Front Center / Enter button to open toolbar
     if (code == KeyEvent.KEYCODE_MENU || code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) {

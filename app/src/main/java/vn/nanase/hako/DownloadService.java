@@ -64,7 +64,7 @@ public class DownloadService extends Service {
     if (worker != null && worker.isAlive()) {
       if (finalMode == Repository.MODE_SYNC_LIBRARY) Repository.pendingAll = true;
       else if (book != null) Repository.pendingBook = book;
-      Repository.manualOverride = true;
+      if(finalMode==Repository.MODE_BOOK_ALL || finalMode==Repository.MODE_SYNC_LIBRARY)Repository.manualOverride=true;
       return START_NOT_STICKY;
     }
     worker =
@@ -72,7 +72,7 @@ public class DownloadService extends Service {
             () -> {
               try {
                 Repository.run(this, book, finalMode, false);
-                while (Repository.busy.get()) Thread.sleep(500);
+                Repository.awaitIdle();
               } catch (Exception e) {
                 Repository.notify(this, "Tạm dừng: " + e.getMessage());
               } finally {
@@ -94,3 +94,4 @@ public class DownloadService extends Service {
     return null;
   }
 }
+

@@ -14,6 +14,13 @@ public final class Repository {
   private static String userAgent="HakoPocket/0.3";
   public static void init(Context c){app=c.getApplicationContext();userAgent=android.webkit.WebSettings.getDefaultUserAgent(c);HakoParser.ORIGIN=c.getSharedPreferences("settings",0).getString("origin","https://docln.sbs");}
   public static volatile String activeBook="";
+  public static volatile boolean pocketPaused=false;
+  public static void awaitIdle() throws InterruptedException {
+    synchronized(busy){while(busy.get())busy.wait();}
+  }
+  private static boolean pauseAutomatic(boolean charging){
+    return pocketPaused && !charging && !manualOverride;
+  }
   private static long lastNetwork=0;
   public static void cooldown(Context c,long ms){long capped=Math.min(ms,3*60*1000L);c.getSharedPreferences("settings",0).edit().putLong("cooldownUntil",System.currentTimeMillis()+capped).apply();}
   public static void allowed(Context c)throws IOException {if(System.currentTimeMillis()<c.getSharedPreferences("settings",0).getLong("cooldownUntil",0))throw new IOException("Đang nghỉ sau giới hạn truy cập. Thử lại sau 30 phút.");}
@@ -197,6 +204,7 @@ public final class Repository {
   }
 
   public static void run(Context ctx, String book, int mode, boolean charging) throws Exception {
+    if(pocketPaused && !charging && mode==MODE_BOOK_NEXT)return;
     init(ctx);
     if (!busy.compareAndSet(false, true)) {
       if (mode == MODE_SYNC_LIBRARY) pendingAll = true;
@@ -245,7 +253,7 @@ public final class Repository {
         }
       }
 
-      while (!cancel.get() && (!todo.isEmpty() || !pendingBook.isEmpty() || pendingAll)) {
+      while (!cancel.get() && !pauseAutomatic(charging) && (!todo.isEmpty() || !pendingBook.isEmpty() || pendingAll)) {
         if (pendingAll) {
           pendingAll = false;
           for (Store.Book b : s.books()) {
@@ -305,7 +313,7 @@ public final class Repository {
 
         // 3. Download loop per chapter with preemption
         for (Store.Chapter ch : needDownload) {
-          if (cancel.get()) break;
+          if (cancel.get() || pauseAutomatic(charging)) break;
           if (charging && !ChargeJob.isCharging(ctx)) break;
 
           // Priority check: did user open another chapter?
@@ -364,6 +372,7 @@ public final class Repository {
       }
     } finally {
       busy.set(false);
+      synchronized(busy){busy.notifyAll();}
       pendingBook = "";
       pendingAll = false;
       manualOverride = false;
@@ -378,7 +387,7 @@ public final class Repository {
   private static boolean waitFor(Context c, long delay, String id, boolean charging) throws Exception {
     long end = android.os.SystemClock.elapsedRealtime() + delay;
     while (android.os.SystemClock.elapsedRealtime() < end) {
-      if (cancel.get() || !priorityChapterId.isEmpty()) return false;
+      if (cancel.get() || pauseAutomatic(charging) || !priorityChapterId.isEmpty()) return false;
       if (charging && !ChargeJob.isCharging(c)) return false;
       Thread.sleep(Math.min(500, Math.max(1, end - android.os.SystemClock.elapsedRealtime())));
     }

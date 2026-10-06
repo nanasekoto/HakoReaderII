@@ -1,6 +1,7 @@
 <resources>
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowAnimationStyle">@null</item>
         <item name="android:colorAccent">#252525</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">#ffffff</item>
@@ -14,3 +15,4 @@
         <item name="android:colorButtonNormal">#ffffff</item>
     </style>
 </resources>
+

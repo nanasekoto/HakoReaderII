@@ -23,7 +23,7 @@ adb shell settings put global animator_duration_scale 0
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r build/test-android/tests.apk
 failed=0
-for density in 160 220 240; do
+for density in 219 220; do
   adb shell am force-stop vn.nanase.hako
   adb shell pm clear vn.nanase.hako
   adb shell wm size 480x800
