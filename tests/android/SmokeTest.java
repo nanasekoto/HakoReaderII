@@ -155,7 +155,7 @@ public class SmokeTest extends Instrumentation {
       android.view.accessibility.AccessibilityNodeInfo infoRoot=getUiAutomation().getRootInActiveWindow();
       check(infoRoot!=null && !infoRoot.findAccessibilityNodeInfosByText("CPU hỗ trợ:").isEmpty(),"Device dialog displays supported CPU ABIs");
       check(infoRoot!=null && !infoRoot.findAccessibilityNodeInfosByText("Gói:").isEmpty(),"Device dialog displays active WebView package");
-      press(KeyEvent.KEYCODE_BACK);
+      getUiAutomation().performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);settle();
       shot("home"); listCheck("Vừa đọc"); listCheck("Tủ sách"); listCheck("Yêu thích");
       s.putBook(new HakoParser.Link("partial-full","Bộ tải full còn thiếu chương cũ", ""));
       List<HakoParser.Link> partialLinks=new ArrayList<>();
