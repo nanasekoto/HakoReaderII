@@ -1,7 +1,6 @@
 package vn.nanase.hako;
 
 import android.content.*;
-import android.webkit.CookieManager;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -11,7 +10,6 @@ import org.jsoup.nodes.*;
 
 public final class Repository {
   private static Context app;
-  private static String userAgent="HakoPocket/0.3";
   public static void init(Context c){app=c.getApplicationContext();GeckoClient.init(c);HakoParser.ORIGIN=c.getSharedPreferences("settings",0).getString("origin","https://docln.sbs");}
   public static volatile String activeBook="";
   public static volatile boolean pocketPaused=false;

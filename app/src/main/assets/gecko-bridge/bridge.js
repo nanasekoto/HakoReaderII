@@ -1,6 +1,6 @@
 (async function(){
- const previous=localStorage.getItem('reading_series');
- const history=()=>browser.runtime.sendNativeMessage('hako',{history:localStorage.getItem('reading_series')||'[]'}).catch(()=>{});
+ let previous=null;try{previous=localStorage.getItem('reading_series');}catch(e){}
+ const history=()=>{try{browser.runtime.sendNativeMessage('hako',{history:localStorage.getItem('reading_series')||'[]'}).catch(()=>{});}catch(e){}};
  addEventListener('pagehide',history,{once:true});
  addEventListener('DOMContentLoaded',()=>setTimeout(history,1000),{once:true});
  let command;

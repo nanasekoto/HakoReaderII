@@ -28,7 +28,7 @@ public final class GeckoEngineService extends Service {
   if(b.getString("script")==null){
    try{new GeckoWebExecutor(runtime).fetch(new WebRequest.Builder(url).header("Referer",HakoParser.ORIGIN+"/").build(),GeckoWebExecutor.FETCH_FLAGS_NO_REDIRECTS).accept(response->{
     if(current!=job)return;
-    if(response.statusCode!=200){if(response.statusCode==403||response.statusCode==429)Repository.cooldown(this,30*60*1000L);finish("HAKO trả HTTP "+response.statusCode+". Dừng tải; mở Đăng nhập để kiểm tra.");return;}
+    if(response.statusCode!=200){finish("HAKO trả HTTP "+response.statusCode+". Dừng tải; mở Đăng nhập để kiểm tra.");return;}
     new Thread(()->{String error=null;try(InputStream in=response.body;FileOutputStream out=new FileOutputStream(b.getString("file"))){byte[] data=new byte[8192];int n,total=0;while((n=in.read(data))!=-1){total+=n;if(total>b.getInt("max"))throw new IOException("Tài nguyên quá lớn");out.write(data,0,n);}out.getFD().sync();}catch(Exception e){error="Không lưu được tài nguyên";}final String err=error;ui.post(()->{if(current==job)finish(err);});},"Gecko asset").start();
    },error->{if(current==job)finish("Không tải được trang qua Gecko");});}catch(Exception e){finish("Không khởi động được yêu cầu Gecko");}
    return;
@@ -45,7 +45,7 @@ public final class GeckoEngineService extends Service {
     if(msg.optBoolean("hello")){
      try{if(!HakoParser.isOrigin(sender.url)&&!sender.url.equals(b.getString("url")))return null;JSONObject command=new JSONObject();command.put("script",b.getString("script"));return GeckoResult.fromValue(command);}catch(Exception ignored){return null;}
     }
-    if(msg.has("error")){Repository.cooldown(GeckoEngineService.this,30*60*1000L);finish(msg.optString("error"));return null;}
+    if(msg.has("error")){finish(msg.optString("error"));return null;}
     String html=msg.optString("html","");if(html.isEmpty())return null;
     byte[] bytes;try{bytes=html.getBytes("UTF-8");if(bytes.length>b.getInt("max")){finish("Nội dung quá lớn");return null;}
      try(FileOutputStream out=new FileOutputStream(b.getString("file"))){out.write(bytes);out.getFD().sync();}finish(null);

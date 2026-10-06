@@ -85,3 +85,13 @@ Tài liệu này lưu trữ toàn bộ các nguyên nhân gốc rễ và quy chu
 Wi-Fi+charging job constraints, forced shelf/catalog refresh, recent/favorite scope. Durable read-ID snapshot queue gates remote mark-all before submission and rechecks catalog after. NEXT progress counts required future chapters, FULL whole-book; aggregate never rounds unfinished/unchecked refresh to100. Historic pre0.6 read flags retained. Compact chapter rows, direct star, reader separator lines, 12sp status, slim home.
 
 Initial read baseline imports only the prefix Hako already considers read when a numeric fresh shelf count is available; this is one-time and unions existing local read flags. Queuing a local mark-all seals the baseline before any server action. Later Hako counts never overwrite local unread flags. Missing historical baseline stays unknown locally; no guessed server acknowledgements. Startup checks file presence instead of reparsing every retained chapter.
+
+## 0.7.0 Lite engine isolation
+
+- All website access shares Gecko's persistent profile: visible login, HTTP catalog/assets, rendered chapters and existing follow/read-all actions. No session-cookie export to Android WebView.
+- GeckoRuntime and Gecko sessions live only in the non-exported `:gecko` process. The main reader must not initialize CookieManager/System WebView on startup.
+- One worker request at a time. Interactive login cancels downloads and blocks new worker requests while it is open.
+- Close each rendered session after extraction. Unbind after a batch or individual task; after five quiet seconds, shut down runtime and exit its process on shutdown callback. Offline reading has no Gecko polling timer.
+- Never accept blank extraction as a downloaded chapter. Limited DOM readiness polling only while a requested page is active; no repeated HTTP requests or automatic CAPTCHA retries.
+- Ship ARMv7 native libraries only for the S4; x86_64 APK is built separately for Android11 tests. Do not strip arbitrary Gecko libraries to fake a smaller engine.
+- Engine tests use public static HTTPS and synthetic delayed chapter DOM. They do not establish live Hako Cloudflare success or physical S4 battery/RAM measurements.

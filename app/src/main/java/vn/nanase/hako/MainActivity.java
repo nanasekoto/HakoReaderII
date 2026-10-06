@@ -7,7 +7,7 @@ import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.*;
 import android.view.*;
-import android.webkit.*;
+import android.webkit.WebView;
 import android.widget.*;
 import java.io.*;
 import java.util.*;
@@ -59,14 +59,13 @@ public class MainActivity extends Activity {
   }
   private static boolean isSyncingShelf = false;
   private TextView status, title, syncBadge;
-  private WebView web;
   private AlertDialog settingsDialog;
   private NativeReader nativeReader;
   private ListView currentList;
   private ScrollView currentScroll;
   private final java.util.ArrayDeque<Runnable> navStack = new java.util.ArrayDeque<>();
   private String visitSession="";
-  private boolean online = false, readerReady = false;
+  private boolean readerReady = false;
   private boolean volumeUpPressed = false;
   private long volumeUpPressTime = 0;
 
@@ -94,7 +93,6 @@ public class MainActivity extends Activity {
     if(!prefs.getBoolean("auto_wifi_v6",false))prefs.edit().putBoolean("charging",true).putBoolean("auto_wifi_v6",true).commit();
     touchLocked=prefs.getBoolean("touch_lock",false);
     if(!prefs.getBoolean("migrated_font_v3",false)){prefs.edit().putInt("font2",2).putBoolean("migrated_font_v3",true).apply();}
-    CookieManager.getInstance().setAcceptCookie(true);
     updates =
         new BroadcastReceiver() {
           public void onReceive(Context c, Intent i) {
@@ -175,13 +173,6 @@ public class MainActivity extends Activity {
     currentList=null; currentScroll=null; status=null;
     nativeReader=null;
     readerReady = false;
-    if (web != null) {
-      web.stopLoading();
-      web.removeJavascriptInterface("Bridge");
-      web.destroy();
-      web = null;
-    }
-    online = false;
     topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0; syncBadge = null;
     root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
@@ -1466,9 +1457,6 @@ public class MainActivity extends Activity {
         .show();
   }
 
-  private void importWebHistory(Runnable after){
-    if(web==null){after.run();return;}web.evaluateJavascript("localStorage.getItem('reading_series')",value->{try{Object raw=new JSONTokener(value).nextValue();if(raw instanceof String){JSONArray list=new JSONArray((String)raw);for(int i=0;i<list.length();i++){JSONObject h=list.getJSONObject(i);String u=HakoParser.normalize(h.optString("series_url")),id=HakoParser.storyId(u),cu=HakoParser.normalize(h.optString("chapter_url")),cid=HakoParser.chapterId(cu);if(id.isEmpty()||cid.isEmpty())continue;store.putBook(new HakoParser.Link(id,h.optString("series_title","Truyện"),u));store.importHistory(id,cid,h.optLong("read_time")*1000);}}}catch(Exception ignored){}after.run();});
-  }
   private void browse(String url) {
     if(settingsDialog!=null){settingsDialog.dismiss();settingsDialog=null;}
     Repository.cancel.set(true);GeckoClient.authenticating=true;leaveReader();
@@ -1479,7 +1467,7 @@ public class MainActivity extends Activity {
   private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setView(input).setPositiveButton("Kiểm tra",(d,w)->{String value=input.getText().toString().trim();if(!value.startsWith("https://"))value="https://"+value;final String origin=value.replaceAll("/+$","");try{java.net.URI u=java.net.URI.create(origin);if(u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty())throw new Exception();}catch(Exception e){message("Chỉ nhập tên miền HTTPS, không có đường dẫn.");return;}task("Kiểm tra tên miền…",()->{String h=Repository.page(origin,false);if(!h.contains("Light Novel")&&!h.contains("HAKO"))throw new Exception("Không nhận diện trang HAKO");return null;},()->{Repository.cancel.set(true);HakoParser.ORIGIN=origin;prefs.edit().putString("origin",origin).apply();store.rebase(origin);message("Đã đổi tên miền. Đăng nhập lại nếu cần.");});}).setNegativeButton("Hủy",null).show();}
   private void webViewInfo(){
     android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
-    String info="Engine của app: Gecko Lite 157 · 0.7.0\nWebView hệ thống (app không dùng đăng nhập):\n"+
+    String info="Engine của app: Gecko Lite 156 · 0.7.0\nWebView hệ thống (app không dùng đăng nhập):\n"+
       "Gói: "+(provider==null?"Không xác định":provider.packageName)+"\n"+
       "Phiên bản: "+(provider==null?"Không xác định":provider.versionName)+"\n\n"+
       "Thiết bị: "+Build.MANUFACTURER+" "+Build.MODEL+"\n"+
@@ -1643,27 +1631,18 @@ public class MainActivity extends Activity {
     cancelLockKey();
     if(nativeReader!=null&&readerReady)store.position(bookId,chapterId,lastPos,lastFraction);
     Repository.pocketPaused=true;
-    if (web != null) {
-      web.onPause();
-      CookieManager.getInstance().flush();
-    }
     super.onPause();
   }
 
   @Override protected void onResume(){
     super.onResume();
     Repository.pocketPaused=touchLocked;
-    if(web!=null)web.onResume();
   }
 
   protected void onDestroy() {
     if (updates != null) unregisterReceiver(updates);
     if(powerReceiver!=null)unregisterReceiver(powerReceiver);
     if(networkCallback!=null)getSystemService(android.net.ConnectivityManager.class).unregisterNetworkCallback(networkCallback);
-    if (web != null) {
-      web.removeJavascriptInterface("Bridge");
-      web.destroy();
-    }
     io.shutdown();
     super.onDestroy();
   }
@@ -1784,16 +1763,6 @@ public class MainActivity extends Activity {
       });
       return;
     }
-    if (online && web != null && web.canGoBack()) {
-      web.goBack();
-      return;
-    }
-    if (web != null) {
-      leaveReader();
-      if (!navStack.isEmpty()) navStack.pop().run();
-      else library();
-      return;
-    }
     if (!navStack.isEmpty()) {
       navStack.pop().run();
       return;
@@ -1870,7 +1839,6 @@ public class MainActivity extends Activity {
 
   private void performPageAction(int dir){
     if(nativeReader!=null)handleSingleKeyAction(dir);
-    else if(web!=null){if(dir>0)web.pageDown(false);else web.pageUp(false);}
     else if(currentList!=null&&currentList.isShown()){
       if(currentList instanceof PagedBookList)((PagedBookList)currentList).turn(dir);
       else listPaging.turn(currentList,dir);
@@ -1896,7 +1864,7 @@ public class MainActivity extends Activity {
     }
 
     // Hold Volume Up for 700 ms to lock/unlock; consume repeats and the final release.
-    if(isPageUpKey(code) && web==null){
+    if(isPageUpKey(code)){
       android.util.Log.d("HakoKeys","code="+code+" action="+action+" repeat="+event.getRepeatCount()+" locked="+touchLocked);
       if(action==KeyEvent.ACTION_DOWN){
         if(lockKey.down()){lockDownTime=SystemClock.uptimeMillis();lockHandler.postDelayed(lockHold,700);}

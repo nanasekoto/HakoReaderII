@@ -15,12 +15,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-          log-accepted-android-sdk-licenses: false
+      - name: Use runner Android SDK
+        run: echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
       - name: Install Android tools
-        run: sdkmanager 'platforms;android-35' 'platforms;android-37' 'build-tools;35.0.0' 'emulator' 'system-images;android-30;default;x86_64'
+        run: sdkmanager 'platforms;android-35' 'platforms;android-36' 'build-tools;35.0.0' 'emulator' 'system-images;android-30;default;x86_64'
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '9.3.1'

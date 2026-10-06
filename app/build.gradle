@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'vn.nanase.hako'
-    compileSdk 37
+    compileSdk 36
 
     defaultConfig {
         applicationId 'vn.nanase.hako'
