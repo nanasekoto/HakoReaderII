@@ -132,7 +132,7 @@ public class SmokeTest extends Instrumentation {
         s.followed(id,true,i); s.position(id,"",0,0); s.visited(id);s.visited(id);s.visited(id);
       }
       activity=(MainActivity)startActivitySync(new Intent().setClassName("vn.nanase.hako","vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));settle();
-      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.6.0"),"Installed version 0.6.0 (behavior fix)");
+      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.6.1"),"Installed version 0.6.1 (behavior fix)");
       shot("home"); listCheck("Vừa đọc"); listCheck("Tủ sách"); listCheck("Yêu thích");
       s.putBook(new HakoParser.Link("partial-full","Bộ tải full còn thiếu chương cũ", ""));
       List<HakoParser.Link> partialLinks=new ArrayList<>();
@@ -244,6 +244,15 @@ public class SmokeTest extends Instrumentation {
       key(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_VOLUME_UP);settle();
       check(reader.isTouchLocked() && prompt.getVisibility()!=View.VISIBLE,"Can pocket-lock while end confirmation is visible");
       call("toggleTouchLock",new Class<?>[]{});
+      call("bookList",new Class<?>[]{boolean.class},false);
+      ListView recent=(ListView)field(activity,"currentList");
+      int demoRow=-1;
+      for(int n=0;n<recent.getCount();n++)if(((Store.Book)recent.getItemAtPosition(n)).id.equals("demo")){demoRow=n;break;}
+      final int resumeRow=demoRow;
+      runOnMainSync(()->recent.setSelection(resumeRow));settle();
+      View recentCard=recent.getChildAt(resumeRow-recent.getFirstVisiblePosition());
+      runOnMainSync(()->recentCard.performClick());settle();
+      check(field(activity,"nativeReader")!=null && field(activity,"bookId").equals("demo"),"Recent card opens saved reader despite full-download child");
       call("bookList",new Class<?>[]{boolean.class},false);
       s.setKeepFull("demo",false);
       Repository.pendingBook="";
