@@ -22,7 +22,7 @@ public final class Repository {
     return pocketPaused && !charging && !manualOverride;
   }
   private static long lastNetwork=0;
-  public static void cooldown(Context c,long ms){long capped=Math.min(ms,3*60*1000L);c.getSharedPreferences("settings",0).edit().putLong("cooldownUntil",System.currentTimeMillis()+capped).apply();}
+  public static void cooldown(Context c,long ms){long capped=Math.min(ms,30*60*1000L);c.getSharedPreferences("settings",0).edit().putLong("cooldownUntil",System.currentTimeMillis()+capped).apply();}
   public static void allowed(Context c)throws IOException {if(System.currentTimeMillis()<c.getSharedPreferences("settings",0).getLong("cooldownUntil",0))throw new IOException("Đang nghỉ sau giới hạn truy cập. Thử lại sau 30 phút.");}
   public static final String EVENT = "vn.nanase.hako.STATUS";
   public static final AtomicBoolean busy = new AtomicBoolean(false),
@@ -219,11 +219,13 @@ public final class Repository {
     syncTotal = 0;
     syncDone = 0;
     syncPct = 0;
+    if(mode==MODE_SYNC_LIBRARY)ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",false).commit();
     notify(ctx, "Đang kiểm tra mục lục…");
 
     try {
       allowed(ctx);
       Store s = Store.get(ctx);
+      if(mode==MODE_SYNC_LIBRARY)importShelf(ctx);
       ArrayList<Store.Book> todo = new ArrayList<>();
 
       if (mode == MODE_BOOK_NEXT || mode == MODE_BOOK_ALL) {
@@ -236,7 +238,7 @@ public final class Repository {
         for (Store.Book b : s.books()) {
           if (b.id.equals("demo") || b.dropped) continue;
           boolean autoDl = ctx.getSharedPreferences("settings", 0).getBoolean("auto_dl_" + b.id, false);
-          if (autoDl || b.id.equals(activeBook)) {
+          if (s.syncTarget(b) || autoDl || b.id.equals(activeBook)) {
             todo.add(b);
           }
         }
@@ -259,7 +261,7 @@ public final class Repository {
           for (Store.Book b : s.books()) {
             if (b.id.equals("demo") || b.dropped) continue;
             boolean autoDl = ctx.getSharedPreferences("settings", 0).getBoolean("auto_dl_" + b.id, false);
-            if (autoDl) {
+            if (s.syncTarget(b) || autoDl) {
               boolean exists = false;
               for (Store.Book t : todo) if (t.id.equals(b.id)) exists = true;
               if (!exists) todo.add(b);
@@ -280,6 +282,7 @@ public final class Repository {
         if (b == null || b.id == null || b.id.isEmpty() || !FetchPolicy.allowDownload(b.dropped,mode==MODE_BOOK_ALL && b.id.equals(book))) continue;
 
         // 1. Refresh catalog FIRST to know real chapter count
+        if(mode==MODE_SYNC_LIBRARY)ctx.getSharedPreferences("settings",0).edit().remove("catalog-"+b.id).commit();
         catalog(ctx, b);
         Store.Book refreshed = s.book(b.id);
         if (refreshed != null) b = refreshed;
@@ -293,12 +296,12 @@ public final class Repository {
         List<Store.Chapter> needDownload = new ArrayList<>();
         // Priority: current reading chapter to end of book
         for (Store.Chapter ch : chapters) {
-          if (ch.ord >= current && !s.readable(ch.id)) needDownload.add(ch);
+          if (ch.ord >= current && !ch.ready) needDownload.add(ch);
         }
         // If full mode: also earlier chapters
         if (isFullMode) {
           for (Store.Chapter ch : chapters) {
-            if (ch.ord < current && !s.readable(ch.id)) needDownload.add(ch);
+            if (ch.ord < current && !ch.ready) needDownload.add(ch);
           }
         }
 
@@ -307,11 +310,12 @@ public final class Repository {
         if (syncTotal == 0) {
           notify(ctx, b.title + ": Đã tải đủ ✓");
         } else {
-          syncPct = Math.min(100, Math.round(syncDone * 100f / syncTotal));
+          syncPct = Math.min(99, Math.round(syncDone * 100f / syncTotal));
           notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + ")");
         }
 
         // 3. Download loop per chapter with preemption
+        int distance=0;
         for (Store.Chapter ch : needDownload) {
           if (cancel.get() || pauseAutomatic(charging)) break;
           if (charging && !ChargeJob.isCharging(ctx)) break;
@@ -330,16 +334,16 @@ public final class Repository {
             }
           }
 
-          if (s.readable(ch.id)) continue;
+          if (ch.ready) continue;
 
-          long delay = charging ? 2000 : 3000;
+          long delay = FetchPolicy.delayMillis(++distance);
           if (!waitFor(ctx, delay, b.id, charging)) break;
 
           try {
             download(ctx, ch);
             if (s.readable(ch.id)) {
               syncDone++;
-              syncPct = syncTotal > 0 ? Math.min(100, Math.round(syncDone * 100f / syncTotal)) : 100;
+              syncPct = syncTotal > 0 ? Math.min(99, Math.round(syncDone * 100f / syncTotal)) : 100;
               notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
             }
           } catch (Exception e) {
@@ -353,6 +357,8 @@ public final class Repository {
         if (latest != null && !isFullMode) s.prune(latest);
       }
 
+      if(mode==MODE_SYNC_LIBRARY&&!cancel.get()&&!pauseAutomatic(charging)&&todo.isEmpty())ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",true).commit();
+      ReadSync.process(ctx);
       int remaining = 0;
       if (syncTotal > 0 && syncDone < syncTotal) remaining = syncTotal - syncDone;
       if (syncTotal > 0 && remaining == 0) {
@@ -371,16 +377,14 @@ public final class Repository {
         notify(ctx, "Chưa hoàn tất: còn " + remaining + " chương chưa tải");
       }
     } finally {
+      syncPct=Store.get(ctx).totalOfflinePercent();
       busy.set(false);
       synchronized(busy){busy.notifyAll();}
       pendingBook = "";
       pendingAll = false;
       manualOverride = false;
       isSyncing = false;
-      if (syncTotal == 0 || syncDone >= syncTotal) {
-        syncPct = 100;
-        syncState = "COMPLETED";
-      }
+      notify(ctx,syncPct==100?"Offline đã đủ · Có thể tắt Wi-Fi":"Offline "+syncPct+"% · Chưa tải đủ");
     }
   }
 

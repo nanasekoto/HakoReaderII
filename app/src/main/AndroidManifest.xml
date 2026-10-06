@@ -29,6 +29,8 @@
             android:foregroundServiceType="dataSync"
             android:exported="false" />
 
+        <service android:name="vn.nanase.hako.ReadSync" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />
+
         <service
             android:name="vn.nanase.hako.ChargeJob"
             android:permission="android.permission.BIND_JOB_SERVICE"
@@ -37,3 +39,4 @@
     </application>
 
 </manifest>
+

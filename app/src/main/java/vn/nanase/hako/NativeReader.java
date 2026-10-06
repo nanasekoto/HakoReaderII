@@ -46,9 +46,9 @@ public final class NativeReader extends View {
  public NativeReader(Context c,File dir,Listener listener){
   super(c);this.chapterDir=dir;this.listener=listener;setBackgroundColor(Color.WHITE);setFocusable(true);paint.setColor(Color.BLACK);
   statusPaint.setColor(Color.rgb(80,80,80));statusPaint.setTypeface(Typeface.DEFAULT);
-  float sp10=10f*getResources().getDisplayMetrics().scaledDensity;statusPaint.setTextSize(sp10);
-  headerHeight=(int)(15*getResources().getDisplayMetrics().density);
-  footerHeight=(int)(15*getResources().getDisplayMetrics().density);
+  float sp10=12f*getResources().getDisplayMetrics().scaledDensity;statusPaint.setTextSize(sp10);
+  headerHeight=(int)(16*getResources().getDisplayMetrics().density);
+  footerHeight=(int)(16*getResources().getDisplayMetrics().density);
  }
  public void content(String html,int paragraph,float fraction){
   rawHtml=html;pendingParagraph=paragraph;pendingFraction=fraction;anchors.clear();notes.clear();imageSizes.clear();
@@ -171,6 +171,10 @@ public final class NativeReader extends View {
    }
    c.drawText(headerText,margin,headerY,statusPaint);
   }
+
+  statusPaint.setStrokeWidth(getResources().getDisplayMetrics().density*0.65f);
+  c.drawLine(margin,textTop-1,getWidth()-margin,textTop-1,statusPaint);
+  c.drawLine(margin,textBottom+1,getWidth()-margin,textBottom+1,statusPaint);
 
   // 2. Story Content strictly clipped inside textTop..textBottom
   int first=pages.get(page),end=page+1<pages.size()?pages.get(page+1):layout.getLineCount();

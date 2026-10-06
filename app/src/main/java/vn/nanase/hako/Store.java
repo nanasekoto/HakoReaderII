@@ -32,6 +32,24 @@ public final class Store extends SQLiteOpenHelper {
     context.getSharedPreferences("settings", 0).edit().putBoolean("keep_full_" + id, keep).apply();
   }
 
+  public boolean favorite(Book b){return b.pinned||isKeepFull(b.id)||b.visits>=3;}
+  public boolean syncTarget(Book b){return !b.id.equals("demo")&&!b.dropped&&(b.stamp>0||favorite(b));}
+  public int unread(String id){int n=0;for(Chapter c:chapters(id))if(!wasRead(c.id))n++;return n;}
+  public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
+  public synchronized void queueCaughtUp(String id){
+    org.json.JSONArray ids=new org.json.JSONArray();
+    SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(Chapter c:chapters(id)){readChapter(c.id);ids.put(c.id);}d.setTransactionSuccessful();}finally{d.endTransaction();}
+    if(ids.length()==0)throw new IllegalStateException("Chưa có mục lục để xác nhận đã đọc");
+    if(!context.getSharedPreferences("read_queue",0).edit().putString(id,ids.toString()).commit())throw new IllegalStateException("Không lưu được hàng chờ");
+  }
+  public Set<String> queuedBooks(){return new HashSet<>(context.getSharedPreferences("read_queue",0).getAll().keySet());}
+  public synchronized boolean canSubmit(String id){
+    if(!queued(id)||chapters(id).isEmpty()||unread(id)>0)return false;
+    try{org.json.JSONArray a=new org.json.JSONArray(context.getSharedPreferences("read_queue",0).getString(id,"[]"));Set<String> snapshot=new HashSet<>();for(int i=0;i<a.length();i++)snapshot.add(a.getString(i));for(Chapter c:chapters(id))if(!snapshot.contains(c.id))return false;return true;}catch(Exception e){return false;}
+  }
+  public void extendQueueIfCaughtUp(String id){if(queued(id)&&!canSubmit(id)&&unread(id)==0)queueCaughtUp(id);}
+  public void clearQueue(String id){context.getSharedPreferences("read_queue",0).edit().remove(id).commit();}
+  public int totalOfflinePercent(){int total=0,done=0;boolean unknown=false;for(Book b:books())if(syncTarget(b)){BookProgress p=progress(b);if(p.totalChs==0)unknown=true;total+=p.newChsTotal;done+=p.newChsDownloaded;}return unknown?0:total==0?0:Math.min(done==total&&context.getSharedPreferences("settings",0).getBoolean("sync_verified",false)?100:99,Math.round(done*100f/total));}
   public static class BookProgress {
     public final int totalChs;
     public final int oldChs;
@@ -75,7 +93,7 @@ public final class Store extends SQLiteOpenHelper {
       if (chs.get(i).ready) newChsDownloaded++;
     }
 
-    int pct = Math.min(100, Math.max(0, Math.round((oldChs + newChsDownloaded) * 100f / total)));
+    int pct = newChsTotal==0?100:Math.min(newChsDownloaded==newChsTotal?100:99, Math.max(0, Math.round(newChsDownloaded * 100f / newChsTotal)));
     return new BookProgress(total, oldChs, newChsTotal, newChsDownloaded, pct);
   }
 

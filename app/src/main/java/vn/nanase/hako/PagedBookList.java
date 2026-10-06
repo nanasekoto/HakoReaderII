@@ -7,6 +7,8 @@ import android.widget.ListView;
 
 /** Sizes cards from the actual allotted viewport, before ListView lays out rows. */
 final class PagedBookList extends ListView {
+  private boolean compact=false;
+  void compact(){compact=true;requestLayout();}
   private int rows = 6, base = 1, remainder;
   private final java.util.ArrayDeque<Integer> previous = new java.util.ArrayDeque<>();
 
@@ -33,8 +35,8 @@ final class PagedBookList extends ListView {
     int available = Math.max(1, View.MeasureSpec.getSize(heightSpec)
         - getPaddingTop() - getPaddingBottom());
     // Two title lines, two metadata lines and card padding at the configured font scale.
-    int minimum = (int)Math.ceil(62 * getResources().getDisplayMetrics().scaledDensity);
-    rows = Math.max(1, Math.min(6, (available+getDividerHeight())/(minimum+getDividerHeight())));
+    int minimum = (int)Math.ceil((compact?48:62) * getResources().getDisplayMetrics().scaledDensity);
+    rows = Math.max(1, Math.min(compact?10:6, (available+getDividerHeight())/(minimum+getDividerHeight())));
     int content = Math.max(rows, available-(rows-1)*getDividerHeight());
     base = content/rows;
     remainder = content%rows;

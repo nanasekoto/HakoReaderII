@@ -85,6 +85,11 @@ public class SmokeTest extends Instrumentation {
     check(!Repository.busy.get()&&!Repository.isSyncing,"Idle "+name+" has no active download");
     check((activity.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)==0,"Idle "+name+" does not force screen on");
   }
+  android.app.job.JobInfo chargeFixture(Context ctx){
+    ctx.getSharedPreferences("settings",0).edit().putBoolean("charging",true).commit();ChargeJob.schedule(ctx,true);
+    android.app.job.JobInfo info=ctx.getSystemService(android.app.job.JobScheduler.class).getPendingJob(40);
+    ChargeJob.schedule(ctx,false);ctx.getSharedPreferences("settings",0).edit().putBoolean("charging",false).commit();return info;
+  }
   void listCheck(String label) throws Exception {
     click(label); ListView list=(ListView)field(activity,"currentList");
     check(list!=null && list.getCount()>=18,label+" has fixture rows"); shot(label.replace(' ','-'));
@@ -124,10 +129,10 @@ public class SmokeTest extends Instrumentation {
       for(int i=1;i<=19;i++) {
         String id="fixture-"+i;
         s.putBook(new HakoParser.Link(id,"Truyện thử "+i+" — tựa dài để kiểm tra tiếng Việt trên màn hình nhỏ", ""));
-        s.followed(id,true,i); s.position(id,"",0,0); s.visited(id);
+        s.followed(id,true,i); s.position(id,"",0,0); s.visited(id);s.visited(id);s.visited(id);
       }
       activity=(MainActivity)startActivitySync(new Intent().setClassName("vn.nanase.hako","vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));settle();
-      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.5.3"),"Installed version 0.5.3 (behavior fix)");
+      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.6.0"),"Installed version 0.6.0 (behavior fix)");
       shot("home"); listCheck("Vừa đọc"); listCheck("Tủ sách"); listCheck("Yêu thích");
       s.putBook(new HakoParser.Link("partial-full","Bộ tải full còn thiếu chương cũ", ""));
       List<HakoParser.Link> partialLinks=new ArrayList<>();
@@ -160,7 +165,7 @@ public class SmokeTest extends Instrumentation {
         check(online.getFirstVisiblePosition()<=oldLast+(partial?0:1),"New updates paging skips no item");
       }else check(false,"New updates fixture loaded within 15 seconds");
       call("library",new Class<?>[]{});
-      click("Đọc mẫu");
+      call("demo",new Class<?>[]{});
       NativeReader reader=(NativeReader)field(activity,"nativeReader");
       check(reader!=null && reader.getPageCount()>1,"Demo opens native reader with multiple pages");
       android.text.Spanned rendered=(android.text.Spanned)field(reader,"text");
@@ -248,7 +253,7 @@ public class SmokeTest extends Instrumentation {
       runOnMainSync(()->favorites.performItemClick(favorites.getChildAt(0),0,0));settle();
       check(field(activity,"nativeReader")==null && field(activity,"bookId").equals("demo"),"Favorite title opens chapter selection instead of reader");
       ListView chapters=(ListView)field(activity,"currentList");
-      check(chapters.getLastVisiblePosition()-chapters.getFirstVisiblePosition()+1==6,"Chapter selection shows six complete chapter rows");
+      check(chapters.getLastVisiblePosition()-chapters.getFirstVisiblePosition()+1>=6,"Chapter selection shows compact complete chapter rows");
       check(chapters.getChildAt(chapters.getChildCount()-1).getBottom()<=chapters.getHeight()-chapters.getPaddingBottom(),"Chapter selection final row is not cut");
       shot("contents");
       // Enter genuine Android touch mode; the first mapped navigation DOWN must still arrive.
@@ -270,13 +275,21 @@ public class SmokeTest extends Instrumentation {
       s.catalog("longtoc",longChapters);
       call("contents",new Class<?>[]{Store.Book.class},s.book("longtoc"));
       ListView longList=(ListView)field(activity,"currentList");
-      check(longList.getChildCount()==6,"Long chapter titles still show six rows");
+      check(longList.getChildCount()>=6,"Long chapter titles show compact rows");
       for(int i=0;i<longList.getChildCount();i++){
         TextView text=(TextView)longList.getChildAt(i);
         int lines=Math.min(text.getMaxLines(),text.getLayout().getLineCount());
         check(text.getLayout().getLineBottom(lines-1)+text.getCompoundPaddingTop()+text.getCompoundPaddingBottom()<=text.getHeight(),"Long chapter row "+i+" has no vertically clipped text");
       }
       shot("long-chapter-titles");
+      s.putBook(new HakoParser.Link("queue-test","Hàng chờ offline",""));
+      List<HakoParser.Link> queuedChs=new ArrayList<>();queuedChs.add(new HakoParser.Link("queue-1","Chương 1",""));s.catalog("queue-test",queuedChs);
+      s.queueCaughtUp("queue-test");check(s.queued("queue-test")&&s.canSubmit("queue-test"),"Offline queue persists exact catalog snapshot");
+      queuedChs.add(new HakoParser.Link("queue-2","Chương mới",""));s.catalog("queue-test",queuedChs);
+      check(!s.canSubmit("queue-test")&&s.unread("queue-test")==1,"New unread chapter blocks old mark-all request");
+      s.readChapter("queue-2");s.extendQueueIfCaughtUp("queue-test");check(s.canSubmit("queue-test"),"Reading all new chapters refreshes snapshot");s.clearQueue("queue-test");check(!s.queued("queue-test"),"Queue acknowledgement persists");
+      android.app.job.JobInfo charging=chargeFixture(ctx);
+      check(charging.isRequireCharging()&&charging.getRequiredNetwork()!=null&&charging.getRequiredNetwork().hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI),"Automatic sync requires charging plus Wi-Fi");
       s.setKeepFull("demo",true);s.position("demo","demo-10",0,0);s.prune(s.book("demo"));
       check(s.html("demo-2").exists(),"Full offline mode retains old cached chapters");
       result.putString("stream",log+(failures==0?"PASS TOTAL ":"FAIL TOTAL ")+checks+" Android checks; failures="+failures+"\n");

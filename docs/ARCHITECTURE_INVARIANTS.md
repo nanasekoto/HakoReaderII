@@ -80,3 +80,6 @@ Tài liệu này lưu trữ toàn bộ các nguyên nhân gốc rễ và quy chu
 - DownloadService waits on completion notification instead of polling every 500ms. No app wake lock or forced screen-on flag. WebView browsing is paused on Activity pause; native cached reading has no refresh timer.
 - Disable window transition animation and list overscroll glow. Retain necessary input scrolling only.
 - Emulator idle tests sample process CPU over three seconds, count redraws, verify no download and no forced screen-on flag. These are app behavior checks, not battery measurements or proof that the whole SoC is idle.
+
+## 0.6.0 offline preparation
+Wi-Fi+charging job constraints, forced shelf/catalog refresh, recent/favorite scope. Durable read-ID snapshot queue gates remote mark-all before submission and rechecks catalog after. NEXT progress counts required future chapters, FULL whole-book; aggregate never rounds unfinished/unchecked refresh to100. Historic pre0.6 read flags retained. Compact chapter rows, direct star, reader separator lines, 12sp status, slim home.

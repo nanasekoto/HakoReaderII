@@ -26,6 +26,7 @@ failed=0
 for density in 219 220; do
   adb shell am force-stop vn.nanase.hako
   adb shell pm clear vn.nanase.hako
+  adb shell dumpsys battery unplug
   adb shell wm size 480x800
   adb shell wm density "$density"
   sleep 2
