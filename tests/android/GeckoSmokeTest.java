@@ -17,7 +17,9 @@ public final class GeckoSmokeTest extends Instrumentation {
   while(SystemClock.elapsedRealtime()<until){root=getUiAutomation().getRootInActiveWindow();if(root!=null&&!root.findAccessibilityNodeInfosByText("Về app").isEmpty())break;SystemClock.sleep(100);}
   check(root!=null&&!root.findAccessibilityNodeInfosByText("Về app").isEmpty(),"Account handoff opens isolated Gecko screen with direct return button");
   check(GeckoClient.authenticating,"Worker requests are blocked while interactive browser is open");
-  SystemClock.sleep(1500);
+  until=SystemClock.elapsedRealtime()+30000;
+  while(SystemClock.elapsedRealtime()<until){root=getUiAutomation().getRootInActiveWindow();if(root!=null&&!root.findAccessibilityNodeInfosByText("Herman Melville").isEmpty())break;SystemClock.sleep(200);}
+  check(root!=null&&!root.findAccessibilityNodeInfosByText("Herman Melville").isEmpty(),"Visible GeckoView exposes the real page content after loading");
   android.graphics.Bitmap image=getUiAutomation().takeScreenshot();File dir=new File(c.getFilesDir(),"ui-evidence");dir.mkdirs();try(FileOutputStream out=new FileOutputStream(new File(dir,"gecko-login.png"))){image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);}image.recycle();
   root=getUiAutomation().getRootInActiveWindow();check(root.findAccessibilityNodeInfosByText("Về app").get(0).performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK),"Return button can be activated on the visible Gecko screen");
   until=SystemClock.elapsedRealtime()+10000;while((GeckoClient.authenticating||!a.getWindow().getDecorView().hasWindowFocus())&&SystemClock.elapsedRealtime()<until)SystemClock.sleep(100);
