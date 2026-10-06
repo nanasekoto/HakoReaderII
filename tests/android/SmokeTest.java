@@ -140,15 +140,10 @@ public class SmokeTest extends Instrumentation {
       check(homeGrid.getChildCount()==3 && homeRow.getChildCount()==3,"Home retains nine shortcuts");
       check(homeGrid.getHeight()>activity.getWindow().getDecorView().getHeight()/2,"Home grid uses majority of display height");
       check(Math.abs(homeGrid.getChildAt(0).getHeight()-homeGrid.getChildAt(2).getHeight())<=2,"Home rows share available height equally");
-      runOnMainSync(()->{
-        android.webkit.WebView verify=new android.webkit.WebView(activity);
-        WebSession.configure(verify);
-        check(verify.getSettings().getJavaScriptEnabled()&&verify.getSettings().getDomStorageEnabled(),"Login enables JS and DOM storage");
-        check(android.webkit.CookieManager.getInstance().acceptThirdPartyCookies(verify),"Login accepts challenge-frame cookies");
-        check(WebSession.challengeFrame(android.net.Uri.parse("https://challenges.cloudflare.com/test"))&&WebSession.challengeFrame(android.net.Uri.parse("about:blank"))&&WebSession.challengeFrame(android.net.Uri.parse("about:srcdoc")),"Cloudflare frames are permitted");
-        check(!WebSession.challengeFrame(android.net.Uri.parse("https://challenges.cloudflare.com.evil.test/")),"Challenge hostname matching is exact");
-        verify.destroy();
-      });
+      android.content.pm.ServiceInfo engine=ctx.getPackageManager().getServiceInfo(new ComponentName(ctx,"vn.nanase.hako.GeckoEngineService"),0);
+      check(engine.processName.equals("vn.nanase.hako:gecko")&&!engine.exported,"Gecko worker is isolated from reader and not exported");
+      android.content.pm.ActivityInfo login=ctx.getPackageManager().getActivityInfo(new ComponentName(ctx,"vn.nanase.hako.GeckoBrowserActivity"),0);
+      check(login.processName.equals(engine.processName)&&!login.exported,"Login and worker share one private engine process");
       call("webViewInfo",new Class<?>[]{});
       View infoCopy=find(activity.getWindow().getDecorView(),"Sao chép");
       // Dialogs have their own window; inspect through the current accessibility tree.

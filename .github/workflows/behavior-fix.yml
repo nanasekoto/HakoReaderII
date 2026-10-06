@@ -20,10 +20,10 @@ jobs:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Install Android tools
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'emulator' 'system-images;android-30;default;x86_64'
+        run: sdkmanager 'platforms;android-35' 'platforms;android-37' 'build-tools;35.0.0' 'emulator' 'system-images;android-30;default;x86_64'
       - uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.2'
+          gradle-version: '9.3.1'
       - name: Resolve stable Gecko version
         run: |
           if [ ! -f gecko-version.txt ]; then
@@ -43,6 +43,15 @@ jobs:
           mkdir -p build/lite
           cp app/build/outputs/apk/release/app-release.apk build/lite/Hako-Pocket-0.7.0-Lite-arm32.apk
           cp gecko-version.txt build/lite/
+          python3 - <<'PY'
+          import zipfile
+          p='build/lite/Hako-Pocket-0.7.0-Lite-arm32.apk'
+          with zipfile.ZipFile(p) as z:
+            libs=[n for n in z.namelist() if n.startswith('lib/') and n.endswith('.so')]
+            assert any(n.endswith('/libxul.so') for n in libs), 'Gecko engine missing'
+            assert libs and all(n.startswith('lib/armeabi-v7a/') for n in libs), 'APK must contain ARM32 only'
+            print('ARM32 verified:',len(libs),'native libraries')
+          PY
           gradle assembleDebug -Pabi=x86_64 --stacktrace
           jar cf build/classes.jar -C app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes .
           bash test-android.sh

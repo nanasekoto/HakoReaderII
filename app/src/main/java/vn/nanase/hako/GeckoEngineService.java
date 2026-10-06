@@ -14,14 +14,16 @@ public final class GeckoEngineService extends Service {
   if(current!=null){respond(m,"Gecko đang xử lý yêu cầu khác");return;}
   current=Message.obtain(m);begin();
  }});
- public IBinder onBind(Intent i){GeckoHost.bound=true;return endpoint.getBinder();}
+ public IBinder onBind(Intent i){GeckoHost.bound=true;GeckoHost.active();return endpoint.getBinder();}
  public boolean onUnbind(Intent i){GeckoHost.bound=false;finish("Đã dừng phiên tải");GeckoHost.idle();return false;}
  private void respond(Message request,String error){try{Message reply=Message.obtain(null,2);reply.arg1=request.arg1;Bundle b=new Bundle();if(error!=null)b.putString("error",error);reply.setData(b);request.replyTo.send(reply);}catch(Exception ignored){}}
  private void finish(String error){if(session!=null){session.close();session=null;}Message m=current;current=null;if(m!=null)respond(m,error);}
  private void begin(){
   final Message job=current;final Bundle b=job.getData();String url=b.getString("url","");
   if(!url.startsWith("https://")){finish("Chỉ hỗ trợ HTTPS");return;}
-  GeckoRuntime runtime=GeckoHost.get(this);
+  HakoParser.ORIGIN=b.getString("origin","https://docln.sbs");
+  try{File output=new File(b.getString("file"));if(!output.getCanonicalFile().getParentFile().equals(getCacheDir().getCanonicalFile())||b.getInt("max")<1||b.getInt("max")>16*1024*1024){finish("Yêu cầu lưu không hợp lệ");return;}}catch(Exception e){finish("Yêu cầu lưu không hợp lệ");return;}
+  GeckoRuntime runtime;try{runtime=GeckoHost.get(this);}catch(Exception e){finish("Gecko đang đóng; thử lại sau vài giây");return;}
   ui.postDelayed(()->{if(current==job)finish("Trang chưa sẵn sàng sau 45 giây; không tải lại tự động");},45000);
   if(b.getString("script")==null){
    try{new GeckoWebExecutor(runtime).fetch(new WebRequest.Builder(url).header("Referer",HakoParser.ORIGIN+"/").build(),GeckoWebExecutor.FETCH_FLAGS_NO_REDIRECTS).accept(response->{

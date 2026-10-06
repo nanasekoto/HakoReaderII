@@ -40,4 +40,10 @@ for density in 219 220; do
   adb logcat -d -s HakoKeys > "build/evidence/dpi-${density}/keys.txt"
   adb logcat -d -s AndroidRuntime > "build/evidence/dpi-${density}/crashes.txt"
 done
+adb shell am force-stop vn.nanase.hako
+adb shell pm clear vn.nanase.hako
+timeout 240 adb shell am instrument -w vn.nanase.hako.tests/vn.nanase.hako.tests.GeckoSmokeTest | tee build/evidence/gecko-engine.txt || failed=1
+if ! grep -q 'PASS TOTAL' build/evidence/gecko-engine.txt; then failed=1; fi
+adb logcat -d -s AndroidRuntime GeckoConsole GeckoView | tail -400 > build/evidence/gecko-log.txt
+adb shell ps -A > build/evidence/processes-after-gecko.txt
 exit "$failed"

@@ -7,7 +7,8 @@ import java.util.concurrent.atomic.*;
 /** Serialized IPC. Gecko lives outside the native reader process. */
 public final class GeckoClient {
  private static final Handler ui=new Handler(Looper.getMainLooper());
- private static Context app;private static Messenger server;private static ServiceConnection connection;
+ private static Context app;private static volatile Messenger server;private static ServiceConnection connection;
+ public static volatile boolean authenticating;
  private static final AtomicInteger ids=new AtomicInteger();
  public static void init(Context c){app=c.getApplicationContext();}
  private static void connect()throws Exception{
@@ -23,15 +24,16 @@ public final class GeckoClient {
  public static synchronized byte[] request(String url,String script,int max)throws Exception{
   if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");
   if(app==null)throw new IOException("Chưa khởi tạo Gecko");
+  if(authenticating)throw new IOException("Đang đăng nhập; tải sẽ tiếp tục sau khi quay về app");
   File output=File.createTempFile("gecko-",".tmp",app.getCacheDir());
   try{
    connect();CountDownLatch done=new CountDownLatch(1);AtomicReference<String> error=new AtomicReference<>();
    int id=ids.incrementAndGet();Messenger reply=new Messenger(new Handler(Looper.getMainLooper()){public void handleMessage(Message m){if(m.arg1==id){error.set(m.getData().getString("error"));done.countDown();}}});
-   Bundle b=new Bundle();b.putString("url",url);b.putString("script",script);b.putString("file",output.getAbsolutePath());b.putInt("max",max);
+   Bundle b=new Bundle();b.putString("url",url);b.putString("origin",HakoParser.ORIGIN);b.putString("script",script);b.putString("file",output.getAbsolutePath());b.putInt("max",max);
    Message msg=Message.obtain(null,1);msg.arg1=id;msg.replyTo=reply;msg.setData(b);server.send(msg);
    long end=SystemClock.elapsedRealtime()+60000;
    while(!done.await(250,TimeUnit.MILLISECONDS)){if(Repository.cancel.get())throw new IOException("Đã dừng tải");if(SystemClock.elapsedRealtime()>end)throw new IOException("Gecko quá thời gian chờ");}
-   if(error.get()!=null)throw new IOException(error.get());
+   if(error.get()!=null){if(error.get().contains("HTTP 403")||error.get().contains("HTTP 429")||error.get().contains("Cần xác minh"))Repository.cooldown(app,30*60*1000L);throw new IOException(error.get());}
    try(InputStream in=new FileInputStream(output);ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buf=new byte[8192];int n,total=0;while((n=in.read(buf))!=-1){total+=n;if(total>max)throw new IOException("Tài nguyên quá lớn");out.write(buf,0,n);}return out.toByteArray();}
   }finally{output.delete();if(!Repository.busy.get())release();}
  }

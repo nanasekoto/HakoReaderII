@@ -1471,15 +1471,15 @@ public class MainActivity extends Activity {
   }
   private void browse(String url) {
     if(settingsDialog!=null){settingsDialog.dismiss();settingsDialog=null;}
-    Repository.cancel.set(true);leaveReader();
-    startActivityForResult(new Intent(this,GeckoBrowserActivity.class).putExtra("url",url).putExtra("origin",HakoParser.ORIGIN),91);
+    Repository.cancel.set(true);GeckoClient.authenticating=true;leaveReader();
+    new Thread(()->{GeckoClient.release();runOnUiThread(()->{if(!isFinishing())startActivityForResult(new Intent(this,GeckoBrowserActivity.class).putExtra("url",url).putExtra("origin",HakoParser.ORIGIN),91);else GeckoClient.authenticating=false;});},"Hako login handoff").start();
   }
 
   private String readerFont(){int n=prefs.getInt("font2",0);return n==1?"DejaVu,serif":n==2?"sans-serif":n==3?"ReaderCustom,serif":"Tinos,serif";}
   private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setView(input).setPositiveButton("Kiểm tra",(d,w)->{String value=input.getText().toString().trim();if(!value.startsWith("https://"))value="https://"+value;final String origin=value.replaceAll("/+$","");try{java.net.URI u=java.net.URI.create(origin);if(u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty())throw new Exception();}catch(Exception e){message("Chỉ nhập tên miền HTTPS, không có đường dẫn.");return;}task("Kiểm tra tên miền…",()->{String h=Repository.page(origin,false);if(!h.contains("Light Novel")&&!h.contains("HAKO"))throw new Exception("Không nhận diện trang HAKO");return null;},()->{Repository.cancel.set(true);HakoParser.ORIGIN=origin;prefs.edit().putString("origin",origin).apply();store.rebase(origin);message("Đã đổi tên miền. Đăng nhập lại nếu cần.");});}).setNegativeButton("Hủy",null).show();}
   private void webViewInfo(){
     android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
-    String info="WebView đang dùng\n"+
+    String info="Engine của app: Gecko Lite 157 · 0.7.0\nWebView hệ thống (app không dùng đăng nhập):\n"+
       "Gói: "+(provider==null?"Không xác định":provider.packageName)+"\n"+
       "Phiên bản: "+(provider==null?"Không xác định":provider.versionName)+"\n\n"+
       "Thiết bị: "+Build.MANUFACTURER+" "+Build.MODEL+"\n"+
@@ -1606,7 +1606,7 @@ public class MainActivity extends Activity {
 
   protected void onActivityResult(int req, int result, Intent data) {
     super.onActivityResult(req, result, data);
-    if(req==91){Repository.cancel.set(false);if(result==RESULT_OK&&data!=null){
+    if(req==91){GeckoClient.authenticating=false;Repository.cancel.set(false);if(result==RESULT_OK&&data!=null){
       try{JSONArray list=new JSONArray(data.getStringExtra("history"));for(int n=0;n<list.length();n++){JSONObject h=list.getJSONObject(n);String u=HakoParser.normalize(h.optString("series_url")),id=HakoParser.storyId(u),cid=HakoParser.chapterId(h.optString("chapter_url"));if(!id.isEmpty()&&!cid.isEmpty()){store.putBook(new HakoParser.Link(id,h.optString("series_title","Truyện"),u));store.importHistory(id,cid,h.optLong("read_time")*1000);}}}catch(Exception ignored){}
       if(data.getBooleanExtra("read",false)){String u=data.getStringExtra("url");if(u!=null&&!HakoParser.storyId(HakoParser.storyUrl(u)).isEmpty())addUrl(u);else message("Mở truyện hoặc chương trước khi chọn Đọc offline.");}
     }return;}

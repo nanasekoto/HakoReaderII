@@ -4,7 +4,7 @@ import org.mozilla.geckoview.*;import org.json.*;
 /** Human login uses the same persistent profile as the worker, outside reader RAM. */
 public final class GeckoBrowserActivity extends Activity {
  private GeckoSession session;private String url="",history="[]";private boolean back;private TextView status;
- public void onCreate(Bundle b){super.onCreate(b);GeckoHost.browsers++;HakoParser.ORIGIN=getIntent().getStringExtra("origin");
+ public void onCreate(Bundle b){super.onCreate(b);GeckoHost.browsers++;GeckoHost.active();HakoParser.ORIGIN=getIntent().getStringExtra("origin");
   LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(Color.WHITE);
   LinearLayout tools=new LinearLayout(this);root.addView(tools);
   Button close=new Button(this);close.setText("Về app");close.setOnClickListener(v->done(false));tools.addView(close,new LinearLayout.LayoutParams(0,-2,1));
@@ -20,9 +20,9 @@ public final class GeckoBrowserActivity extends Activity {
    }
   });
   session.setProgressDelegate(new GeckoSession.ProgressDelegate(){public void onPageStop(GeckoSession s,boolean success){status.setText(success?"Gecko Lite · Phiên được giữ trong app":"Chưa tải được trang · Kiểm tra mạng");}});
-  GeckoRuntime runtime=GeckoHost.get(this);session.open(runtime);view.setSession(session);
+  GeckoRuntime runtime;try{runtime=GeckoHost.get(this);}catch(Exception e){finish();return;}session.open(runtime);view.setSession(session);
   runtime.getWebExtensionController().ensureBuiltIn("resource://android/assets/gecko-bridge/","hako-lite@nanase.vn").accept(ext->{
-   session.getWebExtensionController().setMessageDelegate(ext,new WebExtension.MessageDelegate(){public GeckoResult<Object> onMessage(String app,Object message,WebExtension.MessageSender sender){
+   if(isFinishing()||isDestroyed())return;session.getWebExtensionController().setMessageDelegate(ext,new WebExtension.MessageDelegate(){public GeckoResult<Object> onMessage(String app,Object message,WebExtension.MessageSender sender){
     if(sender.session==session&&HakoParser.isOrigin(sender.url)&&message instanceof JSONObject){JSONObject m=(JSONObject)message;if(m.has("history")){String h=m.optString("history","[]");if(h.length()<200000)history=h;}}
     return null;
    }},"hako");session.loadUri(getIntent().getStringExtra("url"));
@@ -30,5 +30,7 @@ public final class GeckoBrowserActivity extends Activity {
  }
  private void done(boolean read){setResult(RESULT_OK,new Intent().putExtra("url",url).putExtra("history",history).putExtra("read",read));finish();}
  public void onBackPressed(){if(back)session.goBack();else done(false);}
+ protected void onPause(){if(session!=null&&session.isOpen())session.setActive(false);super.onPause();}
+ protected void onResume(){super.onResume();if(session!=null&&session.isOpen())session.setActive(true);}
  protected void onDestroy(){if(session!=null)session.close();GeckoHost.browsers--;GeckoHost.idle();super.onDestroy();}
 }
