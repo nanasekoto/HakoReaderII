@@ -18,14 +18,21 @@ public final class GeckoSmokeTest extends Instrumentation {
   check(root!=null&&!root.findAccessibilityNodeInfosByText("Về app").isEmpty(),"Account handoff opens isolated Gecko screen with direct return button");
   check(GeckoClient.authenticating,"Worker requests are blocked while interactive browser is open");
   until=SystemClock.elapsedRealtime()+30000;
-  while(SystemClock.elapsedRealtime()<until){root=getUiAutomation().getRootInActiveWindow();if(root!=null&&!root.findAccessibilityNodeInfosByText("Herman Melville").isEmpty())break;SystemClock.sleep(200);}
-  check(root!=null&&!root.findAccessibilityNodeInfosByText("Herman Melville").isEmpty(),"Visible GeckoView exposes the real page content after loading");
+  while(SystemClock.elapsedRealtime()<until){root=getUiAutomation().getRootInActiveWindow();if(hasText(root,"Herman Melville"))break;SystemClock.sleep(200);}
+
   android.graphics.Bitmap image=getUiAutomation().takeScreenshot();File dir=new File(c.getFilesDir(),"ui-evidence");dir.mkdirs();try(FileOutputStream out=new FileOutputStream(new File(dir,"gecko-login.png"))){image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);}image.recycle();
+  StringBuilder treeText=new StringBuilder();tree(root,treeText,0);try(FileOutputStream out=new FileOutputStream(new File(dir,"gecko-accessibility.txt"))){out.write(treeText.toString().getBytes("UTF-8"));}
+  check(hasText(root,"Herman Melville"),"Visible GeckoView exposes the real page content after loading");
   root=getUiAutomation().getRootInActiveWindow();check(root.findAccessibilityNodeInfosByText("Về app").get(0).performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK),"Return button can be activated on the visible Gecko screen");
   until=SystemClock.elapsedRealtime()+10000;while((GeckoClient.authenticating||!a.getWindow().getDecorView().hasWindowFocus())&&SystemClock.elapsedRealtime()<until)SystemClock.sleep(100);
   check(!GeckoClient.authenticating&&a.getWindow().getDecorView().hasWindowFocus(),"Returning restores native screen and unblocks downloads");
   stopped();
  }
+ boolean hasText(android.view.accessibility.AccessibilityNodeInfo n,String text){
+  if(n==null)return false;if(n.getText()!=null&&n.getText().toString().contains(text))return true;
+  for(int i=0;i<n.getChildCount();i++)if(hasText(n.getChild(i),text))return true;return false;
+ }
+ void tree(android.view.accessibility.AccessibilityNodeInfo n,StringBuilder out,int depth){if(n==null||depth>30)return;out.append(n.getClassName()).append(" text=").append(n.getText()).append(" bounds=");android.graphics.Rect r=new android.graphics.Rect();n.getBoundsInScreen(r);out.append(r).append('\n');for(int i=0;i<n.getChildCount();i++)tree(n.getChild(i),out,depth+1);}
  public void onCreate(Bundle b){super.onCreate(b);start();}
  public void onStart(){Bundle result=new Bundle();try{
   Context c=getTargetContext();Repository.init(c);Repository.cancel.set(false);GeckoClient.authenticating=false;
