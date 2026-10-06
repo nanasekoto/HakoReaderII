@@ -46,4 +46,8 @@ timeout 240 adb shell am instrument -w vn.nanase.hako.tests/vn.nanase.hako.tests
 if ! grep -q 'PASS TOTAL' build/evidence/gecko-engine.txt; then failed=1; fi
 adb logcat -d -s AndroidRuntime GeckoConsole GeckoView | tail -400 > build/evidence/gecko-log.txt
 adb shell ps -A > build/evidence/processes-after-gecko.txt
+if grep -q 'vn.nanase.hako:' build/evidence/processes-after-gecko.txt; then
+  echo 'FAIL Gecko child process remains after engine shutdown' | tee -a build/evidence/gecko-engine.txt
+  failed=1
+fi
 exit "$failed"

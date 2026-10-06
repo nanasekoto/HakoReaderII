@@ -1,6 +1,6 @@
 # Hako Pocket 0.7.0 Lite
 
-Android 11 / Xteink S4 · ARM 32-bit · bộ đọc native + GeckoView 156.
+Android 11 / Xteink S4 · ARM 32-bit · bộ đọc native + GeckoView stable.
 
 ## Bắt đầu
 

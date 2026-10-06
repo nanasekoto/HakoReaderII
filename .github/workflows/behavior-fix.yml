@@ -16,7 +16,9 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Use runner Android SDK
-        run: echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+        run: |
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
       - name: Install Android tools
         run: sdkmanager 'platforms;android-35' 'platforms;android-36' 'build-tools;35.0.0' 'emulator' 'system-images;android-30;default;x86_64'
       - uses: gradle/actions/setup-gradle@v3
@@ -45,6 +47,7 @@ jobs:
           gradle assembleDebug -Pabi=x86_64 --stacktrace
           jar cf build/classes.jar -C app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes .
           bash test-android.sh
+          python3 scripts/split-apk.py
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm
       - name: Run installed APK at 480x800
@@ -59,3 +62,99 @@ jobs:
         with:
           name: Hako-0.7.0-Lite-tested-APK
           path: build/lite/
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-01
+          path: build/lite/parts/part-01
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-02
+          path: build/lite/parts/part-02
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-03
+          path: build/lite/parts/part-03
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-04
+          path: build/lite/parts/part-04
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-05
+          path: build/lite/parts/part-05
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-06
+          path: build/lite/parts/part-06
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-07
+          path: build/lite/parts/part-07
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-08
+          path: build/lite/parts/part-08
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-09
+          path: build/lite/parts/part-09
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-10
+          path: build/lite/parts/part-10
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-11
+          path: build/lite/parts/part-11
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-12
+          path: build/lite/parts/part-12
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-13
+          path: build/lite/parts/part-13
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-14
+          path: build/lite/parts/part-14
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-15
+          path: build/lite/parts/part-15
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Hako-0.7.0-Lite-transfer-16
+          path: build/lite/parts/part-16
+          if-no-files-found: ignore
