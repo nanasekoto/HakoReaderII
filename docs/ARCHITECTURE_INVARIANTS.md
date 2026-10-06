@@ -83,3 +83,5 @@ Tài liệu này lưu trữ toàn bộ các nguyên nhân gốc rễ và quy chu
 
 ## 0.6.0 offline preparation
 Wi-Fi+charging job constraints, forced shelf/catalog refresh, recent/favorite scope. Durable read-ID snapshot queue gates remote mark-all before submission and rechecks catalog after. NEXT progress counts required future chapters, FULL whole-book; aggregate never rounds unfinished/unchecked refresh to100. Historic pre0.6 read flags retained. Compact chapter rows, direct star, reader separator lines, 12sp status, slim home.
+
+Initial read baseline imports only the prefix Hako already considers read when a numeric fresh shelf count is available; this is one-time and unions existing local read flags. Queuing a local mark-all seals the baseline before any server action. Later Hako counts never overwrite local unread flags. Missing historical baseline stays unknown locally; no guessed server acknowledgements. Startup checks file presence instead of reparsing every retained chapter.

@@ -32,11 +32,24 @@ public final class Store extends SQLiteOpenHelper {
     context.getSharedPreferences("settings", 0).edit().putBoolean("keep_full_" + id, keep).apply();
   }
 
+  public synchronized void establishReadBaseline(String id){
+    android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
+    if(prefs.getBoolean("read_baseline_"+id,false)||queued(id))return;
+    long shelf=prefs.getLong("lastShelfSync",0);if(shelf==0||System.currentTimeMillis()-shelf>120000)return;
+    Book b=book(id);if(b==null)return;
+    java.util.regex.Matcher m=java.util.regex.Pattern.compile("^(\\d+) chương mới").matcher(b.shelfInfo.trim());
+    if(!m.find())return;
+    int count;try{count=Integer.parseInt(m.group(1));}catch(Exception e){return;}
+    List<Chapter> all=chapters(id);if(all.isEmpty()||count>all.size())return;
+    SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(int i=0;i<all.size()-count;i++)readChapter(all.get(i).id);d.setTransactionSuccessful();}finally{d.endTransaction();}
+    prefs.edit().putBoolean("read_baseline_"+id,true).commit();
+  }
   public boolean favorite(Book b){return b.pinned||isKeepFull(b.id)||b.visits>=3;}
   public boolean syncTarget(Book b){return !b.id.equals("demo")&&!b.dropped&&(b.stamp>0||favorite(b));}
   public int unread(String id){try(Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM chapters c LEFT JOIN read_chapters r ON r.id=c.id WHERE c.book=? AND r.id IS NULL",new String[]{id})){return c.moveToFirst()?c.getInt(0):0;}}
   public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
   public synchronized void queueCaughtUp(String id){
+    context.getSharedPreferences("settings",0).edit().putBoolean("read_baseline_"+id,true).commit();
     org.json.JSONArray ids=new org.json.JSONArray();
     SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(Chapter c:chapters(id)){readChapter(c.id);ids.put(c.id);}d.setTransactionSuccessful();}finally{d.endTransaction();}
     if(ids.length()==0)throw new IllegalStateException("Chưa có mục lục để xác nhận đã đọc");
@@ -316,7 +329,8 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void dropped(String id,boolean value){ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   public boolean readable(String cid){try{return html(cid).isFile()&&HakoParser.validContent(read(html(cid)));}catch(Exception e){return false;}}
   public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
-  public void cleanStartup(){for(Book b:books())if(!b.id.equals("demo")){if(!b.followed&&!b.id.equals(Repository.activeBook))clearTemporary(b.id);else for(Chapter c:chapters(b.id))if(!readable(c.id)){delete(dir(c.id));state(c.id,false,"");}}}
+  public void cleanStartup(){for(Book b:books())if(!b.id.equals("demo")){if(!b.followed&&!b.id.equals(Repository.activeBook))clearTemporary(b.id);for(Chapter c:chapters(b.id))if(!html(c.id).isFile()||html(c.id).length()==0){state(c.id,false,"");}}}
+
   public synchronized void rebase(String origin){for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}}
   public static void delete(File f) {
     File[] kids = f.listFiles();

@@ -297,6 +297,9 @@ public class SmokeTest extends Instrumentation {
       check(charging.isRequireCharging()&&charging.getRequiredNetwork()!=null&&charging.getRequiredNetwork().hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI),"Automatic sync requires charging plus Wi-Fi");
       s.setKeepFull("demo",true);s.position("demo","demo-10",0,0);s.prune(s.book("demo"));
       check(s.html("demo-2").exists(),"Full offline mode retains old cached chapters");
+      s.putBook(new HakoParser.Link("baseline","Kiểm tra mốc đọc HAKO",""));List<HakoParser.Link> baseline=new ArrayList<>();for(int n=1;n<=5;n++)baseline.add(new HakoParser.Link("baseline-"+n,"Chương "+n,""));s.catalog("baseline",baseline);s.shelfInfo("baseline","2 chương mới");ctx.getSharedPreferences("settings",0).edit().putLong("lastShelfSync",System.currentTimeMillis()).commit();s.establishReadBaseline("baseline");
+      check(s.unread("baseline")==2,"First Hako baseline imports already-read prefix only once");
+      baseline.add(new HakoParser.Link("baseline-6","Chương vừa xuất hiện",""));s.catalog("baseline",baseline);s.shelfInfo("baseline","0 chương mới");s.establishReadBaseline("baseline");check(s.unread("baseline")==3,"Later Hako mark-all counter cannot erase local unread arrivals");
       for(Store.Book book:s.books())if(!book.id.equals("partial-full"))s.dropped(book.id,true);
       s.putBook(new HakoParser.Link("weighted","Truyện kiểm tra tổng tiến độ",""));s.setKeepFull("weighted",true);
       List<HakoParser.Link> weighted=new ArrayList<>();for(int n=1;n<=9;n++)weighted.add(new HakoParser.Link("weighted-"+n,"Chương "+n,""));s.catalog("weighted",weighted);

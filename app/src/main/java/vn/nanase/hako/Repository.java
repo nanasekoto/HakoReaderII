@@ -145,6 +145,7 @@ public final class Repository {
     List<HakoParser.Link> ls = HakoParser.chapters(html, b.url);
     if (ls.isEmpty()) throw new IOException("Mục lục trống: " + b.title);
     Store.get(c).catalog(b.id, ls);
+    Store.get(c).establishReadBaseline(b.id);
     c.getSharedPreferences("settings",0).edit().putLong("catalog-"+b.id,System.currentTimeMillis()).apply();
   }
 
@@ -256,6 +257,17 @@ public final class Repository {
         }
       }
 
+      Set<String> refreshedCatalogs=new HashSet<>();
+      if(mode==MODE_SYNC_LIBRARY){
+        // Obtain the complete required scope before downloading so percentages share one snapshot.
+        for(Store.Book planned:new ArrayList<>(todo)){
+          if(cancel.get()||pauseAutomatic(charging)||(charging&&(!ChargeJob.isCharging(ctx)||!ReadSync.wifi(ctx))))return;
+          ctx.getSharedPreferences("settings",0).edit().remove("catalog-"+planned.id).commit();
+          catalog(ctx,planned);refreshedCatalogs.add(planned.id);
+          notify(ctx,"Kiểm tra mục lục "+refreshedCatalogs.size()+"/"+todo.size()+": "+planned.title);
+          Thread.sleep(2000);
+        }
+      }
       while (!cancel.get() && !pauseAutomatic(charging) && (!todo.isEmpty() || !pendingBook.isEmpty() || pendingAll)) {
         if (pendingAll) {
           pendingAll = false;
@@ -283,8 +295,10 @@ public final class Repository {
         if (b == null || b.id == null || b.id.isEmpty() || !FetchPolicy.allowDownload(b.dropped,(mode==MODE_BOOK_ALL && b.id.equals(book))||(manualOverride&&s.isKeepFull(b.id)))) continue;
 
         // 1. Refresh catalog FIRST to know real chapter count
-        if(mode==MODE_SYNC_LIBRARY)ctx.getSharedPreferences("settings",0).edit().remove("catalog-"+b.id).commit();
-        catalog(ctx, b);
+        if(!refreshedCatalogs.contains(b.id)){
+          if(mode==MODE_SYNC_LIBRARY)ctx.getSharedPreferences("settings",0).edit().remove("catalog-"+b.id).commit();
+          catalog(ctx,b);
+        }
         Store.Book refreshed = s.book(b.id);
         if (refreshed != null) b = refreshed;
         List<Store.Chapter> chapters = s.chapters(b.id);
