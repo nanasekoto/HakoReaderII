@@ -30,6 +30,9 @@ public class ParserTest {
         HakoParser.storyId("https://docln.sbs.evil.test/truyen/26739-x").isEmpty(),
         "Reject suffix spoofing");
     check(HakoParser.normalize("javascript:alert(1)").isEmpty(), "Reject JS URL");
+    check(!HakoParser.isOrigin("https://evilhako.vn/"),"Reject a different registered hostname with Hako suffix");
+    check(!HakoParser.isOrigin("https://evildocln.sbs/"),"Reject fake Docln domain prefix");
+    check(HakoParser.isOrigin("https://i2.hako.vip/"),"Accept a genuine Hako subdomain");
     String sample =
         "<div id='chapter-content'><p style='display: none'>hidden title</p><p id='1'>Nội dung"
             + " <b>đậm</b></p><p><span data-content='&lt;b&gt;Ghi chú&lt;/b&gt;'>1</span></p><img"

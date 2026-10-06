@@ -44,11 +44,15 @@ public final class GeckoEngineService extends Service {
   target.setNavigationDelegate(new GeckoSession.NavigationDelegate(){public GeckoResult<String> onLoadError(GeckoSession s,String uri,WebRequestError error){if(current==job)finish("Không tải được trang; kiểm tra mạng hoặc mở Đăng nhập.");return null;}});
   target.getWebExtensionController().setMessageDelegate(extension,new WebExtension.MessageDelegate(){
    public GeckoResult<Object> onMessage(String app,Object message,WebExtension.MessageSender sender){
-    android.util.Log.i("HakoGecko","Bridge message; same session="+(sender.session==target)+" type="+message.getClass().getSimpleName());
+    android.util.Log.i("HakoGecko","Bridge message; current job="+(current==job)+" same session="+(sender.session==target)+" type="+(message==null?"null":message.getClass().getSimpleName()));
     if(current!=job||sender.session!=target||!(message instanceof JSONObject))return null;
     JSONObject msg=(JSONObject)message;
+    if(msg.has("phase")){android.util.Log.i("HakoGecko","Bridge phase: "+msg.optString("phase")+" ready="+msg.optString("ready")+" hasScript="+msg.optBoolean("hasScript"));return null;}
     if(msg.optBoolean("hello")){
-     try{if(!HakoParser.isOrigin(sender.url)&&!sender.url.equals(b.getString("url")))return null;JSONObject command=new JSONObject();command.put("script",b.getString("script"));return GeckoResult.fromValue(command);}catch(Exception ignored){return null;}
+     boolean approved=HakoParser.isOrigin(sender.url)||b.getString("url").equals(sender.url);
+     android.util.Log.i("HakoGecko","Bridge hello: approved="+approved+" topLevel="+sender.isTopLevel+" scriptChars="+b.getString("script","").length());
+     if(!approved){finish("Địa chỉ trang trích xuất không khớp yêu cầu");return null;}
+     return GeckoResult.fromValue(b.getString("script"));
     }
     if(msg.has("error")){finish(msg.optString("error"));return null;}
     String html=msg.optString("html","");if(html.isEmpty())return null;

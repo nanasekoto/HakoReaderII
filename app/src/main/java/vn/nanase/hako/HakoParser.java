@@ -31,7 +31,9 @@ public final class HakoParser {
       if (!"https".equals(u.getScheme()) && !"http".equals(u.getScheme())) return false;
       String host = u.getHost() == null ? "" : u.getHost().toLowerCase();
       String originHost = URI.create(ORIGIN).getHost() == null ? "" : URI.create(ORIGIN).getHost().toLowerCase();
-      return host.equalsIgnoreCase(originHost) || host.endsWith("hako.vn") || host.endsWith("hako.vip") || host.endsWith("docln.sbs") || host.endsWith("docln.net");
+      if(host.equalsIgnoreCase(originHost))return true;
+      for(String site:new String[]{"hako.vn","hako.vip","docln.sbs","docln.net"})if(host.equals(site)||host.endsWith("."+site))return true;
+      return false;
     } catch (Exception e) {
       return false;
     }

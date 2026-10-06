@@ -20,6 +20,12 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    packaging {
+        // Compress native libraries in the APK, as Firefox does; Android extracts once at install.
+        // Engine startup still maps uncompressed libraries, with no per-read decompression.
+        jniLibs { useLegacyPackaging = true }
+    }
+
     signingConfigs {
         debug {
             storeFile file('../test-signing.p12')
@@ -54,5 +60,4 @@ dependencies {
     implementation 'androidx.core:core:1.12.0'
     implementation 'org.jsoup:jsoup:1.18.3'
 }
-
 
