@@ -190,7 +190,7 @@ public final class Repository {
     }
     if(!HakoParser.validContent(d.body().html()))throw new IOException("Nội dung rỗng");
     synchronized(s){Store.Book owner=s.book(c.book);
-    if(owner!=null&&!FetchPolicy.allowCache(owner.followed,c.book.equals(activeBook),s.isKeepFull(owner.id)))return;
+    if(owner!=null&&!FetchPolicy.allowCache(owner.followed||s.syncTarget(owner),c.book.equals(activeBook),s.isKeepFull(owner.id)))return;
     Store.write(s.html(c.id), d.body().html());
     s.state(c.id, errors == 0, errors == 0 ? "" : "Thiếu " + errors + " ảnh. " + error);}
   }
@@ -279,7 +279,7 @@ public final class Repository {
         if (todo.isEmpty() || (charging && !ChargeJob.isCharging(ctx))) break;
 
         Store.Book b = todo.remove(0);
-        if (b == null || b.id == null || b.id.isEmpty() || !FetchPolicy.allowDownload(b.dropped,mode==MODE_BOOK_ALL && b.id.equals(book))) continue;
+        if (b == null || b.id == null || b.id.isEmpty() || !FetchPolicy.allowDownload(b.dropped,(mode==MODE_BOOK_ALL && b.id.equals(book))||(manualOverride&&s.isKeepFull(b.id)))) continue;
 
         // 1. Refresh catalog FIRST to know real chapter count
         if(mode==MODE_SYNC_LIBRARY)ctx.getSharedPreferences("settings",0).edit().remove("catalog-"+b.id).commit();

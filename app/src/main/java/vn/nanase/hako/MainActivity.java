@@ -98,6 +98,7 @@ public class MainActivity extends Activity {
           public void onReceive(Context c, Intent i) {
             String text = i.getStringExtra("text");
             if (status != null) status.setText(text);
+            if(!bookId.isEmpty()&&chapterId.isEmpty()&&currentList!=null&&currentList.getAdapter() instanceof BaseAdapter)((BaseAdapter)currentList.getAdapter()).notifyDataSetChanged();
             if (syncBadge != null) {
               syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : (Repository.syncPct >= 100 ? "✓ 100%" : (Repository.syncPct + "%")));
             }
@@ -298,7 +299,7 @@ public class MainActivity extends Activity {
         cell.setPadding(dp(2), dp(6), dp(2), dp(6));
 
         IconButton icon=new IconButton(this,iconKinds[j],names[j],false,actions[j]);
-        cell.addView(icon,new LinearLayout.LayoutParams(dp(42),dp(42)));
+        cell.addView(icon,new LinearLayout.LayoutParams(dp(32),dp(32)));
         TextView label=new TextView(this);
         label.setText(names[j]);
         label.setTextSize(15f);
@@ -312,7 +313,7 @@ public class MainActivity extends Activity {
         lpCell.setMargins(dp(3),dp(3),dp(3),dp(3));
         line.addView(cell,lpCell);
       }
-      grid.addView(line,new LinearLayout.LayoutParams(-1,dp(82)));
+      grid.addView(line,new LinearLayout.LayoutParams(-1,dp(88)));
     }
     root.addView(grid,new LinearLayout.LayoutParams(-1,-2));
     Store.Book last=store.book(prefs.getString("lastBook",""));
@@ -949,9 +950,9 @@ public class MainActivity extends Activity {
     LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
     header.addView(new IconButton(this,4,"Quay lại",this::goBack),new LinearLayout.LayoutParams(dp(48),dp(44)));
     header.addView(new IconButton(this,12,"Đọc tiếp",()->openChapter(b.id,target.id)),new LinearLayout.LayoutParams(dp(48),dp(44)));
-    header.addView(new IconButton(this,9,b.pinned?"Bỏ yêu thích":"Thêm yêu thích",()->{store.pin(b.id,!store.book(b.id).pinned);contents(store.book(b.id));}),new LinearLayout.LayoutParams(dp(48),dp(44)));
+    header.addView(new IconButton(this,b.pinned?19:9,b.pinned?"Bỏ yêu thích":"Thêm yêu thích",()->{store.pin(b.id,!store.book(b.id).pinned);contents(store.book(b.id));}),new LinearLayout.LayoutParams(dp(48),dp(44)));
     header.addView(new IconButton(this,18,"Tải toàn bộ",()->startDownloads(b.id,Repository.MODE_BOOK_ALL)),new LinearLayout.LayoutParams(dp(48),dp(44)));
-    header.addView(new IconButton(this,7,"Đến chương đang đọc",()->{if(currentList!=null){for(int i=0;i<currentList.getCount();i++)if(String.valueOf(currentList.getItemAtPosition(i)).contains("[Đang đọc]")){currentList.setSelection(i);break;}}}),new LinearLayout.LayoutParams(dp(48),dp(44)));
+    header.addView(new IconButton(this,7,"Đến chương đang đọc",()->{if(currentList!=null){for(int i=0;i<currentList.getCount();i++){Object item=currentList.getItemAtPosition(i);boolean hit=String.valueOf(item).contains("[Đang đọc]");if(item instanceof VolumeGroup)for(Store.Chapter ch:((VolumeGroup)item).chapters)if(ch.id.equals(target.id))hit=true;if(hit){currentList.setSelection(i);break;}}}}),new LinearLayout.LayoutParams(dp(48),dp(44)));
     header.addView(new IconButton(this,15,"Menu truyện",()->bookMenu(b)),new LinearLayout.LayoutParams(dp(48),dp(44)));
     root.addView(header);
     TextView info=new TextView(this);info.setText(section+" · "+count);info.setTextSize(12);info.setTextColor(MUTED);
@@ -1191,8 +1192,10 @@ public class MainActivity extends Activity {
     list.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, labels) {
       public View getView(int p, View v, ViewGroup parent) {
         TextView t = (TextView) super.getView(p, v, parent);
-        Store.Chapter c = vg.chapters.get(p);
+        Store.Chapter c = store.chapter(b.id,vg.chapters.get(p).id);
         boolean isTarget = c.id.equals(targetCh.id);
+        String actualTitle=p<vg.cleanTitles.size()?vg.cleanTitles.get(p):c.title;
+        t.setText((isTarget?"▶ [Đang đọc] ":store.wasRead(c.id)?"✓ ":"• ")+actualTitle+" · "+(c.ready?"↓✓":store.html(c.id).isFile()?"◐":"↓"));
         t.setTextColor(Color.BLACK);
         t.setTypeface(isTarget ? UI_MEDIUM : UI_REGULAR);
         t.setTextSize(16);

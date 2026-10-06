@@ -24,7 +24,7 @@ public final class IconButton extends View {
   else if(kind==6){c.drawLine(12,1,12,12,p);c.drawArc(3,4,21,23,-55,290,false,p);}
   else if(kind==7){c.drawCircle(12,12,9,p);c.drawLine(12,5,12,12,p);c.drawLine(12,12,17,15,p);}
   else if(kind==8){c.drawArc(3,3,21,21,40,280,false,p);c.drawLine(19,2,21,8,p);c.drawLine(21,8,15,7,p);}
-  else if(kind==9){Path q=new Path();for(int i=0;i<10;i++){double a=-Math.PI/2+i*Math.PI/5;float r=i%2==0?10:4.5f;float x=12+r*(float)Math.cos(a),y=12+r*(float)Math.sin(a);if(i==0)q.moveTo(x,y);else q.lineTo(x,y);}q.close();c.drawPath(q,p);}
+  else if(kind==9||kind==19){if(kind==19)p.setStyle(Paint.Style.FILL);Path q=new Path();for(int i=0;i<10;i++){double a=-Math.PI/2+i*Math.PI/5;float r=i%2==0?10:4.5f;float x=12+r*(float)Math.cos(a),y=12+r*(float)Math.sin(a);if(i==0)q.moveTo(x,y);else q.lineTo(x,y);}q.close();c.drawPath(q,p);}
   else if(kind==10){c.drawCircle(10,10,7,p);c.drawLine(15,15,22,22,p);}
   else if(kind==11){c.drawCircle(12,7,4,p);c.drawArc(3,12,21,28,180,180,false,p);}
   else if(kind==12){Path q=new Path();q.moveTo(7,3);q.lineTo(21,12);q.lineTo(7,21);q.close();c.drawPath(q,p);}

@@ -143,6 +143,9 @@ public class SmokeTest extends Instrumentation {
       call("frequentList",new Class<?>[]{});
       check(find(activity.getWindow().getDecorView(),"FULL 67%")!=null,"Full progress counts missing old chapters instead of false 100 percent");
       check(s.progress(s.book("partial-full")).percent==67,"Stored full progress counts actual whole-book files");
+      s.setKeepFull("partial-full",false);s.state("partial-full-3",false,"");
+      check(s.progress(s.book("partial-full")).percent==50,"NEXT progress uses only required next chapters, not old chapters");
+      s.setKeepFull("partial-full",true);s.state("partial-full-3",true,"");
       shot("favorites-full-progress");
       call("library",new Class<?>[]{});
       call("onlineList",new Class<?>[]{String.class,String.class},"Mới cập nhật (dữ liệu thử)",
@@ -282,6 +285,8 @@ public class SmokeTest extends Instrumentation {
         check(text.getLayout().getLineBottom(lines-1)+text.getCompoundPaddingTop()+text.getCompoundPaddingBottom()<=text.getHeight(),"Long chapter row "+i+" has no vertically clipped text");
       }
       shot("long-chapter-titles");
+      click("Thêm yêu thích");check(s.book("longtoc").pinned&&s.favorite(s.book("longtoc")),"Direct star adds manual favorite");
+      click("Bỏ yêu thích");check(!s.book("longtoc").pinned&&!s.favorite(s.book("longtoc")),"Direct star removes unvisited manual favorite");
       s.putBook(new HakoParser.Link("queue-test","Hàng chờ offline",""));
       List<HakoParser.Link> queuedChs=new ArrayList<>();queuedChs.add(new HakoParser.Link("queue-1","Chương 1",""));s.catalog("queue-test",queuedChs);
       s.queueCaughtUp("queue-test");check(s.queued("queue-test")&&s.canSubmit("queue-test"),"Offline queue persists exact catalog snapshot");
