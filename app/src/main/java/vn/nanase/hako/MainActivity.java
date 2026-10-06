@@ -90,6 +90,7 @@ public class MainActivity extends Activity {
     super.onCreate(state); java.util.TimeZone.setDefault(VN_TZ);
     store = Store.get(this);
     prefs = getSharedPreferences("settings", 0);
+    if(!prefs.getBoolean("auto_wifi_v6",false))prefs.edit().putBoolean("charging",true).putBoolean("auto_wifi_v6",true).commit();
     touchLocked=prefs.getBoolean("touch_lock",false);
     if(!prefs.getBoolean("migrated_font_v3",false)){prefs.edit().putInt("font2",2).putBoolean("migrated_font_v3",true).apply();}
     CookieManager.getInstance().setAcceptCookie(true);
@@ -444,31 +445,9 @@ public class MainActivity extends Activity {
     header.addView(new IconButton(this,0,"Trang chính",this::library), new LinearLayout.LayoutParams(dp(40), dp(38)));
 
     final TextView syncStatus = new TextView(this);
-    IconButton btnSync = new IconButton(this,shelf?8:7,shelf ? "Cập nhật" : "Lịch sử", () -> {
-      if (shelf) {
-        if (isSyncingShelf) return;
-        isSyncingShelf = true;
-        syncStatus.setText("Đang cập nhật tủ sách từ HAKO…");
-        io.execute(() -> {
-          try {
-            Repository.importShelf(this);
-            prefs.edit().putLong("lastShelfSync", System.currentTimeMillis()).apply();
-            isSyncingShelf = false;
-            runOnUiThread(() -> {
-              if (isFinishing()) return;
-              bookList(true);
-            });
-          } catch (Exception e) {
-            isSyncingShelf = false;
-            runOnUiThread(() -> {
-              if (isFinishing()) return;
-              syncStatus.setText("Lỗi cập nhật: " + (e.getMessage() != null ? e.getMessage() : "Mất mạng"));
-            });
-          }
-        });
-      } else {
-        browse(HakoParser.ORIGIN + "/lich-su-doc");
-      }
+    IconButton btnSync = new IconButton(this,shelf?8:7,shelf?"Cập nhật":"Lịch sử",()->{
+      if(shelf){Repository.cancel.set(false);syncStatus.setText("Kiểm tra tủ sách và tải chương mới…");startDownloads("",Repository.MODE_SYNC_LIBRARY);}
+      else browse(HakoParser.ORIGIN+"/lich-su-doc");
     });
     LinearLayout.LayoutParams lpSync = new LinearLayout.LayoutParams(dp(40), dp(38));
     lpSync.setMargins(dp(4), 0, 0, 0);
@@ -518,7 +497,7 @@ public class MainActivity extends Activity {
     syncStatus.setTextColor(MUTED);
     syncStatus.setSingleLine(true);
     syncStatus.setPadding(0, dp(1), 0, 0);
-    topBar.addView(syncStatus);
+    topBar.addView(syncStatus);status=syncStatus;
 
     root.addView(topBar);
 
@@ -750,7 +729,7 @@ public class MainActivity extends Activity {
         badge.setPadding(dp(4), dp(1), dp(4), dp(1));
         LinearLayout.LayoutParams lpBadge = new LinearLayout.LayoutParams(-2, -2);
         lpBadge.setMargins(dp(5), 0, 0, 0);
-        top.addView(badge, lpBadge);
+
         card.addView(top);
 
         StringBuilder sub = new StringBuilder();
@@ -773,8 +752,8 @@ public class MainActivity extends Activity {
         subView.setMaxLines(1);
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
-        subView.setText(subView.getText()+" · "+store.unread(b.id)+" chưa đọc");
-        card.addView(subView);
+        subView.setText(store.unread(b.id)+" chưa đọc · Đã lưu "+newChsDownloaded+"/"+newChsTotal);
+        LinearLayout meta=new LinearLayout(MainActivity.this);meta.setGravity(Gravity.CENTER_VERTICAL);meta.addView(subView,new LinearLayout.LayoutParams(0,-2,1));meta.addView(badge);card.addView(meta);
 
         return card;
       }

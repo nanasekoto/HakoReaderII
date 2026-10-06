@@ -34,7 +34,7 @@ public final class Store extends SQLiteOpenHelper {
 
   public boolean favorite(Book b){return b.pinned||isKeepFull(b.id)||b.visits>=3;}
   public boolean syncTarget(Book b){return !b.id.equals("demo")&&!b.dropped&&(b.stamp>0||favorite(b));}
-  public int unread(String id){int n=0;for(Chapter c:chapters(id))if(!wasRead(c.id))n++;return n;}
+  public int unread(String id){try(Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM chapters c LEFT JOIN read_chapters r ON r.id=c.id WHERE c.book=? AND r.id IS NULL",new String[]{id})){return c.moveToFirst()?c.getInt(0):0;}}
   public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
   public synchronized void queueCaughtUp(String id){
     org.json.JSONArray ids=new org.json.JSONArray();
@@ -119,7 +119,7 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void selectChapter(String id,String chapter){Book b=book(id);if(b!=null&&!chapter.equals(b.current)){ContentValues v=new ContentValues();v.put("current",chapter);v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}}
   public synchronized void visited(String id){getWritableDatabase().execSQL("UPDATE books SET visits=visits+1 WHERE id=?",new Object[]{id});}
   public synchronized void pin(String id,boolean value){getWritableDatabase().execSQL("UPDATE books SET pinned=? WHERE id=?",new Object[]{value?1:0,id});}
-  public synchronized void readChapter(String id){ContentValues v=new ContentValues();v.put("id",id);v.put("stamp",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("read_chapters",null,v,SQLiteDatabase.CONFLICT_REPLACE);}
+  public synchronized void readChapter(String id){if(wasRead(id))return;ContentValues v=new ContentValues();v.put("id",id);v.put("stamp",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("read_chapters",null,v,SQLiteDatabase.CONFLICT_REPLACE);}
   public boolean wasRead(String id){try(Cursor c=getReadableDatabase().rawQuery("SELECT id FROM read_chapters WHERE id=?",new String[]{id})){return c.moveToFirst();}}
   public synchronized void shelfInfo(String id,String info){ContentValues v=new ContentValues();v.put("shelf_info",info);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   public static class Book {

@@ -19,17 +19,18 @@ public final class ReadSync extends JobService {
     return b;
   }
   public static void schedule(Context c){
-    if(Store.get(c).queuedBooks().isEmpty())return;
+    Store store=Store.get(c);boolean eligible=false;for(String id:store.queuedBooks())if(store.canSubmit(id))eligible=true;if(!eligible)return;
     JobScheduler s=c.getSystemService(JobScheduler.class);
     if(s.getPendingJob(42)==null)s.schedule(wifiJob(c,42,ReadSync.class).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());
   }
   private static final Object mutex=new Object();
   public static boolean process(Context c){
     synchronized(mutex){
+      if(Repository.busy.get())return true;
       if(!wifi(c))return false;
       Store s=Store.get(c);boolean retry=false;
       for(String id:s.queuedBooks()){
-        Store.Book b=s.book(id);if(b==null||id.equals("demo"))continue;
+        Store.Book b=s.book(id);if(b==null||id.equals("demo")||!s.canSubmit(id))continue;
         try{
           Repository.allowed(c);
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();

@@ -297,6 +297,15 @@ public class SmokeTest extends Instrumentation {
       check(charging.isRequireCharging()&&charging.getRequiredNetwork()!=null&&charging.getRequiredNetwork().hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI),"Automatic sync requires charging plus Wi-Fi");
       s.setKeepFull("demo",true);s.position("demo","demo-10",0,0);s.prune(s.book("demo"));
       check(s.html("demo-2").exists(),"Full offline mode retains old cached chapters");
+      for(Store.Book book:s.books())if(!book.id.equals("partial-full"))s.dropped(book.id,true);
+      s.putBook(new HakoParser.Link("weighted","Truyện kiểm tra tổng tiến độ",""));s.setKeepFull("weighted",true);
+      List<HakoParser.Link> weighted=new ArrayList<>();for(int n=1;n<=9;n++)weighted.add(new HakoParser.Link("weighted-"+n,"Chương "+n,""));s.catalog("weighted",weighted);
+      String offlineText="<p>Nội dung thử đủ dài để kiểm chứng tiến độ tải ngoại tuyến, không lấy dữ liệu truyện trên web.</p>";
+      Store.write(s.html("weighted-1"),offlineText);s.state("weighted-1",true,"");
+      check(s.totalOfflinePercent()==25,"Aggregate weights chapter counts: 3 of 12 equals 25 percent");
+      Store.write(s.html("partial-full-1"),offlineText);s.state("partial-full-1",true,"");for(int n=2;n<=9;n++){Store.write(s.html("weighted-"+n),offlineText);s.state("weighted-"+n,true,"");}
+      ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",false).commit();check(s.totalOfflinePercent()==99,"Complete files without verified refresh do not claim offline-ready 100");
+      ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",true).commit();check(s.totalOfflinePercent()==100,"Verified complete required scope reaches aggregate 100");
       result.putString("stream",log+(failures==0?"PASS TOTAL ":"FAIL TOTAL ")+checks+" Android checks; failures="+failures+"\n");
       finish(failures==0?Activity.RESULT_OK:Activity.RESULT_CANCELED,result);
     } catch(Throwable e) {

@@ -117,6 +117,7 @@ public final class Repository {
       Thread.sleep(2000);
     }
     s.replaceShelf(collected);
+    ctx.getSharedPreferences("settings",0).edit().putLong("lastShelfSync",System.currentTimeMillis()).apply();
     notify(ctx, "Đã nhập " + count + " mục từ kệ sách. Chưa tải hàng loạt nội dung.");
   }
 
@@ -358,7 +359,7 @@ public final class Repository {
       }
 
       if(mode==MODE_SYNC_LIBRARY&&!cancel.get()&&!pauseAutomatic(charging)&&todo.isEmpty())ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",true).commit();
-      ReadSync.process(ctx);
+
       int remaining = 0;
       if (syncTotal > 0 && syncDone < syncTotal) remaining = syncTotal - syncDone;
       if (syncTotal > 0 && remaining == 0) {
@@ -379,6 +380,7 @@ public final class Repository {
     } finally {
       syncPct=Store.get(ctx).totalOfflinePercent();
       busy.set(false);
+      ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}
       pendingBook = "";
       pendingAll = false;
