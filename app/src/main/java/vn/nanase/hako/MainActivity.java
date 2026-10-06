@@ -260,7 +260,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.3",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.4",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -1532,6 +1532,22 @@ public class MainActivity extends Activity {
 
   private String readerFont(){int n=prefs.getInt("font2",0);return n==1?"DejaVu,serif":n==2?"sans-serif":n==3?"ReaderCustom,serif":"Tinos,serif";}
   private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setView(input).setPositiveButton("Kiểm tra",(d,w)->{String value=input.getText().toString().trim();if(!value.startsWith("https://"))value="https://"+value;final String origin=value.replaceAll("/+$","");try{java.net.URI u=java.net.URI.create(origin);if(u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty())throw new Exception();}catch(Exception e){message("Chỉ nhập tên miền HTTPS, không có đường dẫn.");return;}task("Kiểm tra tên miền…",()->{String h=Repository.page(origin,false);if(!h.contains("Light Novel")&&!h.contains("HAKO"))throw new Exception("Không nhận diện trang HAKO");return null;},()->{Repository.cancel.set(true);HakoParser.ORIGIN=origin;prefs.edit().putString("origin",origin).apply();store.rebase(origin);message("Đã đổi tên miền. Đăng nhập lại nếu cần.");});}).setNegativeButton("Hủy",null).show();}
+  private void webViewInfo(){
+    android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
+    String info="WebView đang dùng\n"+
+      "Gói: "+(provider==null?"Không xác định":provider.packageName)+"\n"+
+      "Phiên bản: "+(provider==null?"Không xác định":provider.versionName)+"\n\n"+
+      "Thiết bị: "+Build.MANUFACTURER+" "+Build.MODEL+"\n"+
+      "Android: "+Build.VERSION.RELEASE+" (API "+Build.VERSION.SDK_INT+")\n"+
+      "CPU hỗ trợ: "+android.text.TextUtils.join(", ",Build.SUPPORTED_ABIS)+"\n"+
+      "CPU 32-bit: "+android.text.TextUtils.join(", ",Build.SUPPORTED_32_BIT_ABIS)+"\n"+
+      "CPU 64-bit: "+android.text.TextUtils.join(", ",Build.SUPPORTED_64_BIT_ABIS);
+    new AlertDialog.Builder(this).setTitle("Thông tin WebView & thiết bị").setMessage(info)
+      .setPositiveButton("Đóng",null).setNeutralButton("Sao chép",(d,w)->{
+        android.content.ClipboardManager clip=getSystemService(android.content.ClipboardManager.class);
+        clip.setPrimaryClip(ClipData.newPlainText("WebView & thiết bị",info));
+      }).show();
+  }
   private void settings(){
     LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(10),0,dp(10),0);
     box.addView(text("Phông chữ đọc sách (chạm để chọn):",14));
@@ -1566,6 +1582,7 @@ public class MainActivity extends Activity {
     CheckBox taps=check("Chạm trên/dưới để lật trang",prefs.getBoolean("taps",true));box.addView(taps);CheckBox charging=check("Đồng bộ tủ sách khi sạc",prefs.getBoolean("charging",true));box.addView(charging);CheckBox touchLockBox=check("Khóa cảm ứng khi đọc (chống chạm túi, chỉ mở bằng phím cứng)",prefs.getBoolean("touch_lock",false));box.addView(touchLockBox);
     box.addView(button("Nhập font TTF / OTF",()->startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),88)));
     box.addView(button("Tài khoản HAKO",()->browse(HakoParser.ORIGIN+"/login")));
+    box.addView(button("Thông tin WebView & thiết bị",this::webViewInfo));
     box.addView(button("Tên miền HAKO",this::domain));box.addView(button("Đọc mẫu offline",this::demo));
     box.addView(text("Tải trước 1–2: chờ 4s; 3–5: 12s; 6–10: 30s; 11–15: 60s. Khóa hoặc rời app: dừng tải tự động sau chương đang tải khi dùng pin. Tải full thủ công vẫn tiếp tục. Đọc bản lưu không cần chạy trang HAKO.",12));
     ScrollView scroll=new ScrollView(this);scroll.addView(box);
@@ -1595,7 +1612,7 @@ public class MainActivity extends Activity {
 
   private void help() {
     new AlertDialog.Builder(this)
-        .setTitle("Hako Pocket 0.6.3 • Bản thử nghiệm")
+        .setTitle("Hako Pocket 0.6.4 • Bản thử nghiệm")
         .setMessage(
             "Đăng nhập HAKO → Nhập kệ sách → chọn truyện → chọn chương.\n\n"
                 + "✓ là chương có đủ nội dung/ảnh. ◐ là đã có chữ nhưng thiếu ảnh. Nhấn giữ truyện"

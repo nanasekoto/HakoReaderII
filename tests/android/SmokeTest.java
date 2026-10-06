@@ -132,7 +132,7 @@ public class SmokeTest extends Instrumentation {
         s.followed(id,true,i); s.position(id,"",0,0); s.visited(id);s.visited(id);s.visited(id);
       }
       activity=(MainActivity)startActivitySync(new Intent().setClassName("vn.nanase.hako","vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));settle();
-      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.6.3"),"Installed version 0.6.3 (behavior fix)");
+      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.6.4"),"Installed version 0.6.4 (behavior fix)");
       View homeLabel=find(activity.getWindow().getDecorView(),"Vừa đọc");
       LinearLayout homeCell=(LinearLayout)homeLabel.getParent();
       LinearLayout homeRow=(LinearLayout)homeCell.getParent();
@@ -149,6 +149,13 @@ public class SmokeTest extends Instrumentation {
         check(!WebSession.challengeFrame(android.net.Uri.parse("https://challenges.cloudflare.com.evil.test/")),"Challenge hostname matching is exact");
         verify.destroy();
       });
+      call("webViewInfo",new Class<?>[]{});
+      View infoCopy=find(activity.getWindow().getDecorView(),"Sao chép");
+      // Dialogs have their own window; inspect through the current accessibility tree.
+      android.view.accessibility.AccessibilityNodeInfo infoRoot=getUiAutomation().getRootInActiveWindow();
+      check(infoRoot!=null && !infoRoot.findAccessibilityNodeInfosByText("CPU hỗ trợ:").isEmpty(),"Device dialog displays supported CPU ABIs");
+      check(infoRoot!=null && !infoRoot.findAccessibilityNodeInfosByText("Gói:").isEmpty(),"Device dialog displays active WebView package");
+      press(KeyEvent.KEYCODE_BACK);
       shot("home"); listCheck("Vừa đọc"); listCheck("Tủ sách"); listCheck("Yêu thích");
       s.putBook(new HakoParser.Link("partial-full","Bộ tải full còn thiếu chương cũ", ""));
       List<HakoParser.Link> partialLinks=new ArrayList<>();
