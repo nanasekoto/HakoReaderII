@@ -9,13 +9,21 @@ public final class GeckoClient {
  private static final Handler ui=new Handler(Looper.getMainLooper());
  private static Context app;private static volatile Messenger server;private static ServiceConnection connection;
  public static volatile boolean authenticating;
+ // Gecko shuts its host down before the crash-helper process exits. Cleanup must
+ // run in the surviving native process, once, after graceful engine shutdown.
+ private static final Runnable cleanup=()->{
+  if(app==null||connection!=null||authenticating)return;
+  java.util.List<android.app.ActivityManager.RunningAppProcessInfo> processes=app.getSystemService(android.app.ActivityManager.class).getRunningAppProcesses();
+  if(processes!=null)for(android.app.ActivityManager.RunningAppProcessInfo p:processes)
+   if(p.uid==android.os.Process.myUid()&&p.processName.startsWith(app.getPackageName()+":"))android.os.Process.killProcess(p.pid);
+ };
  private static final AtomicInteger ids=new AtomicInteger();
  public static void init(Context c){app=c.getApplicationContext();}
  private static void connect()throws Exception{
   if(server!=null)return;
   if(connection!=null)release();
   CountDownLatch ready=new CountDownLatch(1);AtomicReference<String> error=new AtomicReference<>();
-  ui.post(()->{connection=new ServiceConnection(){
+  ui.post(()->{ui.removeCallbacks(cleanup);connection=new ServiceConnection(){
    public void onServiceConnected(ComponentName n,IBinder b){server=new Messenger(b);ready.countDown();}
    public void onServiceDisconnected(ComponentName n){server=null;}
    public void onNullBinding(ComponentName n){error.set("Không mở được Gecko");ready.countDown();}
@@ -41,6 +49,6 @@ public final class GeckoClient {
  }
  public static synchronized void release(){
   ServiceConnection old=connection;connection=null;server=null;
-  if(old!=null)ui.post(()->{try{app.unbindService(old);}catch(Exception ignored){}});
+  ui.post(()->{if(old!=null)try{app.unbindService(old);}catch(Exception ignored){}ui.removeCallbacks(cleanup);ui.postDelayed(cleanup,8000);});
  }
 }

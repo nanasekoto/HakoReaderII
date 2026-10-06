@@ -1594,7 +1594,7 @@ public class MainActivity extends Activity {
 
   protected void onActivityResult(int req, int result, Intent data) {
     super.onActivityResult(req, result, data);
-    if(req==91){GeckoClient.authenticating=false;Repository.cancel.set(false);if(result==RESULT_OK&&data!=null){
+    if(req==91){GeckoClient.authenticating=false;GeckoClient.release();Repository.cancel.set(false);if(result==RESULT_OK&&data!=null){
       if(HakoParser.isOrigin(data.getStringExtra("url")))prefs.edit().remove("cooldownUntil").apply();
       try{JSONArray list=new JSONArray(data.getStringExtra("history"));for(int n=0;n<list.length();n++){JSONObject h=list.getJSONObject(n);String u=HakoParser.normalize(h.optString("series_url")),id=HakoParser.storyId(u),cid=HakoParser.chapterId(h.optString("chapter_url"));if(!id.isEmpty()&&!cid.isEmpty()){store.putBook(new HakoParser.Link(id,h.optString("series_title","Truyện"),u));store.importHistory(id,cid,h.optLong("read_time")*1000);}}}catch(Exception ignored){}
       if(data.getBooleanExtra("read",false)){String u=data.getStringExtra("url");if(u!=null&&!HakoParser.storyId(HakoParser.storyUrl(u)).isEmpty())addUrl(u);else message("Mở truyện hoặc chương trước khi chọn Đọc offline.");}
