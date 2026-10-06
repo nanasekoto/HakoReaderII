@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
   private static boolean isSyncingShelf = false;
   private TextView status, title, syncBadge;
   private WebView web;
+  private AlertDialog settingsDialog;
   private NativeReader nativeReader;
   private ListView currentList;
   private ScrollView currentScroll;
@@ -259,7 +260,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.2",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.3",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -1469,6 +1470,7 @@ public class MainActivity extends Activity {
     if(web==null){after.run();return;}web.evaluateJavascript("localStorage.getItem('reading_series')",value->{try{Object raw=new JSONTokener(value).nextValue();if(raw instanceof String){JSONArray list=new JSONArray((String)raw);for(int i=0;i<list.length();i++){JSONObject h=list.getJSONObject(i);String u=HakoParser.normalize(h.optString("series_url")),id=HakoParser.storyId(u),cu=HakoParser.normalize(h.optString("chapter_url")),cid=HakoParser.chapterId(cu);if(id.isEmpty()||cid.isEmpty())continue;store.putBook(new HakoParser.Link(id,h.optString("series_title","Truyện"),u));store.importHistory(id,cid,h.optLong("read_time")*1000);}}}catch(Exception ignored){}after.run();});
   }
   private void browse(String url) {
+    if(settingsDialog!=null){settingsDialog.dismiss();settingsDialog=null;}
     Repository.cancel.set(true);leaveReader();reset();
     online = true;
     root.addView(text("HAKO • Đăng nhập trực tiếp trên website", 15));
@@ -1492,6 +1494,7 @@ public class MainActivity extends Activity {
         });
     status();
     web = new WebView(this);
+    WebSession.configure(web);
     WebSettings s = web.getSettings();
     s.setJavaScriptEnabled(true);
     s.setDomStorageEnabled(true);
@@ -1504,6 +1507,7 @@ public class MainActivity extends Activity {
     web.setWebViewClient(
         new WebViewClient() {
           public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+            if(!r.isForMainFrame() && WebSession.challengeFrame(r.getUrl()))return false;
             String h = r.getUrl().getHost();
             if ("https".equals(r.getUrl().getScheme()) && HakoParser.isOrigin(r.getUrl().toString())) return false;
             message(
@@ -1514,7 +1518,7 @@ public class MainActivity extends Activity {
 
           public void onPageFinished(WebView v, String u) {
             CookieManager.getInstance().flush();
-            if (status != null) status.setText("Mở truyện/chương → Đọc offline. Theo dõi bằng nút trên HAKO.");
+            if (status != null) status.setText("WebView " + WebSession.version() + " · Nếu xác minh lặp lại, không tải lại liên tục.");
           }
 
           public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError err) {
@@ -1565,7 +1569,7 @@ public class MainActivity extends Activity {
     box.addView(button("Tên miền HAKO",this::domain));box.addView(button("Đọc mẫu offline",this::demo));
     box.addView(text("Tải trước 1–2: chờ 4s; 3–5: 12s; 6–10: 30s; 11–15: 60s. Khóa hoặc rời app: dừng tải tự động sau chương đang tải khi dùng pin. Tải full thủ công vẫn tiếp tục. Đọc bản lưu không cần chạy trang HAKO.",12));
     ScrollView scroll=new ScrollView(this);scroll.addView(box);
-    new AlertDialog.Builder(this).setTitle("Chữ & tải nội dung").setView(scroll).setPositiveButton("Áp dụng",(d,w)->{
+    settingsDialog = new AlertDialog.Builder(this).setTitle("Chữ & tải nội dung").setView(scroll).setPositiveButton("Áp dụng",(d,w)->{
       if(fonts.getSelectedItemPosition()==5&&!new File(getFilesDir(),"reader-font.ttf").isFile()){message("Chưa nhập font. Đang giữ lựa chọn cũ.");return;}
       float ls=Math.round((0.70f+line.getProgress()*0.05f)*100f)/100f;
       int pDp=para.getProgress()*2;
@@ -1591,7 +1595,7 @@ public class MainActivity extends Activity {
 
   private void help() {
     new AlertDialog.Builder(this)
-        .setTitle("Hako Pocket 0.6.2 • Bản thử nghiệm")
+        .setTitle("Hako Pocket 0.6.3 • Bản thử nghiệm")
         .setMessage(
             "Đăng nhập HAKO → Nhập kệ sách → chọn truyện → chọn chương.\n\n"
                 + "✓ là chương có đủ nội dung/ảnh. ◐ là đã có chữ nhưng thiếu ảnh. Nhấn giữ truyện"

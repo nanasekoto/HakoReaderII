@@ -36,7 +36,7 @@ public final class RenderedPage {
   ui.post(()->{
    if(finished.get())return;
    try{
-    WebView w=new WebView(context.getApplicationContext());holder.set(w);
+    WebView w=new WebView(context.getApplicationContext());holder.set(w);WebSession.configure(w);
     WebSettings s=w.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);
     s.setAllowFileAccess(false);s.setAllowContentAccess(false);s.setBlockNetworkImage(true);
     s.setMediaPlaybackRequiresUserGesture(true);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -44,6 +44,7 @@ public final class RenderedPage {
     w.setWebViewClient(new WebViewClient(){
      void fail(String msg){error.compareAndSet(null,msg);if(finished.compareAndSet(false,true))done.countDown();}
      public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest r){
+      if(!r.isForMainFrame()&&WebSession.challengeFrame(r.getUrl()))return false;
       if(!HakoParser.isOrigin(r.getUrl().toString())){fail("Trang chuyển sang tên miền khác. Kiểm tra Cài đặt tên miền.");return true;}return false;
      }
      public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest r){

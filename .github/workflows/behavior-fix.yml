@@ -1,4 +1,4 @@
-name: Verify behavior fix 0.6.2
+name: Verify behavior fix 0.6.3
 on:
   push:
     branches: [ 'codex/behavior-fix-051' ]
@@ -39,10 +39,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Hako-0.6.2-behavior-evidence
+          name: Hako-0.6.3-behavior-evidence
           path: build/evidence/
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: Hako-0.6.2-tested-APK
+          name: Hako-0.6.3-tested-APK
           path: app/build/outputs/apk/debug/app-debug.apk
