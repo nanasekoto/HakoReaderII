@@ -95,9 +95,34 @@ public final class NativeReader extends View {
     }
    }
   }
+  // Normalize HTML emphasis for E-ink without changing the user's base reading face/size.
+  for(StyleSpan span:text.getSpans(0,text.length(),StyleSpan.class)){
+   if((span.getStyle()&Typeface.BOLD)!=0){
+    int a=text.getSpanStart(span),b=text.getSpanEnd(span),flags=text.getSpanFlags(span);
+    boolean italic=(span.getStyle()&Typeface.ITALIC)!=0;
+    text.removeSpan(span);text.setSpan(new SoftEmphasis(italic),a,b,flags);
+   }
+  }
+  for(RelativeSizeSpan span:text.getSpans(0,text.length(),RelativeSizeSpan.class)){
+   if(span.getSizeChange()>1.15f){
+    int a=text.getSpanStart(span),b=text.getSpanEnd(span),flags=text.getSpanFlags(span);
+    text.removeSpan(span);text.setSpan(new RelativeSizeSpan(1.15f),a,b,flags);
+   }
+  }
   if(anchors.isEmpty()){anchors.add(0);text.append(body.text().trim().isEmpty()?"Chương chưa có nội dung hoặc đang tải...":body.text());}
   for(URLSpan span:text.getSpans(0,text.length(),URLSpan.class)){String n=notes.get(span.getURL());if(n!=null){int a=text.getSpanStart(span),b=text.getSpanEnd(span);text.removeSpan(span);text.setSpan(new Note(n),a,b,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);}}
   if(getWidth()>0&&getHeight()>0)reflow();else requestLayout();
+ }
+ private static final class SoftEmphasis extends MetricAffectingSpan {
+  private final boolean italic;
+  SoftEmphasis(boolean italic){this.italic=italic;}
+  private void apply(android.text.TextPaint p){
+   Typeface base=p.getTypeface();if(base==null)base=Typeface.DEFAULT;
+   boolean slant=italic || (base.getStyle()&Typeface.ITALIC)!=0;
+   p.setTypeface(Typeface.create(base,500,slant));p.setFakeBoldText(false);
+  }
+  public void updateDrawState(android.text.TextPaint p){apply(p);}
+  public void updateMeasureState(android.text.TextPaint p){apply(p);}
  }
  private Drawable image(String source){
   try{String name=android.net.Uri.parse(source).getLastPathSegment();if(name==null||!name.matches("image-[a-f0-9]+\\.bin"))return null;

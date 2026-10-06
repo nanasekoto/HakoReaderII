@@ -163,6 +163,12 @@ public class SmokeTest extends Instrumentation {
       click("Đọc mẫu");
       NativeReader reader=(NativeReader)field(activity,"nativeReader");
       check(reader!=null && reader.getPageCount()>1,"Demo opens native reader with multiple pages");
+      android.text.Spanned rendered=(android.text.Spanned)field(reader,"text");
+      boolean heavy=false,large=false;
+      for(android.text.style.StyleSpan span:rendered.getSpans(0,rendered.length(),android.text.style.StyleSpan.class))if((span.getStyle()&android.graphics.Typeface.BOLD)!=0)heavy=true;
+      for(android.text.style.RelativeSizeSpan span:rendered.getSpans(0,rendered.length(),android.text.style.RelativeSizeSpan.class))if(span.getSizeChange()>1.15f)large=true;
+      check(!heavy,"HTML bold uses moderate emphasis instead of default 700 weight");
+      check(!large,"HTML chapter heading scale is capped at 1.15 of reading size");
       shot("reader");
       int before=(Integer)field(reader,"page"); press(KeyEvent.KEYCODE_VOLUME_DOWN);
       check((Integer)field(reader,"page")==before+1,"Volume down turns exactly one page");

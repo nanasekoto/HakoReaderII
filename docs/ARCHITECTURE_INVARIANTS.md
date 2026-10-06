@@ -74,7 +74,7 @@ Tài liệu này lưu trữ toàn bộ các nguyên nhân gốc rễ và quy chu
 
 ## 0.5.3 — visual weight and quiescent reading
 
-- UI titles use system sans-serif weight 500, 16sp; headings 18sp. Body reader fonts/size chosen by the user are retained. Large icon geometry remains, strokes are 1.35 vector units; card borders 1dp.
+- UI titles use system sans-serif weight 500, 16sp; headings 18sp. Body reader fonts/size chosen by the user are retained. HTML bold is normalized to weight 500, preserving italics; oversized HTML headings are capped at 1.15× the base reading size. Large icon geometry remains, strokes are 1.35 vector units; card borders 1dp.
 - No lock text overlay. Native reader footer remains the lock indicator. Touch and Menu/Enter are consumed while locked. Android notification shade is outside this lock; ordinary app privileges cannot disable it. No global overlay or fake kiosk lock is installed.
 - On battery, locking or leaving the Activity pauses automatic downloads after the in-flight chapter. Manual full/sync requests and charging jobs remain explicit exceptions. Unlock does not start a new network request itself.
 - DownloadService waits on completion notification instead of polling every 500ms. No app wake lock or forced screen-on flag. WebView browsing is paused on Activity pause; native cached reading has no refresh timer.
