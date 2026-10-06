@@ -1,0 +1,42 @@
+package vn.nanase.hako;
+import android.content.*;
+import android.os.*;
+import java.io.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
+/** Serialized IPC. Gecko lives outside the native reader process. */
+public final class GeckoClient {
+ private static final Handler ui=new Handler(Looper.getMainLooper());
+ private static Context app;private static Messenger server;private static ServiceConnection connection;
+ private static final AtomicInteger ids=new AtomicInteger();
+ public static void init(Context c){app=c.getApplicationContext();}
+ private static void connect()throws Exception{
+  if(server!=null)return;
+  CountDownLatch ready=new CountDownLatch(1);AtomicReference<String> error=new AtomicReference<>();
+  ui.post(()->{connection=new ServiceConnection(){
+   public void onServiceConnected(ComponentName n,IBinder b){server=new Messenger(b);ready.countDown();}
+   public void onServiceDisconnected(ComponentName n){server=null;}
+   public void onNullBinding(ComponentName n){error.set("Không mở được Gecko");ready.countDown();}
+  };if(!app.bindService(new Intent(app,GeckoEngineService.class),connection,Context.BIND_AUTO_CREATE)){error.set("Không khởi động được Gecko");ready.countDown();}});
+  if(!ready.await(30,TimeUnit.SECONDS)||server==null)throw new IOException(error.get()==null?"Gecko khởi động quá lâu":error.get());
+ }
+ public static synchronized byte[] request(String url,String script,int max)throws Exception{
+  if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");
+  if(app==null)throw new IOException("Chưa khởi tạo Gecko");
+  File output=File.createTempFile("gecko-",".tmp",app.getCacheDir());
+  try{
+   connect();CountDownLatch done=new CountDownLatch(1);AtomicReference<String> error=new AtomicReference<>();
+   int id=ids.incrementAndGet();Messenger reply=new Messenger(new Handler(Looper.getMainLooper()){public void handleMessage(Message m){if(m.arg1==id){error.set(m.getData().getString("error"));done.countDown();}}});
+   Bundle b=new Bundle();b.putString("url",url);b.putString("script",script);b.putString("file",output.getAbsolutePath());b.putInt("max",max);
+   Message msg=Message.obtain(null,1);msg.arg1=id;msg.replyTo=reply;msg.setData(b);server.send(msg);
+   long end=SystemClock.elapsedRealtime()+60000;
+   while(!done.await(250,TimeUnit.MILLISECONDS)){if(Repository.cancel.get())throw new IOException("Đã dừng tải");if(SystemClock.elapsedRealtime()>end)throw new IOException("Gecko quá thời gian chờ");}
+   if(error.get()!=null)throw new IOException(error.get());
+   try(InputStream in=new FileInputStream(output);ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buf=new byte[8192];int n,total=0;while((n=in.read(buf))!=-1){total+=n;if(total>max)throw new IOException("Tài nguyên quá lớn");out.write(buf,0,n);}return out.toByteArray();}
+  }finally{output.delete();if(!Repository.busy.get())release();}
+ }
+ public static synchronized void release(){
+  ServiceConnection old=connection;connection=null;server=null;
+  if(old!=null)ui.post(()->{try{app.unbindService(old);}catch(Exception ignored){}});
+ }
+}

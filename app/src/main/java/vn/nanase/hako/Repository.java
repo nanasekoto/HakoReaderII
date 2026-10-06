@@ -12,7 +12,7 @@ import org.jsoup.nodes.*;
 public final class Repository {
   private static Context app;
   private static String userAgent="HakoPocket/0.3";
-  public static void init(Context c){app=c.getApplicationContext();userAgent=android.webkit.WebSettings.getDefaultUserAgent(c);HakoParser.ORIGIN=c.getSharedPreferences("settings",0).getString("origin","https://docln.sbs");}
+  public static void init(Context c){app=c.getApplicationContext();GeckoClient.init(c);HakoParser.ORIGIN=c.getSharedPreferences("settings",0).getString("origin","https://docln.sbs");}
   public static volatile String activeBook="";
   public static volatile boolean pocketPaused=false;
   public static void awaitIdle() throws InterruptedException {
@@ -46,41 +46,8 @@ public final class Repository {
     if (!"https".equals(u.getProtocol())) throw new IOException("Chỉ hỗ trợ HTTPS");
     if (authenticated && !HakoParser.isOrigin(url))
       throw new IOException("Sai máy chủ đăng nhập");
-    HttpURLConnection con = (HttpURLConnection) u.openConnection();
-    con.setConnectTimeout(15000);
-    con.setReadTimeout(20000);
-    con.setInstanceFollowRedirects(false);
-    con.setRequestProperty("User-Agent",userAgent);
-    con.setRequestProperty("Referer",HakoParser.ORIGIN+"/");
-    if (authenticated) {
-      String cookies = CookieManager.getInstance().getCookie(HakoParser.ORIGIN);
-      if (cookies != null) con.setRequestProperty("Cookie", cookies);
-    }
-    try {
-      int code = con.getResponseCode();
-      if (code >= 300 && code < 400)
-        throw new IOException(
-            authenticated
-                ? "Phiên hết hạn hoặc trang chuyển hướng. Mở HAKO để đăng nhập lại."
-                : "Trang chuyển hướng. Hãy mở HAKO để kiểm tra đường dẫn.");
-      if (code == 403 || code == 429) {
-        if(app!=null)cooldown(app,30*60*1000L);throw new IOException(
-            "HAKO giới hạn truy cập (" + code + "). Đã dừng tải; hãy thử lại sau.");}
-      if (code != 200) throw new IOException("Máy chủ trả lỗi " + code);
-      try (InputStream in = con.getInputStream();
-          ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-        byte[] b = new byte[8192];
-        int n, total = 0;
-        while ((n = in.read(b)) != -1) {
-          total += n;
-          if (total > max) throw new IOException("Tài nguyên quá lớn");
-          out.write(b, 0, n);
-        }
-        return out.toByteArray();
-      }
-    } finally {
-      con.disconnect();
-    }
+    if(app==null)throw new IOException("Chưa khởi tạo app");
+    return GeckoClient.request(url,null,max);
   }
 
   public static String page(String u, boolean auth) throws Exception {
@@ -393,7 +360,7 @@ public final class Repository {
       }
     } finally {
       syncPct=Store.get(ctx).totalOfflinePercent();
-      busy.set(false);
+      busy.set(false);GeckoClient.release();
       ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}
       pendingBook = "";
@@ -415,4 +382,5 @@ public final class Repository {
     return true;
   }
 }
+
 

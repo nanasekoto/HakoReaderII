@@ -132,7 +132,7 @@ public class SmokeTest extends Instrumentation {
         s.followed(id,true,i); s.position(id,"",0,0); s.visited(id);s.visited(id);s.visited(id);
       }
       activity=(MainActivity)startActivitySync(new Intent().setClassName("vn.nanase.hako","vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));settle();
-      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.6.4"),"Installed version 0.6.4 (behavior fix)");
+      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.7.0"),"Installed version 0.7.0 (behavior fix)");
       View homeLabel=find(activity.getWindow().getDecorView(),"Vừa đọc");
       LinearLayout homeCell=(LinearLayout)homeLabel.getParent();
       LinearLayout homeRow=(LinearLayout)homeCell.getParent();
@@ -348,3 +348,4 @@ public class SmokeTest extends Instrumentation {
     }
   }
 }
+

@@ -117,7 +117,7 @@ public class MainActivity extends Activity {
     networkCallback=new android.net.ConnectivityManager.NetworkCallback(){public void onAvailable(android.net.Network n){ReadSync.schedule(MainActivity.this);if(ChargeJob.isCharging(MainActivity.this))ChargeJob.kick(MainActivity.this);}};
     getSystemService(android.net.ConnectivityManager.class).registerDefaultNetworkCallback(networkCallback);
     HakoParser.ORIGIN=prefs.getString("origin","https://docln.sbs");
-    Repository.init(this);
+    Repository.init(this);GeckoClient.init(this);
     Repository.syncPct=store.totalOfflinePercent();
     io.execute(()->store.cleanStartup());
     library();
@@ -260,7 +260,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.4",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.0 Lite",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -1471,63 +1471,8 @@ public class MainActivity extends Activity {
   }
   private void browse(String url) {
     if(settingsDialog!=null){settingsDialog.dismiss();settingsDialog=null;}
-    Repository.cancel.set(true);leaveReader();reset();
-    online = true;
-    root.addView(text("HAKO • Đăng nhập trực tiếp trên website", 15));
-    row(
-        new String[] {"Trang chính", "Tủ sách", "Đọc offline"},
-        new Runnable[] {
-          () -> {
-            CookieManager.getInstance().flush();
-            importWebHistory(this::library);
-          },
-          () -> web.loadUrl(HakoParser.ORIGIN + "/ke-sach"),
-          () -> {
-            String u = web.getUrl();
-            if (HakoParser.storyId(HakoParser.storyUrl(u == null ? "" : u)).isEmpty()) {
-              message("Mở trang truyện hoặc chương rồi bấm Lưu truyện này.");
-              return;
-            }
-            library();
-            addUrl(u);
-          }
-        });
-    status();
-    web = new WebView(this);
-    WebSession.configure(web);
-    WebSettings s = web.getSettings();
-    s.setJavaScriptEnabled(true);
-    s.setDomStorageEnabled(true);
-    s.setAllowFileAccess(false);
-    s.setAllowContentAccess(false);
-    s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-    s.setSupportMultipleWindows(false);
-    s.setJavaScriptCanOpenWindowsAutomatically(false);
-    web.setWebChromeClient(new WebChromeClient());
-    web.setWebViewClient(
-        new WebViewClient() {
-          public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
-            if(!r.isForMainFrame() && WebSession.challengeFrame(r.getUrl()))return false;
-            String h = r.getUrl().getHost();
-            if ("https".equals(r.getUrl().getScheme()) && HakoParser.isOrigin(r.getUrl().toString())) return false;
-            message(
-                "Liên kết ngoài HAKO không mở trong ứng dụng này. Đăng nhập bằng tên tài khoản/mật"
-                    + " khẩu trên HAKO; đăng nhập Google trong WebView chưa được hỗ trợ.");
-            return true;
-          }
-
-          public void onPageFinished(WebView v, String u) {
-            CookieManager.getInstance().flush();
-            if (status != null) status.setText("WebView " + WebSession.version() + " · Nếu xác minh lặp lại, không tải lại liên tục.");
-          }
-
-          public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError err) {
-            if (req.isForMainFrame() && status != null)
-              status.setText("Không tải được trang. Kiểm tra mạng và thử lại.");
-          }
-        });
-    root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
-    web.loadUrl(url);
+    Repository.cancel.set(true);leaveReader();
+    startActivityForResult(new Intent(this,GeckoBrowserActivity.class).putExtra("url",url).putExtra("origin",HakoParser.ORIGIN),91);
   }
 
   private String readerFont(){int n=prefs.getInt("font2",0);return n==1?"DejaVu,serif":n==2?"sans-serif":n==3?"ReaderCustom,serif":"Tinos,serif";}
@@ -1612,7 +1557,7 @@ public class MainActivity extends Activity {
 
   private void help() {
     new AlertDialog.Builder(this)
-        .setTitle("Hako Pocket 0.6.4 • Bản thử nghiệm")
+        .setTitle("Hako Pocket 0.7.0 Lite • Bản thử nghiệm")
         .setMessage(
             "Đăng nhập HAKO → Nhập kệ sách → chọn truyện → chọn chương.\n\n"
                 + "✓ là chương có đủ nội dung/ảnh. ◐ là đã có chữ nhưng thiếu ảnh. Nhấn giữ truyện"
@@ -1661,6 +1606,11 @@ public class MainActivity extends Activity {
 
   protected void onActivityResult(int req, int result, Intent data) {
     super.onActivityResult(req, result, data);
+    if(req==91){Repository.cancel.set(false);if(result==RESULT_OK&&data!=null){
+      try{JSONArray list=new JSONArray(data.getStringExtra("history"));for(int n=0;n<list.length();n++){JSONObject h=list.getJSONObject(n);String u=HakoParser.normalize(h.optString("series_url")),id=HakoParser.storyId(u),cid=HakoParser.chapterId(h.optString("chapter_url"));if(!id.isEmpty()&&!cid.isEmpty()){store.putBook(new HakoParser.Link(id,h.optString("series_title","Truyện"),u));store.importHistory(id,cid,h.optLong("read_time")*1000);}}}catch(Exception ignored){}
+      if(data.getBooleanExtra("read",false)){String u=data.getStringExtra("url");if(u!=null&&!HakoParser.storyId(HakoParser.storyUrl(u)).isEmpty())addUrl(u);else message("Mở truyện hoặc chương trước khi chọn Đọc offline.");}
+    }return;}
+
     if (req == 88 && result == RESULT_OK && data != null) {
       Uri u = data.getData();
       task(
@@ -1981,4 +1931,5 @@ public class MainActivity extends Activity {
     return super.onKeyDown(key, event);
   }
 }
+
 
