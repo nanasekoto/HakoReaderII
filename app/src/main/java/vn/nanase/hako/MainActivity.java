@@ -260,7 +260,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.6.4",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.1-WebView",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -1479,6 +1479,7 @@ public class MainActivity extends Activity {
         new Runnable[] {
           () -> {
             CookieManager.getInstance().flush();
+            prefs.edit().remove("cooldownUntil").apply();
             importWebHistory(this::library);
           },
           () -> web.loadUrl(HakoParser.ORIGIN + "/ke-sach"),
@@ -1507,7 +1508,7 @@ public class MainActivity extends Activity {
     web.setWebViewClient(
         new WebViewClient() {
           public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
-            if(!r.isForMainFrame() && WebSession.challengeFrame(r.getUrl()))return false;
+            if(WebSession.challengeFrame(r.getUrl()))return false;
             String h = r.getUrl().getHost();
             if ("https".equals(r.getUrl().getScheme()) && HakoParser.isOrigin(r.getUrl().toString())) return false;
             message(
@@ -1612,7 +1613,7 @@ public class MainActivity extends Activity {
 
   private void help() {
     new AlertDialog.Builder(this)
-        .setTitle("Hako Pocket 0.6.4 • Bản thử nghiệm")
+        .setTitle("Hako Pocket 0.7.1-WebView • Bản thử nghiệm")
         .setMessage(
             "Đăng nhập HAKO → Nhập kệ sách → chọn truyện → chọn chương.\n\n"
                 + "✓ là chương có đủ nội dung/ảnh. ◐ là đã có chữ nhưng thiếu ảnh. Nhấn giữ truyện"

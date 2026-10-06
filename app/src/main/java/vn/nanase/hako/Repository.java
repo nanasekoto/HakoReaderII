@@ -84,7 +84,9 @@ public final class Repository {
   }
 
   public static String page(String u, boolean auth) throws Exception {
-    return new String(fetch(u, auth, 8 * 1024 * 1024), "UTF-8");
+    if(auth&&!HakoParser.isOrigin(u))throw new IOException("Sai máy chủ đăng nhập");
+    if(app==null)throw new IOException("Chưa khởi tạo app");
+    return RenderedPage.html(app,u);
   }
 
   public static void importShelf(Context ctx) throws Exception {

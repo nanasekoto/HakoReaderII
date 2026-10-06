@@ -18,6 +18,9 @@ public final class WebSession {
     ("https".equals(uri.getScheme())&&("challenges.cloudflare.com".equals(host)||
      HakoParser.isOrigin(u)));
  }
+ public static boolean sameOrigin(String a,String b){
+  Uri x=Uri.parse(a),y=Uri.parse(b);return "https".equals(x.getScheme())&&"https".equals(y.getScheme())&&x.getHost()!=null&&x.getHost().equalsIgnoreCase(y.getHost())&&x.getPort()==y.getPort();
+ }
  public static String version(){
   android.content.pm.PackageInfo p=WebView.getCurrentWebViewPackage();
   return p==null?"không rõ":p.versionName;

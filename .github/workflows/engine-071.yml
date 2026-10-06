@@ -1,0 +1,31 @@
+name: Build WebView 0.7.1 only
+on:
+  push:
+    branches: [ 'codex/webview-071' ]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
+      - name: Install SDK and build once
+        run: |
+          timeout 180 sdkmanager 'platforms;android-34' 'build-tools;35.0.0'
+          timeout 600 gradle assembleRelease --no-daemon --stacktrace
+          mkdir -p build/deliver
+          cp app/build/outputs/apk/release/app-release.apk build/deliver/Hako-Pocket-0.7.1-WebView.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hako-Pocket-0.7.1-WebView
+          path: build/deliver/*.apk

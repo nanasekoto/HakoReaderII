@@ -10,19 +10,22 @@ import org.json.*;
 /** One short-lived renderer. No JS bridge, cookies/credentials never exported. */
 public final class RenderedPage {
  private static final Handler ui=new Handler(Looper.getMainLooper());
+ public static String html(Context context,String url)throws Exception{return render(context,url,"page");}
  public static String chapter(Context context,String url)throws Exception {return render(context,url,"");}
  public static String action(Context context,String url,String action)throws Exception{return render(context,url,action);}
  private static synchronized String render(Context context,String url,String action)throws Exception {
   if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");
+  final boolean canceledAtStart=Repository.cancel.get();
+  AtomicLong challengeUntil=new AtomicLong();
   CountDownLatch done=new CountDownLatch(1);
   AtomicReference<String> result=new AtomicReference<>(),error=new AtomicReference<>();
   AtomicReference<WebView> holder=new AtomicReference<>();
   AtomicBoolean finished=new AtomicBoolean();
   String script;
-  try(InputStream in=context.getAssets().open("extract.js");ByteArrayOutputStream out=new ByteArrayOutputStream()){
+  try(InputStream in=context.getAssets().open(action.equals("page")?"page.js":"extract.js");ByteArrayOutputStream out=new ByteArrayOutputStream()){
    byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1)out.write(b,0,n);script=out.toString("UTF-8");
   }
-  if(!action.isEmpty())script=action.equals("follow")?
+  if(!action.isEmpty()&&!action.equals("page"))script=action.equals("follow")?
    "(function(){var e=document.querySelector('#collect');if(!e)return JSON.stringify({});if((e.getAttribute('href')||'').indexOf('/login')>=0)return JSON.stringify({error:'Hãy đăng nhập HAKO trước.'});if(e.classList.contains('followed'))return JSON.stringify({html:'OK'});if(!window.__hakoAction){window.__hakoAction=true;e.click();}return JSON.stringify({});})()":
    "(function(){var id="+JSONObject.quote(action.substring(5))+";if(document.querySelector('input[type=password]'))return JSON.stringify({error:'Hãy đăng nhập HAKO trước.'});var e=Array.from(document.querySelectorAll('.mark-read')).find(function(n){return n.getAttribute('data-series')===id});if(window.__hakoReadParent&&!window.__hakoReadParent.querySelector('.mark-read'))return JSON.stringify({html:'OK'});if(e){if(+e.getAttribute('data-unread')===0)return JSON.stringify({html:'OK'});if(!window.__hakoAction){window.__hakoAction=true;window.__hakoReadParent=e.parentElement;e.click();}return JSON.stringify({});}var p=+(new URL(location.href).searchParams.get('page')||1);var links=Array.from(document.querySelectorAll('a[href]')).map(function(a){try{return new URL(a.href)}catch(e){return null}}).filter(function(u){return u&&u.origin===location.origin&&u.pathname==='/ke-sach'&&+u.searchParams.get('page')>p}).sort(function(a,b){return +a.searchParams.get('page')-b.searchParams.get('page')});if(links.length){location.href=links[0].href;return JSON.stringify({});}return JSON.stringify({error:'Không tìm thấy bộ này trên kệ sách. Hãy cập nhật tủ sách.'});})()";
   final String js=script;
@@ -44,7 +47,8 @@ public final class RenderedPage {
     w.setWebViewClient(new WebViewClient(){
      void fail(String msg){error.compareAndSet(null,msg);if(finished.compareAndSet(false,true))done.countDown();}
      public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest r){
-      if(!r.isForMainFrame()&&WebSession.challengeFrame(r.getUrl()))return false;
+      if(WebSession.challengeFrame(r.getUrl()))return false;
+      if(action.equals("page")&&WebSession.sameOrigin(r.getUrl().toString(),url))return false;
       if(!HakoParser.isOrigin(r.getUrl().toString())){fail("Trang chuyển sang tên miền khác. Kiểm tra Cài đặt tên miền.");return true;}return false;
      }
      public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest r){
@@ -56,25 +60,27 @@ public final class RenderedPage {
      public void onReceivedHttpError(WebView view,WebResourceRequest r,WebResourceResponse response){
       if(r.isForMainFrame()){
        int code=response.getStatusCode();
-       if(code==403||code==429)Repository.cooldown(context,30*60*1000L);
+       if(code==403||code==503){challengeUntil.set(SystemClock.elapsedRealtime()+5000);return;}
+       if(code==429)Repository.cooldown(context,30*60*1000L);
        fail("HAKO trả HTTP "+code+". Đã dừng tải; mở web để kiểm tra.");
       }
      }
      public void onReceivedError(WebView view,WebResourceRequest r,WebResourceError e){if(r.isForMainFrame())fail("Không tải được trang: "+e.getDescription());}
      public void onPageStarted(WebView view,String u,android.graphics.Bitmap icon){loaded.set(false);}
-     public void onPageFinished(WebView view,String u){CookieManager.getInstance().flush();if(!primed.getAndSet(true))view.evaluateJavascript("localStorage.getItem('reading_series')",v->{oldHistory.set(v);if(!finished.get())view.loadUrl(url);});else if(HakoParser.isOrigin(u))loaded.set(true);}
+     public void onPageFinished(WebView view,String u){CookieManager.getInstance().flush();if(!primed.getAndSet(true))view.evaluateJavascript("localStorage.getItem('reading_series')",v->{oldHistory.set(v);if(!finished.get())view.loadUrl(url);});else if(HakoParser.isOrigin(u)||(action.equals("page")&&WebSession.sameOrigin(u,url)))loaded.set(true);}
     });
     w.loadDataWithBaseURL(HakoParser.ORIGIN+"/","<html><body></body></html>","text/html","UTF-8",null);
     ui.postDelayed(new Runnable(){int tries=0;String previous="";public void run(){
      if(finished.get())return;
      WebView v=holder.get();if(v==null)return;
+     if(SystemClock.elapsedRealtime()<challengeUntil.get()){ui.postDelayed(this,500);return;}
      if(oldHistory.get()==null||!loaded.get()){ui.postDelayed(this,1000);return;}
      v.evaluateJavascript(js,value->{
       if(finished.get())return;
       try{
        Object decoded=new JSONTokener(value).nextValue();
        JSONObject o=new JSONObject(String.valueOf(decoded));
-       if(o.has("error")){error.set(o.getString("error"));if(action.isEmpty())Repository.cooldown(context,30*60*1000L);finished.set(true);done.countDown();return;}
+       if(o.has("error")){error.set(o.getString("error"));if(o.getString("error").contains("giới hạn"))Repository.cooldown(context,30*60*1000L);finished.set(true);done.countDown();return;}
        String html=o.optString("html","");
        if(!html.isEmpty()&&(html.equals(previous)||html.length()>50)){result.set(html);finished.set(true);done.countDown();return;}
        previous=html;
@@ -88,7 +94,7 @@ public final class RenderedPage {
   try{
    long until=SystemClock.elapsedRealtime()+45000;
    while(!done.await(250,TimeUnit.MILLISECONDS)){
-    if(Repository.cancel.get())throw new IOException("Đã dừng tải");
+    if(!canceledAtStart&&Repository.cancel.get())throw new IOException("Đã dừng tải");
     if(SystemClock.elapsedRealtime()>until)throw new IOException("Quá thời gian chờ trang");
    }
    if(error.get()!=null)throw new IOException(error.get());
