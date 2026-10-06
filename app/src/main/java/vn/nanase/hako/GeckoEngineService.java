@@ -50,7 +50,7 @@ public final class GeckoEngineService extends Service {
     if(msg.has("phase")){android.util.Log.i("HakoGecko","Bridge phase: "+msg.optString("phase")+" ready="+msg.optString("ready")+" hasScript="+msg.optBoolean("hasScript"));return null;}
     if(msg.optBoolean("hello")){
      boolean approved=HakoParser.isOrigin(sender.url)||b.getString("url").equals(sender.url);
-     android.util.Log.i("HakoGecko","Bridge hello: approved="+approved+" topLevel="+sender.isTopLevel+" scriptChars="+b.getString("script","").length());
+     android.util.Log.i("HakoGecko","Bridge hello: approved="+approved+" scriptChars="+b.getString("script","").length());
      if(!approved){finish("Địa chỉ trang trích xuất không khớp yêu cầu");return null;}
      return GeckoResult.fromValue(b.getString("script"));
     }
