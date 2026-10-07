@@ -251,7 +251,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.2 Gecko",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.3 Gecko",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     String[] names={
@@ -543,7 +543,8 @@ public class MainActivity extends Activity {
         titleView.setTextSize(16f);
         titleView.setTypeface(UI_MEDIUM);
         titleView.setTextColor(Color.BLACK);
-        titleView.setMaxLines(2);
+        titleView.setIncludeFontPadding(false);
+        titleView.setMaxLines(shelf?2:Math.max(1,Math.min(2,(list.rowHeight(p)-dp(43))/Math.max(1,titleView.getLineHeight()))));
         titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         top.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
 
@@ -559,15 +560,6 @@ public class MainActivity extends Activity {
           LinearLayout.LayoutParams lpBadge = new LinearLayout.LayoutParams(-2, -2);
           lpBadge.setMargins(dp(5), 0, 0, 0);
           top.addView(badge, lpBadge);
-        }
-        if (!shelf) {
-          top.addView(new IconButton(MainActivity.this,18,"Tải toàn bộ: "+b.title,
-              ()->startDownloads(b.id,Repository.MODE_BOOK_ALL)),
-              new LinearLayout.LayoutParams(dp(42),dp(42)));
-          CheckBox completed=new CheckBox(MainActivity.this);completed.setText("Hoàn thành");completed.setTextSize(10f);completed.setTextColor(INK);completed.setButtonTintList(android.content.res.ColorStateList.valueOf(INK));completed.setPadding(0,0,0,0);
-          completed.setContentDescription("Truyện đã hoàn thành: "+b.title);completed.setChecked(store.isCompleted(b.id));
-          completed.setOnCheckedChangeListener((v,checked)->{store.setCompleted(b.id,checked);if(checked)startDownloads(b.id,Repository.MODE_BOOK_ALL);});
-          top.addView(completed,new LinearLayout.LayoutParams(dp(96),dp(42)));
         }
         card.addView(top);
 
@@ -599,7 +591,22 @@ public class MainActivity extends Activity {
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
         subView.setText(subView.getText()+" · "+store.unread(b.id)+" chưa đọc");
-        card.addView(subView);
+        if(shelf)card.addView(subView);
+        else {
+          LinearLayout controls=new LinearLayout(MainActivity.this);controls.setGravity(Gravity.CENTER_VERTICAL);
+          controls.addView(subView,new LinearLayout.LayoutParams(0,-2,1));
+        if (!shelf) {
+          controls.addView(new IconButton(MainActivity.this,18,"Tải toàn bộ: "+b.title,
+              ()->startDownloads(b.id,Repository.MODE_BOOK_ALL)),
+              new LinearLayout.LayoutParams(dp(42),dp(38)));
+          CheckBox completed=new CheckBox(MainActivity.this);completed.setText("Hoàn thành");completed.setTextSize(12f);completed.setSingleLine(true);completed.setTextColor(INK);completed.setButtonTintList(android.content.res.ColorStateList.valueOf(INK));completed.setPadding(0,0,0,0);completed.setMinHeight(0);completed.setMinimumHeight(0);
+          completed.setContentDescription("Truyện đã hoàn thành: "+b.title);completed.setChecked(store.isCompleted(b.id));
+          completed.setOnCheckedChangeListener((v,checked)->{store.setCompleted(b.id,checked);if(checked)startDownloads(b.id,Repository.MODE_BOOK_ALL);});
+          controls.addView(completed,new LinearLayout.LayoutParams(dp(108),dp(38)));
+        }
+          card.addView(controls);
+        }
+
 
         return card;
       }
@@ -1472,7 +1479,7 @@ public class MainActivity extends Activity {
   private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setView(input).setPositiveButton("Kiểm tra",(d,w)->{String value=input.getText().toString().trim();if(!value.startsWith("https://"))value="https://"+value;final String origin=value.replaceAll("/+$","");try{java.net.URI u=java.net.URI.create(origin);if(u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty())throw new Exception();}catch(Exception e){message("Chỉ nhập tên miền HTTPS, không có đường dẫn.");return;}task("Kiểm tra tên miền…",()->{String h=Repository.page(origin,false);if(!h.contains("Light Novel")&&!h.contains("HAKO"))throw new Exception("Không nhận diện trang HAKO");return null;},()->{Repository.cancel.set(true);HakoParser.ORIGIN=origin;prefs.edit().putString("origin",origin).apply();store.rebase(origin);message("Đã đổi tên miền. Đăng nhập lại nếu cần.");});}).setNegativeButton("Hủy",null).show();}
   private void webViewInfo(){
     android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
-    String info="Engine của app: GeckoView · 0.7.2 Gecko\nWebView hệ thống (app không dùng đăng nhập):\n"+
+    String info="Engine của app: GeckoView · 0.7.3 Gecko\nWebView hệ thống (app không dùng đăng nhập):\n"+
       "Gói: "+(provider==null?"Không xác định":provider.packageName)+"\n"+
       "Phiên bản: "+(provider==null?"Không xác định":provider.versionName)+"\n\n"+
       "Thiết bị: "+Build.MANUFACTURER+" "+Build.MODEL+"\n"+
@@ -1550,7 +1557,7 @@ public class MainActivity extends Activity {
 
   private void help() {
     new AlertDialog.Builder(this)
-        .setTitle("Hako Pocket 0.7.2 Gecko • Bản thử nghiệm")
+        .setTitle("Hako Pocket 0.7.3 Gecko • Bản thử nghiệm")
         .setMessage(
             "Đăng nhập HAKO → Nhập kệ sách → chọn truyện → chọn chương.\n\n"
                 + "✓ là chương có đủ nội dung/ảnh. ◐ là đã có chữ nhưng thiếu ảnh. Nhấn giữ truyện"
