@@ -16,7 +16,8 @@ public final class HakoParser {
 
   public static class Link {
     public String id, title, url;
-    public String info="";
+    public String info="", latestKey="";
+    public long updatedAt;
 
     public Link(String i, String t, String u) {
       id = i;
@@ -105,9 +106,24 @@ public final class HakoParser {
     Set<String> seen = new HashSet<>();
     for (Element a : d.select("table a[href]")) {
       String u = normalize(a.absUrl("href")), id = storyId(u);
-      if (!id.isEmpty() && seen.add(id)) {Link l=new Link(id,a.text(),u);Element row=a.closest("tr");if(row!=null){Element marker=row.selectFirst(".mark-read[data-unread]");if(marker!=null)l.info=marker.attr("data-unread")+" chương mới";else {Element count=row.selectFirst(".update-status");l.info=count==null?"Chưa rõ số chương mới":count.text();}}out.add(l);}
+      if (!id.isEmpty() && seen.add(id)) {Link l=new Link(id,a.text(),u);Element row=a.closest("tr");if(row!=null){Element marker=row.selectFirst(".mark-read[data-unread]");if(marker!=null)l.info=marker.attr("data-unread")+" chương mới";else {Element count=row.selectFirst(".update-status");l.info=count==null?"Chưa rõ số chương mới":count.text();}}if(row!=null){
+        Element chapter=row.selectFirst("a[href*='/c']");
+        if(chapter!=null&&!chapterId(chapter.absUrl("href")).isEmpty())l.latestKey=chapterId(chapter.absUrl("href"))+"|"+chapter.text().trim();
+        Element time=row.selectFirst("time[datetime], [data-timestamp], .timeago[title]");
+        if(time!=null){String date=time.hasAttr("datetime")?time.attr("datetime"):time.hasAttr("data-timestamp")?time.attr("data-timestamp"):time.attr("title");l.updatedAt=ShelfPolicy.timestamp(date);if(l.latestKey.isEmpty()&&l.updatedAt>0)l.latestKey="time:"+l.updatedAt;}
+      }out.add(l);}
     }
     return out;
+  }
+
+  /** Early pagination exit is allowed only when the server explicitly selects update order. */
+  public static boolean shelfUpdateOrder(String html){
+    Document d=Jsoup.parse(html);
+    for(Element e:d.select("select option[selected], .sorting .active, .sort .active, [data-sort][aria-selected=true]")){
+      String v=(e.text()+" "+e.attr("value")+" "+e.attr("data-sort")).toLowerCase(Locale.ROOT);
+      if((v.contains("cập nhật")||v.contains("updated")||v.contains("latest-update"))&&!v.contains("asc")&&!v.contains("cũ nhất"))return true;
+    }
+    return false;
   }
 
   public static List<String> shelfPages(String html, String base) {

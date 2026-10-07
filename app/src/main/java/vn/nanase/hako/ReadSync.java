@@ -27,8 +27,9 @@ public final class ReadSync extends JobService {
   public static boolean process(Context c){
     synchronized(mutex){
       Repository.init(c);
-      if(Repository.busy.get())return true;
       if(!wifi(c))return false;
+      if(!Repository.busy.compareAndSet(false,true))return true;
+      try{
       Store s=Store.get(c);boolean retry=false;
       for(String id:s.queuedBooks()){
         Store.Book b=s.book(id);if(b==null||id.equals("demo")||!s.canSubmit(id))continue;
@@ -47,6 +48,7 @@ public final class ReadSync extends JobService {
         }catch(Exception e){retry=true;android.util.Log.w("HakoSync","Read queue retained: "+e.getClass().getSimpleName());}
       }
       return retry;
+      }finally{Repository.busy.set(false);GeckoClient.release();synchronized(Repository.busy){Repository.busy.notifyAll();}}
     }
   }
   public boolean onStartJob(JobParameters p){

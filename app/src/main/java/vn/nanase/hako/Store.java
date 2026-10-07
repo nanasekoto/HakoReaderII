@@ -32,6 +32,12 @@ public final class Store extends SQLiteOpenHelper {
     context.getSharedPreferences("settings", 0).edit().putBoolean("keep_full_" + id, keep).apply();
   }
 
+  public boolean isCompleted(String id){return context.getSharedPreferences("settings",0).getBoolean("completed_"+id,false);}
+  public void setCompleted(String id,boolean value){context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();if(value)setKeepFull(id,true);}
+  public int newArrivals(String id){return context.getSharedPreferences("settings",0).getInt("new_arrivals_"+id,0);}
+  public synchronized void mergeShelf(List<HakoParser.Link> links){int rank=0;for(HakoParser.Link l:links){putBook(l);followed(l.id,true,rank++);shelfInfo(l.id,l.info);}}
+  public synchronized void queueIfAllRead(String id){if(!chapters(id).isEmpty()&&unread(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
+
   public synchronized void establishReadBaseline(String id){
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
     if(prefs.getBoolean("read_baseline_"+id,false)||queued(id))return;
@@ -49,9 +55,10 @@ public final class Store extends SQLiteOpenHelper {
   public int unread(String id){try(Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM chapters c LEFT JOIN read_chapters r ON r.id=c.id WHERE c.book=? AND r.id IS NULL",new String[]{id})){return c.moveToFirst()?c.getInt(0):0;}}
   public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
   public synchronized void queueCaughtUp(String id){
+    if(chapters(id).isEmpty()||unread(id)>0)throw new IllegalStateException("Chỉ đồng bộ đọc hết sau khi đã đọc hết các chương offline");
     context.getSharedPreferences("settings",0).edit().putBoolean("read_baseline_"+id,true).commit();
     org.json.JSONArray ids=new org.json.JSONArray();
-    SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(Chapter c:chapters(id)){readChapter(c.id);ids.put(c.id);}d.setTransactionSuccessful();}finally{d.endTransaction();}
+    SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(Chapter c:chapters(id)){ids.put(c.id);}d.setTransactionSuccessful();}finally{d.endTransaction();}
     if(ids.length()==0)throw new IllegalStateException("Chưa có mục lục để xác nhận đã đọc");
     if(!context.getSharedPreferences("read_queue",0).edit().putString(id,ids.toString()).commit())throw new IllegalStateException("Không lưu được hàng chờ");
   }
@@ -212,7 +219,10 @@ public final class Store extends SQLiteOpenHelper {
     SQLiteDatabase d = getWritableDatabase();
     d.beginTransaction();
     try {
-      Set<String> valid=new HashSet<>();for(HakoParser.Link l:links)valid.add(l.id);for(Chapter old:chapters(book))if(!valid.contains(old.id)){d.delete("chapters","id=?",new String[]{old.id});delete(dir(old.id));}
+      List<Chapter> previous=chapters(book);Set<String> oldIds=new HashSet<>();for(Chapter old:previous)oldIds.add(old.id);
+      int added=0;for(HakoParser.Link l:links)if(!oldIds.contains(l.id))added++;
+      if(!previous.isEmpty())context.getSharedPreferences("settings",0).edit().putInt("new_arrivals_"+book,added).apply();
+      Set<String> valid=new HashSet<>();for(HakoParser.Link l:links)valid.add(l.id);for(Chapter old:previous)if(!valid.contains(old.id)){d.delete("chapters","id=?",new String[]{old.id});delete(dir(old.id));}
       int i = 0;
       for (HakoParser.Link l : links) {
         ContentValues v = new ContentValues();

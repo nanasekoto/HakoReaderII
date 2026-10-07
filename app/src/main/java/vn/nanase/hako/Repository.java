@@ -60,6 +60,9 @@ public final class Repository {
     urls.add(HakoParser.ORIGIN + "/ke-sach");
     Set<String> done = new HashSet<>();
     int count = 0;List<HakoParser.Link> collected=new ArrayList<>();
+    android.content.SharedPreferences prefs=ctx.getSharedPreferences("settings",0);
+    long watermark=prefs.getLong("shelf_watermark",0), newest=0;boolean partial=false;
+    java.util.Map<String,String> shelfKeys=new java.util.HashMap<>();
     while (true) {
       String next = null;
       for (String u : urls)
@@ -79,11 +82,20 @@ public final class Repository {
       for (HakoParser.Link l : links) {
         collected.add(l);
         count++;
+        shelfKeys.put(l.id,l.latestKey);newest=Math.max(newest,l.updatedAt);
       }
+      // A small number of updates alone is not enough to skip unseen shelf pages.
+      List<String> following=HakoParser.shelfPages(html,next);
+      if(!following.isEmpty()&&ShelfPolicy.oldPage(links,watermark,HakoParser.shelfUpdateOrder(html))){partial=true;break;}
       urls.addAll(HakoParser.shelfPages(html, next));
       Thread.sleep(2000);
     }
-    s.replaceShelf(collected);
+    if(partial)s.mergeShelf(collected);else s.replaceShelf(collected);
+    android.content.SharedPreferences.Editor edit=prefs.edit();
+    // Replace current keys only for rows actually observed; older cached rows remain intact.
+    for(java.util.Map.Entry<String,String> e:shelfKeys.entrySet())edit.putString("shelf_key_"+e.getKey(),e.getValue());
+    if(!partial&&newest>0)edit.putLong("shelf_watermark",newest);
+    edit.commit();
     ctx.getSharedPreferences("settings",0).edit().putLong("lastShelfSync",System.currentTimeMillis()).apply();
     notify(ctx, "Đã nhập " + count + " mục từ kệ sách. Chưa tải hàng loạt nội dung.");
   }
@@ -104,16 +116,22 @@ public final class Repository {
     return s.book(id);
   }
 
+  public static boolean unchangedShelf(Context c,Store.Book b){
+    android.content.SharedPreferences p=c.getSharedPreferences("settings",0);
+    return b.followed&&!Store.get(c).chapters(b.id).isEmpty()&&ShelfPolicy.unchanged(p.getString("shelf_key_"+b.id,""),p.getString("catalog_shelf_key_"+b.id,""));
+  }
+
   public static void catalog(Context c, Store.Book b) throws Exception {
     long stamp=c.getSharedPreferences("settings",0).getLong("catalog-"+b.id,0);
     if(!Store.get(c).chapters(b.id).isEmpty()&&System.currentTimeMillis()-stamp<15*60*1000)return;
     allowed(c);
+    String shelfKey=c.getSharedPreferences("settings",0).getString("shelf_key_"+b.id,"");
     String html = page(b.url, true);
     List<HakoParser.Link> ls = HakoParser.chapters(html, b.url);
     if (ls.isEmpty()) throw new IOException("Mục lục trống: " + b.title);
     Store.get(c).catalog(b.id, ls);
     Store.get(c).establishReadBaseline(b.id);
-    c.getSharedPreferences("settings",0).edit().putLong("catalog-"+b.id,System.currentTimeMillis()).apply();
+    c.getSharedPreferences("settings",0).edit().putLong("catalog-"+b.id,System.currentTimeMillis()).putString("catalog_shelf_key_"+b.id,shelfKey).apply();
   }
 
   public static synchronized void download(Context ctx, Store.Chapter c) throws Exception {
@@ -230,9 +248,11 @@ public final class Repository {
         for(Store.Book planned:new ArrayList<>(todo)){
           if(cancel.get()||pauseAutomatic(charging)||(charging&&(!ChargeJob.isCharging(ctx)||!ReadSync.wifi(ctx))))return;
           ctx.getSharedPreferences("settings",0).edit().remove("catalog-"+planned.id).commit();
-          catalog(ctx,planned);refreshedCatalogs.add(planned.id);
-          notify(ctx,"Kiểm tra mục lục "+refreshedCatalogs.size()+"/"+todo.size()+": "+planned.title);
-          Thread.sleep(2000);
+          boolean unchanged=unchangedShelf(ctx,planned);
+          if(!unchanged)catalog(ctx,planned);
+          refreshedCatalogs.add(planned.id);
+          notify(ctx,(unchanged?"Không đổi ":"Kiểm tra mục lục ")+refreshedCatalogs.size()+"/"+todo.size()+": "+planned.title);
+          if(!unchanged)Thread.sleep(2000);
         }
       }
       while (!cancel.get() && !pauseAutomatic(charging) && (!todo.isEmpty() || !pendingBook.isEmpty() || pendingAll)) {
@@ -264,7 +284,7 @@ public final class Repository {
         // 1. Refresh catalog FIRST to know real chapter count
         if(!refreshedCatalogs.contains(b.id)){
           if(mode==MODE_SYNC_LIBRARY)ctx.getSharedPreferences("settings",0).edit().remove("catalog-"+b.id).commit();
-          catalog(ctx,b);
+          if(mode!=MODE_SYNC_LIBRARY||!unchangedShelf(ctx,b))catalog(ctx,b);
         }
         Store.Book refreshed = s.book(b.id);
         if (refreshed != null) b = refreshed;
@@ -272,7 +292,7 @@ public final class Repository {
         int current = 0;
         for (Store.Chapter ch : chapters) if (ch.id.equals(b.current)) current = ch.ord;
 
-        boolean isFullMode = (mode == MODE_BOOK_ALL) || s.isKeepFull(b.id);
+        boolean isFullMode = (mode == MODE_BOOK_ALL) || s.isKeepFull(b.id) || s.isCompleted(b.id);
 
         // 2. Identify EXACT chapters needed
         List<Store.Chapter> needDownload = new ArrayList<>();
@@ -382,5 +402,3 @@ public final class Repository {
     return true;
   }
 }
-
-
