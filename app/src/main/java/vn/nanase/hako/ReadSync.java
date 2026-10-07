@@ -19,6 +19,7 @@ public final class ReadSync extends JobService {
     return b;
   }
   public static void schedule(Context c){
+    if(c.getSharedPreferences("settings",0).getBoolean("sync_paused",false))return;
     Store store=Store.get(c);boolean eligible=false;for(String id:store.queuedBooks())if(store.canSubmit(id))eligible=true;if(!eligible)return;
     JobScheduler s=c.getSystemService(JobScheduler.class);
     if(s.getPendingJob(42)==null)s.schedule(wifiJob(c,42,ReadSync.class).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());
@@ -27,6 +28,7 @@ public final class ReadSync extends JobService {
   public static boolean process(Context c){
     synchronized(mutex){
       Repository.init(c);
+      if(Repository.syncPaused)return false;
       if(!wifi(c))return false;
       if(!Repository.busy.compareAndSet(false,true))return true;
       try{
@@ -37,7 +39,7 @@ public final class ReadSync extends JobService {
           Repository.allowed(c);
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();
           Repository.catalog(c,b);
-          if(!s.canSubmit(id))continue;
+          if(Repository.syncPaused||!s.canSubmit(id))continue;
           String snapshot=c.getSharedPreferences("read_queue",0).getString(id,"");
           RenderedPage.action(c,HakoParser.ORIGIN+"/ke-sach","read:"+id.substring(id.lastIndexOf('-')+1));
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();

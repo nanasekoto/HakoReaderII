@@ -52,6 +52,7 @@ public class DownloadService extends Service {
       stopSelf();
       return START_NOT_STICKY;
     }
+    if(getSharedPreferences("settings",0).getBoolean("sync_paused",false)){stopSelf();return START_NOT_STICKY;}
     Repository.cancel.set(false);
     startForeground(9, notice("Chuẩn bị tải"));
     String book = i.getStringExtra("book");
@@ -94,4 +95,3 @@ public class DownloadService extends Service {
     return null;
   }
 }
-

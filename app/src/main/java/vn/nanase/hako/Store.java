@@ -50,8 +50,32 @@ public final class Store extends SQLiteOpenHelper {
     SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(int i=0;i<all.size()-count;i++)readChapter(all.get(i).id);d.setTransactionSuccessful();}finally{d.endTransaction();}
     prefs.edit().putBoolean("read_baseline_"+id,true).commit();
   }
-  public boolean favorite(Book b){return b.pinned||isKeepFull(b.id)||b.visits>=3;}
-  public boolean syncTarget(Book b){return !b.id.equals("demo")&&!b.dropped&&(b.stamp>0||favorite(b));}
+  public boolean favorite(Book b){return b.pinned||b.visits>=3;}
+  public boolean syncTarget(Book b){return !b.id.equals("demo")&&!b.dropped&&(b.stamp>0||favorite(b)||isKeepFull(b.id));}
+  public boolean hasShelfUpdate(Book b){
+    android.content.SharedPreferences p=context.getSharedPreferences("settings",0);
+    String now=p.getString("shelf_key_"+b.id,""), old=p.getString("catalog_shelf_key_"+b.id,"");
+    if(b.followed&&!now.isEmpty()&&!now.equals(old))return true;
+    if(p.getBoolean("shelf_changed_"+b.id,false))return true;
+    if(newArrivals(b.id)>0)for(Chapter ch:chapters(b.id))if(!ch.ready)return true;
+    return b.followed&&chapters(b.id).isEmpty()&&shelfUnread(b)>0;
+  }
+  private int shelfUnread(Book b){try{return Integer.parseInt(b.shelfInfo.trim().split("\\s+")[0]);}catch(Exception e){return 0;}}
+  public long shelfUpdatedAt(Book b){return context.getSharedPreferences("settings",0).getLong("shelf_updated_at_"+b.id,0);}
+  public int compareDownloads(Book a,Book b){
+    int ar=DownloadPriority.rank(hasShelfUpdate(a),a.visits,isCompleted(a.id)),br=DownloadPriority.rank(hasShelfUpdate(b),b.visits,isCompleted(b.id));
+    int n=Integer.compare(ar,br);if(n!=0)return n;
+    if(ar==0){n=Long.compare(shelfUpdatedAt(b),shelfUpdatedAt(a));if(n!=0)return n;}
+    n=Integer.compare(b.visits,a.visits);if(n!=0)return n;
+    n=Long.compare(b.stamp,a.stamp);if(n!=0)return n;
+    n=Integer.compare(a.shelfRank,b.shelfRank);return n!=0?n:a.id.compareTo(b.id);
+  }
+  public int compareShelf(Book a,Book b){
+    int n=Boolean.compare(hasShelfUpdate(b),hasShelfUpdate(a));if(n!=0)return n;
+    n=Long.compare(shelfUpdatedAt(b),shelfUpdatedAt(a));if(n!=0)return n;
+    n=Integer.compare(a.shelfRank,b.shelfRank);return n!=0?n:a.title.compareToIgnoreCase(b.title);
+  }
+  public boolean completedOffline(Book b){if(!isCompleted(b.id))return false;android.content.SharedPreferences p=context.getSharedPreferences("settings",0);String current=p.getString("shelf_key_"+b.id,""),known=p.getString("catalog_shelf_key_"+b.id,"");if(p.getBoolean("shelf_changed_"+b.id,false)||(!current.isEmpty()&&!current.equals(known)))return false;List<Chapter> all=chapters(b.id);if(all.isEmpty())return false;for(Chapter ch:all)if(!ch.ready)return false;return true;}
   public int unread(String id){try(Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM chapters c LEFT JOIN read_chapters r ON r.id=c.id WHERE c.book=? AND r.id IS NULL",new String[]{id})){return c.moveToFirst()?c.getInt(0):0;}}
   public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
   public synchronized void queueCaughtUp(String id){
@@ -348,4 +372,3 @@ public final class Store extends SQLiteOpenHelper {
     f.delete();
   }
 }
-
