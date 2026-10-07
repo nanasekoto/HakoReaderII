@@ -11,6 +11,6 @@ Base: main / 716a2ec (Gemini Gecko build confirmed by the owner on Xteink S4).
 - Hako's mark-all endpoint is not atomic with catalog checking: a publication during the network gap cannot be absolutely prevented. The existing post-submit refresh keeps such chapters locally unread.
 
 Scope: no browser engine, cookie/profile, extraction bridge, or reader rendering changes.
-Validation: 22 focused Java shelf/parser cases; one release APK build. No emulator or broad suite.
+Validation: 22 focused Java shelf/parser cases; release APK build (initial SDK 35 metadata failure corrected to SDK 36). No emulator or broad suite.
 Review: compare feature/reading-shelf-update against main; focus on Repository, Store, ReadSync, shelf parsing and the two UI controls.
 Version: vn.nanase.hako, code 18, 0.7.2-Gecko; existing signing configuration retained.
