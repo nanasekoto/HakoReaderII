@@ -49,9 +49,9 @@ public final class Repository {
   }
 
   public static String page(String u, boolean auth) throws Exception {
-    if(auth&&!HakoParser.isOrigin(u))throw new IOException("Sai máy chủ đăng nhập");
     if(app==null)throw new IOException("Chưa khởi tạo app");
-    return RenderedPage.html(app,u);
+    String script="(function(){var t=(document.body?document.body.innerText:'').slice(0,3000);if(/verify you are human|checking your browser|just a moment|too many requests|access denied/i.test(t))return JSON.stringify({error:'Trang yêu cầu xác minh hoặc đang giới hạn truy cập. Mở HAKO để kiểm tra.'});if(!document.body||!document.body.innerHTML.trim())return JSON.stringify({});return JSON.stringify({html:document.documentElement.outerHTML});})()";
+    return new String(GeckoClient.request(u,script,8*1024*1024),"UTF-8");
   }
 
   public static void importShelf(Context ctx) throws Exception {

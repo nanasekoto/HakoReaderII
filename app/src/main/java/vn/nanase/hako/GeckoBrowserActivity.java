@@ -12,7 +12,7 @@ public final class GeckoBrowserActivity extends Activity {
   Button read=new Button(this);read.setText("Đọc offline");read.setOnClickListener(v->done(true));tools.addView(read,new LinearLayout.LayoutParams(0,-2,1));
   status=new TextView(this);status.setText("Gecko Lite · Xác minh trực tiếp · Không tự tải lại");root.addView(status);
   GeckoView view=new GeckoView(this);root.addView(view,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
-  session=new GeckoSession();session.setNavigationDelegate(new GeckoSession.NavigationDelegate(){
+  session=new GeckoSession();session.setPromptDelegate(new GeckoSession.PromptDelegate(){});session.setNavigationDelegate(new GeckoSession.NavigationDelegate(){
    public void onCanGoBack(GeckoSession s,boolean value){back=value;}
    public GeckoResult<AllowOrDeny> onLoadRequest(GeckoSession s,LoadRequest req){
     if(!req.uri.startsWith("https://"))return GeckoResult.fromValue(AllowOrDeny.DENY);

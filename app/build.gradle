@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'vn.nanase.hako'
-    compileSdk 36
+    compileSdk 35
 
     defaultConfig {
         applicationId 'vn.nanase.hako'
@@ -12,7 +12,7 @@ android {
         targetSdk 34
         ndk { abiFilters(project.findProperty("abi") ?: "armeabi-v7a") }
         versionCode 17
-        versionName '0.7.1-Gecko'
+        versionName '0.7.1'
     }
 
     compileOptions {
@@ -21,20 +21,11 @@ android {
     }
 
     packaging {
-        // Compress native libraries in the APK, as Firefox does; Android extracts once at install.
-        // Engine startup still maps uncompressed libraries, with no per-read decompression.
         jniLibs { useLegacyPackaging = true }
     }
 
     signingConfigs {
-        debug {
-            storeFile file('../test-signing.p12')
-            storePassword 'android'
-            keyAlias 'hako-test'
-            keyPassword 'android'
-            storeType 'PKCS12'
-        }
-        release {
+        signingKey {
             storeFile file('../test-signing.p12')
             storePassword 'android'
             keyAlias 'hako-test'
@@ -45,10 +36,10 @@ android {
 
     buildTypes {
         debug {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.signingKey
         }
         release {
-            signingConfig signingConfigs.release
+            signingConfig signingConfigs.signingKey
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -60,4 +51,3 @@ dependencies {
     implementation 'androidx.core:core:1.12.0'
     implementation 'org.jsoup:jsoup:1.18.3'
 }
-

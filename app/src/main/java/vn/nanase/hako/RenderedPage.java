@@ -10,12 +10,6 @@ import org.json.*;
 /** One short-lived renderer. No JS bridge, cookies/credentials never exported. */
 public final class RenderedPage {
  private static final Handler ui=new Handler(Looper.getMainLooper());
- public static String html(Context context,String url)throws Exception{
-  try(InputStream in=context.getAssets().open("page.js");ByteArrayOutputStream out=new ByteArrayOutputStream()){
-   byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1)out.write(b,0,n);
-   return new String(GeckoClient.request(url,out.toString("UTF-8"),8*1024*1024),"UTF-8");
-  }
- }
  public static String chapter(Context context,String url)throws Exception {return render(context,url,"");}
  public static String action(Context context,String url,String action)throws Exception{return render(context,url,action);}
  private static synchronized String render(Context context,String url,String action)throws Exception {

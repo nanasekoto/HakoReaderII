@@ -7,10 +7,6 @@ import org.json.*;
 import org.mozilla.geckoview.*;
 /** One native request at a time, no renderer remains after unbinding. */
 public final class GeckoEngineService extends Service {
- private static boolean sameOrigin(String a,String b){
-  android.net.Uri x=android.net.Uri.parse(a),y=android.net.Uri.parse(b);
-  return "https".equals(x.getScheme())&&"https".equals(y.getScheme())&&x.getHost()!=null&&x.getHost().equalsIgnoreCase(y.getHost())&&x.getPort()==y.getPort();
- }
  private Message current;private GeckoSession session;private WebExtension extension;private InputStream activeBody;private Runnable deadline;
  private final Handler ui=new Handler(Looper.getMainLooper());
  private final Messenger endpoint=new Messenger(new Handler(Looper.getMainLooper()){public void handleMessage(Message m){
@@ -30,7 +26,7 @@ public final class GeckoEngineService extends Service {
   GeckoRuntime runtime;try{runtime=GeckoHost.get(this);}catch(Exception e){finish("Gecko đang đóng; thử lại sau vài giây");return;}
   deadline=()->{if(current==job)finish("Trang chưa sẵn sàng sau 45 giây; không tải lại tự động");};ui.postDelayed(deadline,45000);
   if(b.getString("script")==null){
-   try{new GeckoWebExecutor(runtime).fetch(new WebRequest.Builder(url).header("Referer",HakoParser.ORIGIN+"/").header("Accept","image/avif,image/webp,image/*,*/*;q=0.8").build()).accept(response->{
+   try{new GeckoWebExecutor(runtime).fetch(new WebRequest.Builder(url).header("Referer",HakoParser.ORIGIN+"/").build(),GeckoWebExecutor.FETCH_FLAGS_NO_REDIRECTS).accept(response->{
     if(current!=job)return;
     activeBody=response.body;
     if(response.statusCode!=200){finish("HAKO trả HTTP "+response.statusCode+". Dừng tải; mở Đăng nhập để kiểm tra.");return;}
@@ -53,7 +49,7 @@ public final class GeckoEngineService extends Service {
     JSONObject msg=(JSONObject)message;
     if(msg.has("phase")){android.util.Log.i("HakoGecko","Bridge phase: "+msg.optString("phase")+" ready="+msg.optString("ready")+" hasScript="+msg.optBoolean("hasScript"));return null;}
     if(msg.optBoolean("hello")){
-     boolean approved=HakoParser.isOrigin(sender.url)||sameOrigin(b.getString("url"),sender.url);
+     boolean approved=HakoParser.isOrigin(sender.url)||b.getString("url").equals(sender.url);
      android.util.Log.i("HakoGecko","Bridge hello: approved="+approved+" scriptChars="+b.getString("script","").length());
      if(!approved){finish("Địa chỉ trang trích xuất không khớp yêu cầu");return null;}
      return GeckoResult.fromValue(b.getString("script"));
