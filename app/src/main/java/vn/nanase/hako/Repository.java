@@ -140,7 +140,7 @@ public final class Repository {
 
   public static boolean unchangedShelf(Context c,Store.Book b){
     android.content.SharedPreferences p=c.getSharedPreferences("settings",0);
-    return b.followed&&!Store.get(c).chapters(b.id).isEmpty()&&ShelfPolicy.unchanged(p.getString("shelf_key_"+b.id,""),p.getString("catalog_shelf_key_"+b.id,""));
+    return b.followed&&!p.getBoolean("shelf_changed_"+b.id,false)&&!Store.get(c).chapters(b.id).isEmpty()&&ShelfPolicy.unchanged(p.getString("shelf_key_"+b.id,""),p.getString("catalog_shelf_key_"+b.id,""));
   }
 
   public static void catalog(Context c, Store.Book b) throws Exception {
