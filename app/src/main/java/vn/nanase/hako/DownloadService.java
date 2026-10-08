@@ -72,8 +72,10 @@ public class DownloadService extends Service {
         new Thread(
             () -> {
               try {
+                Repository.awaitIdle();
                 Repository.run(this, book, finalMode, false);
                 Repository.awaitIdle();
+                while(Repository.pendingAll&&!Repository.syncPaused){Repository.pendingAll=false;Repository.run(this,"",Repository.MODE_SYNC_LIBRARY,false);Repository.awaitIdle();}
               } catch (Exception e) {
                 Repository.notify(this, "Tạm dừng: " + e.getMessage());
               } finally {
