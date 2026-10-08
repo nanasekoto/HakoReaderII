@@ -38,12 +38,12 @@ public final class ReadSync extends JobService {
         try{
           Repository.allowed(c);
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();
-          Repository.catalog(c,b);
+          Repository.catalog(c,b,true);
           if(Repository.syncPaused||!s.canSubmit(id))continue;
           String snapshot=c.getSharedPreferences("read_queue",0).getString(id,"");
           RenderedPage.action(c,HakoParser.ORIGIN+"/ke-sach","read:"+id.substring(id.lastIndexOf('-')+1));
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();
-          Repository.catalog(c,b);
+          Repository.catalog(c,b,true);
           // New arrivals stay locally unread even if Hako's mark-all raced their publication.
           if(snapshot.equals(c.getSharedPreferences("read_queue",0).getString(id,"")))s.clearQueue(id);
           Repository.notify(c,s.unread(id)>0?"HAKO đã cập nhật · Có chương mới chưa đọc":"Đã đồng bộ đã đọc lên HAKO");

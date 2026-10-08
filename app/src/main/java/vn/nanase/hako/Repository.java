@@ -12,6 +12,9 @@ public final class Repository {
   private static Context app;
   public static void init(Context c){app=c.getApplicationContext();syncPaused=c.getSharedPreferences("settings",0).getBoolean("sync_paused",false);GeckoClient.init(c);HakoParser.ORIGIN=c.getSharedPreferences("settings",0).getString("origin","https://docln.sbs");}
   public static volatile String activeBook="";
+  private static final AtomicInteger requestedShelfScan=new AtomicInteger();
+  public static void requestShelfScan(int mode){requestedShelfScan.set(mode);}
+  private static long lastNotice;private static String lastNoticeText="";
   public static volatile boolean pocketPaused=false, syncPaused=false, shelfUpdating=false;
   public static void awaitIdle() throws InterruptedException {
     synchronized(busy){while(busy.get())busy.wait();}
@@ -43,6 +46,9 @@ public final class Repository {
 
   public static void notify(Context c, String s) {
     status = s;
+    long now=android.os.SystemClock.elapsedRealtime();
+    if(s.equals(lastNoticeText)|| (s.startsWith("Đang tải ")&&now-lastNotice<1200))return;
+    lastNotice=now;lastNoticeText=s;
     c.sendBroadcast(new Intent(EVENT).setPackage(c.getPackageName()).putExtra("text", s));
   }
 
@@ -71,7 +77,14 @@ public final class Repository {
     Set<String> done = new HashSet<>();
     int count = 0;List<HakoParser.Link> collected=new ArrayList<>();
     android.content.SharedPreferences prefs=ctx.getSharedPreferences("settings",0);
-    long watermark=prefs.getLong("shelf_watermark",0), newest=0;boolean partial=false;
+    long newest=0;boolean partial=false;
+    int scanMode=requestedShelfScan.getAndSet(0);boolean audit=scanMode==2,full=scanMode!=0;
+    boolean canUseAnchor=prefs.getBoolean("shelf_anchor_ready",false)&&!prefs.getBoolean("shelf_fast_disabled",false)&&HakoParser.ORIGIN.equals(prefs.getString("shelf_anchor_origin",""));
+    if(!full&&canUseAnchor&&!prefs.getBoolean("shelf_anchor_verified",false)){audit=true;full=true;}
+    String anchor=prefs.getString("shelf_anchor_id","");
+    Map<String,String> previousKeys=new HashMap<>();for(Store.Book old:s.books())if(old.followed)previousKeys.put(old.id,prefs.getString("shelf_key_"+old.id,""));
+    Set<String> quickObserved=null;String anchorTitle="";
+    UpdateReport.log(ctx,full?(audit?"Đối chiếu quét nhanh với toàn bộ tủ sách":"Kiểm tra toàn bộ tủ sách"):"Quét nhanh tủ sách; không có mốc hợp lệ sẽ quét đầy đủ");
     java.util.Map<String,String> shelfKeys=new java.util.HashMap<>();java.util.Map<String,Long> shelfTimes=new java.util.HashMap<>();Set<String> changedShelfBooks=new HashSet<>();
     while (true) {
       String next = null;
@@ -85,33 +98,52 @@ public final class Repository {
         throw new IOException("Kệ sách vượt 100 trang; đã giữ phần nhập được.");
       if(cancel.get()||syncPaused)throw new IOException("Đã tạm dừng cập nhật tủ sách");
       notify(ctx, "Đang nhập kệ sách • trang " + (done.size() + 1));
+      UpdateReport.page(ctx);UpdateReport.log(ctx,"Kiểm tra trang "+(done.size()+1)+" tủ sách");
       allowed(ctx);String html = page(next, true);
       done.add(next);
       if (Jsoup.parse(html).selectFirst("input[type=password]") != null)
         throw new IOException("Hãy đăng nhập HAKO trước khi nhập kệ sách.");
       List<HakoParser.Link> links = HakoParser.shelf(html, next);
+      if(links.isEmpty()&&!previousKeys.isEmpty())throw new IOException("Không đọc được danh sách tủ sách; đã giữ dữ liệu cũ");
+      List<ShelfAnchor.Row> anchorRows=new ArrayList<>();
       for (HakoParser.Link l : links) {
+        anchorRows.add(new ShelfAnchor.Row(l.id,l.latestKey,shelfCount(l.info)));
+        if(l.id.equals(anchor))anchorTitle=l.title;
         Store.Book previous=s.book(l.id);
         int before=previous==null?-1:shelfCount(previous.shelfInfo),after=shelfCount(l.info);
-        if(after>=0&&((before>=0&&after>before)||(previous==null&&after>0)))changedShelfBooks.add(l.id);
+        if(l.latestKey.isEmpty()&&after>=0&&((before>=0&&after>before)||(previous==null&&after>0)))changedShelfBooks.add(l.id);
         collected.add(l);
         count++;
         shelfKeys.put(l.id,l.latestKey);shelfTimes.put(l.id,l.updatedAt);newest=Math.max(newest,l.updatedAt);
       }
-      // A small number of updates alone is not enough to skip unseen shelf pages.
       List<String> following=HakoParser.shelfPages(html,next);
-      if(!following.isEmpty()&&ShelfPolicy.oldPage(links,watermark,HakoParser.shelfUpdateOrder(html))){partial=true;break;}
-      urls.addAll(HakoParser.shelfPages(html, next));
-      Thread.sleep(2000);
+      boolean orderSafe=true;
+      for(Element option:Jsoup.parse(html).select("select option[selected]")){String v=(option.text()+" "+option.attr("value")).toLowerCase(Locale.ROOT);if(v.matches(".*(a-z|z-a|title|tên truyện|cũ nhất|_asc).*"))orderSafe=false;}
+      boolean stop=!following.isEmpty()&&ShelfAnchor.canStop(anchorRows,anchor,previousKeys,canUseAnchor&&orderSafe);
+      if(stop&&quickObserved==null){quickObserved=new HashSet<>(shelfKeys.keySet());UpdateReport.log(ctx,"Gặp mốc chưa đọc không đổi: "+anchorTitle+" · trang "+done.size());}
+      if(stop&&!full){partial=true;UpdateReport.log(ctx,"Dừng quét nhanh ở trang "+done.size()+"; giữ các trang phía sau trong bộ nhớ");break;}
+      urls.addAll(following);
+      boolean more=false;for(String u:urls)if(!done.contains(u)){more=true;break;}
+      if(more)Thread.sleep(2000);
     }
     if(cancel.get()||syncPaused)throw new IOException("Đã tạm dừng cập nhật tủ sách");
+    if(audit){
+      int missed=0;
+      if(quickObserved==null)UpdateReport.log(ctx,"Không gặp mốc dừng: quét nhanh cũng cần kiểm tra toàn bộ");
+      else for(HakoParser.Link row:collected)if(!quickObserved.contains(row.id)&&(!ShelfPolicy.unchanged(row.latestKey,previousKeys.get(row.id)))){missed++;UpdateReport.log(ctx,"Quét nhanh có thể bỏ sót: "+row.title+" (chương mới hoặc thông tin chưa rõ)");}
+      if(missed>0){prefs.edit().putBoolean("shelf_fast_disabled",true).putBoolean("shelf_anchor_verified",false).commit();UpdateReport.log(ctx,"Đã tắt dừng sớm do đối chiếu không khớp. Những lần sau quét đầy đủ.");}
+      else {prefs.edit().putBoolean("shelf_anchor_verified",true).commit();UpdateReport.log(ctx,"Đối chiếu: không phát hiện cập nhật bị bỏ sót"+(quickObserved==null?"; không có lối tắt":""));}
+    }
     if(partial)s.mergeShelf(collected);else s.replaceShelf(collected);
     android.content.SharedPreferences.Editor edit=prefs.edit();
     // Replace current keys only for rows actually observed; older cached rows remain intact.
     for(java.util.Map.Entry<String,String> e:shelfKeys.entrySet())edit.putString("shelf_key_"+e.getKey(),e.getValue());
     for(java.util.Map.Entry<String,Long> e:shelfTimes.entrySet())edit.putLong("shelf_updated_at_"+e.getKey(),e.getValue());
+    for(Map.Entry<String,String> e:shelfKeys.entrySet())if(ShelfPolicy.unchanged(e.getValue(),prefs.getString("catalog_shelf_key_"+e.getKey(),"")))edit.remove("shelf_changed_"+e.getKey());
     for(String changed:changedShelfBooks)edit.putBoolean("shelf_changed_"+changed,true);
-    if(!partial&&newest>0)edit.putLong("shelf_watermark",newest);
+    if(!partial){String nextAnchor="";for(HakoParser.Link row:collected)if(shelfCount(row.info)>0&&!row.latestKey.isEmpty())nextAnchor=row.id;
+      edit.putString("shelf_anchor_id",nextAnchor).putString("shelf_anchor_origin",HakoParser.ORIGIN).putBoolean("shelf_anchor_ready",true);
+    }
     edit.commit();
     ctx.getSharedPreferences("settings",0).edit().putLong("lastShelfSync",System.currentTimeMillis()).commit();
     shelfUpdating=false;
@@ -140,12 +172,17 @@ public final class Repository {
 
   public static boolean unchangedShelf(Context c,Store.Book b){
     android.content.SharedPreferences p=c.getSharedPreferences("settings",0);
-    return b.followed&&!p.getBoolean("shelf_changed_"+b.id,false)&&!Store.get(c).chapters(b.id).isEmpty()&&ShelfPolicy.unchanged(p.getString("shelf_key_"+b.id,""),p.getString("catalog_shelf_key_"+b.id,""));
+    return !p.getBoolean("catalog_failed_"+b.id,false)&&!Store.get(c).chapters(b.id).isEmpty()&&ShelfPolicy.unchanged(p.getString("shelf_key_"+b.id,""),p.getString("catalog_shelf_key_"+b.id,""));
   }
 
   public static void catalog(Context c, Store.Book b) throws Exception {
-    long stamp=c.getSharedPreferences("settings",0).getLong("catalog-"+b.id,0);
-    if(!Store.get(c).chapters(b.id).isEmpty()&&System.currentTimeMillis()-stamp<15*60*1000)return;
+    catalog(c,b,false);
+  }
+  public static void catalog(Context c,Store.Book b,boolean force) throws Exception {
+    android.content.SharedPreferences prefs=c.getSharedPreferences("settings",0);
+    if(!force&&unchangedShelf(c,b)){UpdateReport.skipped(c);UpdateReport.log(c,b.title+": bỏ qua mục lục — chương mới nhất không đổi");return;}
+    UpdateReport.checked(c);UpdateReport.log(c,b.title+": kiểm tra mục lục — "+(force?"làm mới bắt buộc (thủ công hoặc xác minh đọc hết)":Store.get(c).chapters(b.id).isEmpty()?"chưa có mục lục":"chương mới hoặc thông tin chưa rõ"));
+    prefs.edit().putBoolean("catalog_failed_"+b.id,true).commit();
     allowed(c);
     String shelfKey=c.getSharedPreferences("settings",0).getString("shelf_key_"+b.id,"");
     String html = page(b.url, true);
@@ -153,7 +190,7 @@ public final class Repository {
     if (ls.isEmpty()) throw new IOException("Mục lục trống: " + b.title);
     Store.get(c).catalog(b.id, ls);
     Store.get(c).establishReadBaseline(b.id);
-    c.getSharedPreferences("settings",0).edit().putLong("catalog-"+b.id,System.currentTimeMillis()).putString("catalog_shelf_key_"+b.id,shelfKey).remove("shelf_changed_"+b.id).apply();
+    c.getSharedPreferences("settings",0).edit().putLong("catalog-"+b.id,System.currentTimeMillis()).putString("catalog_shelf_key_"+b.id,shelfKey).remove("shelf_changed_"+b.id).remove("catalog_failed_"+b.id).commit();
   }
 
   public static synchronized void download(Context ctx, Store.Chapter c) throws Exception {
@@ -235,6 +272,7 @@ public final class Repository {
     syncTotal = 0;
     syncDone = 0;
     syncPct = 0;
+    UpdateReport.begin(ctx);
     if(mode==MODE_SYNC_LIBRARY)ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",false).commit();
     notify(ctx, "Đang kiểm tra mục lục…");
 
@@ -255,13 +293,14 @@ public final class Repository {
           if (b.id.equals("demo") || b.dropped) continue;
           if (s.syncTarget(b) || b.id.equals(activeBook)) {
             todo.add(b);
-          }
+          }else UpdateReport.log(ctx,b.title+": không tải — chỉ nằm trong tủ sách/ghim, chưa đọc trong APK và chưa chọn tải");
         }
       }
 
-      if(librarySync)todo.sort(s::compareDownloads);
+      if(librarySync)s.sortDownloads(todo);
       Set<String> refreshedCatalogs=new HashSet<>();
       DownloadLedger ledger=new DownloadLedger();
+      boolean hadFailures=false;
       while (!cancel.get() && !pauseAutomatic(charging) && (!todo.isEmpty() || !pendingBook.isEmpty() || pendingAll)) {
         if (pendingAll) {
           pendingAll = false;librarySync=true;currentMode=MODE_SYNC_LIBRARY;
@@ -271,7 +310,7 @@ public final class Repository {
             if(candidate.id.equals("demo")||candidate.dropped)continue;
             if(s.syncTarget(candidate)||candidate.id.equals(activeBook))todo.add(candidate);
           }
-          todo.sort(s::compareDownloads);
+          s.sortDownloads(todo);
         }
         if (!pendingBook.isEmpty()) {
           Store.Book p = s.book(pendingBook);
@@ -279,26 +318,25 @@ public final class Repository {
           if (p != null) {
             todo.removeIf(x -> x.id.equals(p.id));
             todo.add(p);
-            if(librarySync)todo.sort(s::compareDownloads);else {todo.remove(p);todo.add(0,p);}
+            if(librarySync)s.sortDownloads(todo);else {todo.remove(p);todo.add(0,p);}
           }
         }
         if (todo.isEmpty() || (charging && !ChargeJob.isCharging(ctx))) break;
 
         Store.Book b = todo.remove(0);
+        if(librarySync&&b!=null&&!s.syncTarget(b)&&!b.id.equals(activeBook)){UpdateReport.log(ctx,b.title+": chặn tải do không đủ điều kiện");continue;}
         if (b == null || b.id == null || b.id.isEmpty() || !FetchPolicy.allowDownload(b.dropped,(mode==MODE_BOOK_ALL && b.id.equals(book))||(manualOverride&&s.isKeepFull(b.id)))) continue;
 
         // 1. Refresh catalog FIRST to know real chapter count
         if(!refreshedCatalogs.contains(b.id)){
-          if(librarySync)ctx.getSharedPreferences("settings",0).edit().remove("catalog-"+b.id).commit();
-          boolean finishedUnchanged=librarySync&&s.isCompleted(b.id)&&!s.chapters(b.id).isEmpty()&&!s.hasShelfUpdate(b);
-          if(!finishedUnchanged&&(!librarySync||!unchangedShelf(ctx,b)))catalog(ctx,b);
+          UpdateReport.selected(ctx);UpdateReport.log(ctx,b.title+": đủ điều kiện tải — "+(s.isKeepFull(b.id)?"bạn chọn giữ toàn bộ":b.visits>0?"đã đọc trong APK":"bạn bật tự động tải hoặc đang mở đọc"));
+          try{catalog(ctx,b);}catch(Exception error){hadFailures=true;UpdateReport.log(ctx,b.title+": lỗi kiểm tra mục lục — "+error.getMessage()+"; giữ dữ liệu offline và tiếp tục bộ khác");notify(ctx,"Không cập nhật được "+b.title+" · Xem Chi tiết cập nhật");continue;}
           refreshedCatalogs.add(b.id);
         }
         Store.Book refreshed = s.book(b.id);
         if (refreshed != null) b = refreshed;
         List<Store.Chapter> chapters = s.chapters(b.id);
-        int current = 0;
-        for (Store.Chapter ch : chapters) if (ch.id.equals(b.current)) current = ch.ord;
+        int current = s.readingStart(b,chapters);
 
         boolean isFullMode = (mode == MODE_BOOK_ALL && b.id.equals(book)) || s.isKeepFull(b.id) || s.isCompleted(b.id);
 
@@ -315,7 +353,9 @@ public final class Repository {
           }
         }
 
-        for(Store.Chapter needed:needDownload)ledger.add(needed.id);
+        int stored=0;for(Store.Chapter ch:chapters)if(ch.ready)stored++;
+        UpdateReport.log(ctx,b.title+": đã lưu "+stored+"/"+chapters.size()+" chương toàn bộ · Cần tải "+needDownload.size()+" chương trong phạm vi đã chọn");
+        for(Store.Chapter needed:needDownload){if(!needed.book.equals(b.id))throw new IOException("Hàng đợi sai truyện; đã dừng để giữ dữ liệu");ledger.add(needed.id);}
         syncTotal=ledger.total();syncDone=ledger.done();
         syncState = "DOWNLOADING";
         if (syncTotal == 0) {
@@ -359,7 +399,9 @@ public final class Repository {
               notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
             }
           } catch (Exception e) {
+            hadFailures=true;
             s.state(ch.id, false, e.getMessage());
+            UpdateReport.log(ctx,b.title+" · "+ch.title+": lỗi tải — "+e.getMessage());
             notify(ctx, "Lỗi tải " + ch.title + ": " + e.getMessage());
             Thread.sleep(1500);
           }
@@ -370,11 +412,12 @@ public final class Repository {
         ctx.sendBroadcast(new Intent(EVENT).setPackage(ctx.getPackageName()).putExtra("books_changed",true).putExtra("text",status));
       }
 
-      if(librarySync&&!cancel.get()&&!pauseAutomatic(charging)&&todo.isEmpty())ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",true).commit();
+      if(librarySync&&!hadFailures&&!cancel.get()&&!pauseAutomatic(charging)&&todo.isEmpty())ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",true).commit();
 
       int remaining = 0;
       if (syncTotal > 0 && syncDone < syncTotal) remaining = syncTotal - syncDone;
-      if (syncTotal > 0 && remaining == 0) {
+      if(hadFailures||cancel.get()||pauseAutomatic(charging)){syncState="INCOMPLETE";notify(ctx,"Chưa hoàn tất hoặc đã tạm dừng · Xem Chi tiết cập nhật");}
+      else if (syncTotal > 0 && remaining == 0) {
         syncState = "COMPLETED";
         syncPct = 100;
         isSyncing = false;
@@ -389,8 +432,9 @@ public final class Repository {
         isSyncing = false;
         notify(ctx, "Chưa hoàn tất: còn " + remaining + " chương chưa tải");
       }
-    } finally {
+    } catch(Exception error){UpdateReport.log(ctx,"Đã dừng tác vụ: "+error.getMessage());throw error;} finally {
       syncPct=Store.get(ctx).totalOfflinePercent();
+      if(!"COMPLETED".equals(syncState))syncPct=Math.min(99,syncPct);
       busy.set(false);GeckoClient.release();
       ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}
@@ -399,6 +443,7 @@ public final class Repository {
       manualOverride = false;
       isSyncing = false;
       notify(ctx,syncPaused?"Đã tạm dừng đồng bộ · Dữ liệu tải được giữ nguyên":syncPct==100?"Offline đã đủ · Có thể tắt Wi-Fi":"Offline "+syncPct+"% · Chưa tải đủ");
+      UpdateReport.finish(ctx);
     }
   }
 

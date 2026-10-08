@@ -62,6 +62,11 @@ public final class Store extends SQLiteOpenHelper {
   }
   private int shelfUnread(Book b){try{return Integer.parseInt(b.shelfInfo.trim().split("\\s+")[0]);}catch(Exception e){return 0;}}
   public long shelfUpdatedAt(Book b){return context.getSharedPreferences("settings",0).getLong("shelf_updated_at_"+b.id,0);}
+  public void sortDownloads(List<Book> books){
+    Map<String,Integer> ranks=new HashMap<>();Map<String,Long> times=new HashMap<>();
+    for(Book b:books){ranks.put(b.id,DownloadPriority.rank(hasShelfUpdate(b),b.visits,isCompleted(b.id)));times.put(b.id,shelfUpdatedAt(b));}
+    books.sort((a,b)->{int ar=ranks.get(a.id),br=ranks.get(b.id),n=Integer.compare(ar,br);if(n!=0)return n;if(ar==0){n=Long.compare(times.get(b.id),times.get(a.id));if(n!=0)return n;}n=Integer.compare(b.visits,a.visits);if(n!=0)return n;n=Long.compare(b.stamp,a.stamp);if(n!=0)return n;n=Integer.compare(a.shelfRank,b.shelfRank);return n!=0?n:a.id.compareTo(b.id);});
+  }
   public int compareDownloads(Book a,Book b){
     int ar=DownloadPriority.rank(hasShelfUpdate(a),a.visits,isCompleted(a.id)),br=DownloadPriority.rank(hasShelfUpdate(b),b.visits,isCompleted(b.id));
     int n=Integer.compare(ar,br);if(n!=0)return n;
@@ -110,6 +115,7 @@ public final class Store extends SQLiteOpenHelper {
     }
   }
 
+  public int readingStart(Book b,List<Chapter> chapters){if(b.current!=null&&!b.current.isEmpty())for(Chapter ch:chapters)if(ch.id.equals(b.current))return ch.ord;int last=0;for(Chapter ch:chapters)if(wasRead(ch.id))last=Math.max(last,ch.ord);return last;}
   public BookProgress progress(Book b) {
     List<Chapter> chs = chapters(b.id);
     int total = chs.size();
@@ -245,7 +251,6 @@ public final class Store extends SQLiteOpenHelper {
     try {
       List<Chapter> previous=chapters(book);Set<String> oldIds=new HashSet<>();for(Chapter old:previous)oldIds.add(old.id);
       int added=0;for(HakoParser.Link l:links)if(!oldIds.contains(l.id))added++;
-      if(!previous.isEmpty())context.getSharedPreferences("settings",0).edit().putInt("new_arrivals_"+book,added).apply();
       Set<String> valid=new HashSet<>();for(HakoParser.Link l:links)valid.add(l.id);
       // A partial or mismatched web catalog must never erase existing offline chapters.
       for(Chapter old:previous)if(!valid.contains(old.id))throw new IllegalStateException("Mục lục mới thiếu chương đã biết. Đã giữ nguyên dữ liệu offline; chưa cập nhật mục lục.");
@@ -262,6 +267,7 @@ public final class Store extends SQLiteOpenHelper {
         d.update("chapters", v, "id=?", new String[] {l.id});
       }
       d.setTransactionSuccessful();
+      if(!previous.isEmpty())context.getSharedPreferences("settings",0).edit().putInt("new_arrivals_"+book,added).apply();
     } finally {
       d.endTransaction();
     }
@@ -325,53 +331,4 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public File html(String id) {
-    return new File(dir(id), "content.html");
-  }
-
-  public static void write(File f, String s) throws IOException {
-    f.getParentFile().mkdirs();
-    File tmp = new File(f.getPath() + ".tmp");
-    try (FileOutputStream out = new FileOutputStream(tmp)) {
-      out.write(s.getBytes("UTF-8"));
-      out.getFD().sync();
-    }
-    if (!tmp.renameTo(f)) throw new IOException("Không lưu được nội dung");
-  }
-
-  public static String read(File f) throws IOException {
-    try (FileInputStream in = new FileInputStream(f);
-        ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-      byte[] b = new byte[8192];
-      int n;
-      while ((n = in.read(b)) != -1) out.write(b, 0, n);
-      return out.toString("UTF-8");
-    }
-  }
-
-  public synchronized void prune(Book b) {
-    if (b == null) return;
-    if (isKeepFull(b.id)) return; // Never prune books selected for full offline
-    Chapter current = chapter(b.id, b.current);
-    if (current == null) return;
-    for (Chapter c : chapters(b.id))
-      // Preserve all future/unread chapters; only prune read chapters far in the past
-      if (c.ord < current.ord - FetchPolicy.BEHIND) {
-        delete(dir(c.id));
-        state(c.id, false, "");
-      }
-  }
-
-  public synchronized void followed(String id,boolean value,int rank){ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
-  public synchronized void dropped(String id,boolean value){ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
-  private boolean cachedChapter(String id,boolean markedReady){File f=html(id);return f.isFile()&&f.length()>0&&(markedReady||readable(id));}
-  public boolean readable(String cid){try{return html(cid).isFile()&&HakoParser.validContent(read(html(cid)));}catch(Exception e){return false;}}
-  public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
-  public void cleanStartup(){for(Book b:books())if(!b.id.equals("demo")){if(!b.followed&&!b.id.equals(Repository.activeBook))clearTemporary(b.id);for(Chapter c:chapters(b.id))if(!html(c.id).isFile()||html(c.id).length()==0){state(c.id,false,"");}}}
-
-  public synchronized void rebase(String origin){for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}}
-  public static void delete(File f) {
-    File[] kids = f.listFiles();
-    if (kids != null) for (File x : kids) delete(x);
-    f.delete();
-  }
-}
+    return new File(dir(id), "content.htm
