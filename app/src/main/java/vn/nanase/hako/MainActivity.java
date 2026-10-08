@@ -58,7 +58,7 @@ public class MainActivity extends Activity {
   private TextView listLoadStatus;
   private final Runnable libraryClock=new Runnable(){public void run(){
     if(isFinishing()||isDestroyed())return;
-    if(listLoadStatus!=null&&libraryLoading)listLoadStatus.setText("Đọc dữ liệu cục bộ · "+((SystemClock.elapsedRealtime()-libraryLoadStarted)/1000)+"s · Giao diện vẫn dùng bản đã lưu");
+    if(listLoadStatus!=null&&libraryLoading&&!Repository.busy.get()&&!Repository.pendingAll)listLoadStatus.setText("Đọc dữ liệu cục bộ · "+((SystemClock.elapsedRealtime()-libraryLoadStarted)/1000)+"s · Giao diện vẫn dùng bản đã lưu");
     if(status!=null&&(Repository.busy.get()||Repository.pendingAll))status.setText(Repository.status+" · "+Math.max(0,(SystemClock.elapsedRealtime()-Repository.stageStarted)/1000)+"s");
     if(libraryLoading||Repository.busy.get()||Repository.pendingAll)libraryHandler.postDelayed(this,1000);
   }};
@@ -77,7 +77,7 @@ public class MainActivity extends Activity {
         if(loaded!=null)readyLibrary=loaded;
         Runnable done=libraryLoaded;libraryLoaded=null;
         if(done!=null&&loaded!=null)done.run();
-        if(listLoadStatus!=null)listLoadStatus.setText(loaded==null?"Không đọc được thư viện: "+failure:"Dữ liệu cục bộ sẵn · "+loaded.books.size()+" bộ · chuẩn bị "+loaded.loadMillis+"ms");
+        if(listLoadStatus!=null&&!Repository.busy.get()&&!Repository.pendingAll)listLoadStatus.setText(loaded==null?"Không đọc được thư viện: "+failure:"Dữ liệu cục bộ sẵn · "+loaded.books.size()+" bộ · chuẩn bị "+loaded.loadMillis+"ms");
         if(libraryReloadAgain){libraryReloadAgain=false;reloadLibrary(false,()->refreshLibraryView());}
       });
     });
@@ -106,8 +106,18 @@ public class MainActivity extends Activity {
     libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);
   }
   private void addLibraryLoadStatus(LinearLayout header){
-    listLoadStatus=text(readyLibrary==null?"Đang chuẩn bị dữ liệu cục bộ":"Thư viện sẵn · chuẩn bị "+readyLibrary.loadMillis+"ms",11);
-    listLoadStatus.setSingleLine(true);header.addView(listLoadStatus);
+    listLoadStatus=new TextView(this);
+    listLoadStatus.setText(Repository.busy.get()||Repository.pendingAll?Repository.status:
+      readyLibrary==null?"Đang chuẩn bị dữ liệu cục bộ":"Thư viện sẵn · chuẩn bị "+readyLibrary.loadMillis+"ms");
+    listLoadStatus.setTextSize(11f);listLoadStatus.setTextColor(MUTED);
+    listLoadStatus.setTypeface(UI_REGULAR);listLoadStatus.setIncludeFontPadding(false);
+    listLoadStatus.setSingleLine(true);listLoadStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    listLoadStatus.setPadding(0,dp(2),0,dp(2));
+    header.addView(listLoadStatus,new LinearLayout.LayoutParams(-1,-2));
+    status=listLoadStatus;
+    View separator=new View(this);separator.setBackgroundColor(Color.BLACK);
+    LinearLayout.LayoutParams line=new LinearLayout.LayoutParams(-1,dp(1));
+    line.topMargin=dp(2);line.bottomMargin=dp(2);header.addView(separator,line);
   }
 
   private Store store;
@@ -317,7 +327,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.11 Gecko",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.12 Gecko",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     boolean paused=prefs.getBoolean("sync_paused",false);
@@ -558,7 +568,7 @@ public class MainActivity extends Activity {
     syncStatus.setSingleLine(true);
     syncStatus.setPadding(0, dp(1), 0, 0);
     topBar.addView(syncStatus);
-    if(shelf){TextView downloading=new TextView(this);downloading.setText(Repository.status);downloading.setTextSize(11f);downloading.setTextColor(MUTED);downloading.setSingleLine(true);downloading.setEllipsize(android.text.TextUtils.TruncateAt.END);topBar.addView(downloading);status=downloading;}else status=syncStatus;
+    // Progress is shown once, below the shelf/history metadata, with a separator.
 
     addLibraryLoadStatus(topBar);
     root.addView(topBar);
@@ -568,6 +578,7 @@ public class MainActivity extends Activity {
     if (shelf) books.sort(readyLibrary::compareShelf);
 
     PagedBookList list = new PagedBookList(this);
+    list.cardsWithControls(!shelf);
     currentList = list;
     list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
     list.setDrawSelectorOnTop(false);
@@ -1530,7 +1541,7 @@ public class MainActivity extends Activity {
   private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setView(input).setPositiveButton("Kiểm tra",(d,w)->{String value=input.getText().toString().trim();if(!value.startsWith("https://"))value="https://"+value;final String origin=value.replaceAll("/+$","");try{java.net.URI u=java.net.URI.create(origin);if(u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty())throw new Exception();}catch(Exception e){message("Chỉ nhập tên miền HTTPS, không có đường dẫn.");return;}task("Kiểm tra tên miền…",()->{String h=Repository.page(origin,false);if(!h.contains("Light Novel")&&!h.contains("HAKO"))throw new Exception("Không nhận diện trang HAKO");return null;},()->{Repository.cancel.set(true);HakoParser.ORIGIN=origin;prefs.edit().putString("origin",origin).apply();store.rebase(origin);message("Đã đổi tên miền. Đăng nhập lại nếu cần.");});}).setNegativeButton("Hủy",null).show();}
   private void webViewInfo(){
     android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
-    String info="Engine của app: GeckoView · 0.7.11 Gecko\nWebView hệ thống (app không dùng đăng nhập):\n"+
+    String info="Engine của app: GeckoView · 0.7.12 Gecko\nWebView hệ thống (app không dùng đăng nhập):\n"+
       "Gói: "+(provider==null?"Không xác định":provider.packageName)+"\n"+
       "Phiên bản: "+(provider==null?"Không xác định":provider.versionName)+"\n\n"+
       "Thiết bị: "+Build.MANUFACTURER+" "+Build.MODEL+"\n"+
