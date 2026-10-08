@@ -121,26 +121,14 @@ public final class Store extends SQLiteOpenHelper {
     int total = chs.size();
     if (total == 0) return new BookProgress(0, 0, 0, 0, 0);
 
-    int currentOrd = 0;
-    if (b.current != null && !b.current.isEmpty()) {
-      for (int i = 0; i < chs.size(); i++) {
-        if (chs.get(i).id.equals(b.current)) {
-          currentOrd = chs.get(i).ord;
-          break;
-        }
-      }
-    } else {
-      for (int i = 0; i < chs.size(); i++) {
-        if (wasRead(chs.get(i).id)) currentOrd = i;
-      }
-    }
-
-    if(isKeepFull(b.id))currentOrd=0;
-    int oldChs = Math.max(0, currentOrd);
-    int newChsTotal = Math.max(0, total - currentOrd);
-    int newChsDownloaded = 0;
-    for (int i = currentOrd; i < total; i++) {
-      if (chs.get(i).ready) newChsDownloaded++;
+    int currentOrd = readingStart(b,chs);
+    boolean full=isKeepFull(b.id)||isCompleted(b.id);
+    boolean toEnd=FetchPolicy.toEnd(b.followed,favorite(b),full);
+    int oldChs = full?0:Math.max(0,currentOrd-FetchPolicy.BEHIND);
+    int newChsTotal=0,newChsDownloaded=0;
+    for(Chapter ch:chs)if(FetchPolicy.inDownloadRange(ch.ord,currentOrd,toEnd,full)){
+      newChsTotal++;
+      if(ch.ready)newChsDownloaded++;
     }
 
     int pct = newChsTotal==0?100:Math.min(newChsDownloaded==newChsTotal?100:99, Math.max(0, Math.round(newChsDownloaded * 100f / newChsTotal)));
@@ -369,7 +357,7 @@ public final class Store extends SQLiteOpenHelper {
 
   public synchronized void followed(String id,boolean value,int rank){ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   public synchronized void dropped(String id,boolean value){ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
-  private boolean cachedChapter(String id,boolean markedReady){File f=html(id);return f.isFile()&&f.length()>0&&(markedReady||readable(id));}
+  private boolean cachedChapter(String id,boolean markedReady){return readable(id);}
   private final java.util.concurrent.ConcurrentHashMap<String,String> validatedFiles=new java.util.concurrent.ConcurrentHashMap<>();
   public boolean readable(String cid){try{File f=html(cid);if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);return false;}String fingerprint=f.length()+":"+f.lastModified();if(fingerprint.equals(validatedFiles.get(cid)))return true;boolean ok=HakoParser.validContent(read(f));if(ok)validatedFiles.put(cid,fingerprint);else validatedFiles.remove(cid);return ok;}catch(Exception e){validatedFiles.remove(cid);return false;}}
   public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
