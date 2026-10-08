@@ -118,7 +118,7 @@ public class MainActivity extends Activity {
     if(mode==1||mode==4)renderBookList(mode==1);
     else renderFrequentList(mode==3);
     // Home already preloads the snapshot. Navigation uses it immediately.
-    if(readyLibrary==null)reloadLibrary(false,null);
+    reloadLibrary(false,null);
     libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);
   }
   private int libraryLineHeight(TextView view){
@@ -344,6 +344,7 @@ public class MainActivity extends Activity {
   private void library() {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
+    reloadLibrary(false,null);
     root.addView(text("HAKO POCKET",20));
     root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.14 Gecko",11));
     LinearLayout grid=new LinearLayout(this);
