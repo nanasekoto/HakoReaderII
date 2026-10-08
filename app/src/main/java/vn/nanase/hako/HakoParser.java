@@ -132,10 +132,7 @@ public final class HakoParser {
     for (Element a : d.select("a[href]")) {
       try {
         URI u = URI.create(a.absUrl("href"));
-        if (URI.create(ORIGIN).getHost().equals(u.getHost())
-            && "/ke-sach".equals(u.getPath())
-            && u.getQuery() != null
-            && u.getQuery().matches("page=\\d+")) out.add(u.toString());
+        if (ShelfPagePolicy.isPage(ORIGIN,u.toString())) out.add(u.toString());
       } catch (Exception ignored) {
       }
     }
