@@ -157,8 +157,12 @@ public final class Repository {
   }
 
   public static synchronized void download(Context ctx, Store.Chapter c) throws Exception {
+    download(ctx,c,false);
+  }
+
+  public static synchronized void download(Context ctx,Store.Chapter c,boolean force) throws Exception {
     Store s = Store.get(ctx);
-    if (s.readable(c.id) && c.ready) return;
+    if(!CachePolicy.shouldFetch(s.readable(c.id),force))return;
     allowed(ctx);
     long pause=Math.max(0,1500-(android.os.SystemClock.elapsedRealtime()-lastNetwork));
     if(pause>0)Thread.sleep(pause);
@@ -200,8 +204,9 @@ public final class Repository {
     if(!HakoParser.validContent(d.body().html()))throw new IOException("Nội dung rỗng");
     synchronized(s){Store.Book owner=s.book(c.book);
     if(owner!=null&&!FetchPolicy.allowCache(owner.followed||s.syncTarget(owner),c.book.equals(activeBook),s.isKeepFull(owner.id)))return;
+    if(!CachePolicy.shouldFetch(s.readable(c.id),force))return;
     Store.write(s.html(c.id), d.body().html());
-    s.state(c.id, errors == 0, errors == 0 ? "" : "Thiếu " + errors + " ảnh. " + error);}
+    s.state(c.id, true, errors == 0 ? "" : "Thiếu " + errors + " ảnh. " + error);}
   }
 
   private static String imageKey(String src) throws Exception {
@@ -340,7 +345,8 @@ public final class Repository {
             }
           }
 
-          if (ch.ready) continue;
+          // Recheck disk: this snapshot may predate a priority download.
+          if (s.readable(ch.id)) continue;
 
           long delay = FetchPolicy.delayMillis(++distance);
           if (!waitFor(ctx, delay, b.id, charging)) break;

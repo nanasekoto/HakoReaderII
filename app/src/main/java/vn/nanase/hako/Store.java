@@ -279,7 +279,7 @@ public final class Store extends SQLiteOpenHelper {
         x.title = c.getString(2);
         x.url = c.getString(3);
         x.ord = c.getInt(4);
-        x.ready = c.getInt(5) == 1 && html(x.id).isFile();
+        x.ready = cachedChapter(x.id,c.getInt(5)==1);
         x.error = c.getString(6);
         a.add(x);
       }
@@ -293,7 +293,7 @@ public final class Store extends SQLiteOpenHelper {
         Chapter x = new Chapter();
         x.id = c.getString(0); x.book = c.getString(1); x.title = c.getString(2);
         x.url = c.getString(3); x.ord = c.getInt(4);
-        x.ready = c.getInt(5) == 1 && html(x.id).isFile();
+        x.ready = cachedChapter(x.id,c.getInt(5)==1);
         x.error = c.getString(6);
         return x;
       }
@@ -361,6 +361,7 @@ public final class Store extends SQLiteOpenHelper {
 
   public synchronized void followed(String id,boolean value,int rank){ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   public synchronized void dropped(String id,boolean value){ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
+  private boolean cachedChapter(String id,boolean markedReady){File f=html(id);return f.isFile()&&f.length()>0&&(markedReady||readable(id));}
   public boolean readable(String cid){try{return html(cid).isFile()&&HakoParser.validContent(read(html(cid)));}catch(Exception e){return false;}}
   public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
   public void cleanStartup(){for(Book b:books())if(!b.id.equals("demo")){if(!b.followed&&!b.id.equals(Repository.activeBook))clearTemporary(b.id);for(Chapter c:chapters(b.id))if(!html(c.id).isFile()||html(c.id).length()==0){state(c.id,false,"");}}}
