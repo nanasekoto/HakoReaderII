@@ -331,4 +331,54 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public File html(String id) {
-    return new File(dir(id), "content.htm
+    return new File(dir(id), "content.html");
+  }
+
+  public static void write(File f, String s) throws IOException {
+    f.getParentFile().mkdirs();
+    File tmp = new File(f.getPath() + ".tmp");
+    try (FileOutputStream out = new FileOutputStream(tmp)) {
+      out.write(s.getBytes("UTF-8"));
+      out.getFD().sync();
+    }
+    if (!tmp.renameTo(f)) throw new IOException("Không lưu được nội dung");
+  }
+
+  public static String read(File f) throws IOException {
+    try (FileInputStream in = new FileInputStream(f);
+        ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+      byte[] b = new byte[8192];
+      int n;
+      while ((n = in.read(b)) != -1) out.write(b, 0, n);
+      return out.toString("UTF-8");
+    }
+  }
+
+  public synchronized void prune(Book b) {
+    if (b == null) return;
+    if (isKeepFull(b.id)) return; // Never prune books selected for full offline
+    Chapter current = chapter(b.id, b.current);
+    if (current == null) return;
+    for (Chapter c : chapters(b.id))
+      // Preserve all future/unread chapters; only prune read chapters far in the past
+      if (c.ord < current.ord - FetchPolicy.BEHIND && wasRead(c.id)) {
+        delete(dir(c.id));
+        state(c.id, false, "");
+      }
+  }
+
+  public synchronized void followed(String id,boolean value,int rank){ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
+  public synchronized void dropped(String id,boolean value){ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
+  private boolean cachedChapter(String id,boolean markedReady){File f=html(id);return f.isFile()&&f.length()>0&&(markedReady||readable(id));}
+  private final java.util.concurrent.ConcurrentHashMap<String,String> validatedFiles=new java.util.concurrent.ConcurrentHashMap<>();
+  public boolean readable(String cid){try{File f=html(cid);if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);return false;}String fingerprint=f.length()+":"+f.lastModified();if(fingerprint.equals(validatedFiles.get(cid)))return true;boolean ok=HakoParser.validContent(read(f));if(ok)validatedFiles.put(cid,fingerprint);else validatedFiles.remove(cid);return ok;}catch(Exception e){validatedFiles.remove(cid);return false;}}
+  public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
+  public void cleanStartup(){for(Book b:books())if(!b.id.equals("demo")){if(!b.followed&&!b.id.equals(Repository.activeBook))clearTemporary(b.id);for(Chapter c:chapters(b.id))if(!html(c.id).isFile()||html(c.id).length()==0){state(c.id,false,"");}}}
+
+  public synchronized void rebase(String origin){for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}}
+  public static void delete(File f) {
+    File[] kids = f.listFiles();
+    if (kids != null) for (File x : kids) delete(x);
+    f.delete();
+  }
+}
