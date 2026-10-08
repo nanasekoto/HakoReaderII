@@ -1,7 +1,7 @@
 name: Build Gecko reading and shelf features
 on:
   push:
-    branches: [ 'feature/reading-download-scope-079' ]
+    branches: [ 'fix/cache-ui-anr-0710' ]
   workflow_dispatch:
 permissions:
   contents: read
@@ -44,10 +44,10 @@ jobs:
       - name: Install SDK and build once
         run: |
           timeout 180 sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
-          timeout 600 gradle assembleRelease -Pabi=armeabi-v7a --no-daemon --stacktrace
+          timeout 600 gradle -I ci/version.gradle assembleRelease -Pabi=armeabi-v7a --no-daemon --stacktrace
           mkdir -p build/deliver
-          cp app/build/outputs/apk/release/app-release.apk build/deliver/Hako-Pocket-0.7.9-Gecko.apk
+          cp app/build/outputs/apk/release/app-release.apk build/deliver/Hako-Pocket-0.7.10-Gecko.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Hako-Pocket-0.7.9-Gecko
+          name: Hako-Pocket-0.7.10-Gecko
           path: build/deliver/*.apk
