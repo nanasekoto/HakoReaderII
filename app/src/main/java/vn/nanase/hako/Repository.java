@@ -253,8 +253,7 @@ public final class Repository {
       } else { // MODE_SYNC_LIBRARY
         for (Store.Book b : s.books()) {
           if (b.id.equals("demo") || b.dropped) continue;
-          boolean autoDl = ctx.getSharedPreferences("settings", 0).getBoolean("auto_dl_" + b.id, false);
-          if (s.syncTarget(b) || s.hasShelfUpdate(b) || autoDl || b.id.equals(activeBook)) {
+          if (s.syncTarget(b) || b.id.equals(activeBook)) {
             todo.add(b);
           }
         }
@@ -270,8 +269,7 @@ public final class Repository {
           importShelf(ctx);refreshedCatalogs.clear();todo.clear();ledger.clear();syncTotal=0;syncDone=0;
           for(Store.Book candidate:s.books()){
             if(candidate.id.equals("demo")||candidate.dropped)continue;
-            boolean autoDl=ctx.getSharedPreferences("settings",0).getBoolean("auto_dl_"+candidate.id,false);
-            if(s.syncTarget(candidate)||s.hasShelfUpdate(candidate)||autoDl||candidate.id.equals(activeBook))todo.add(candidate);
+            if(s.syncTarget(candidate)||candidate.id.equals(activeBook))todo.add(candidate);
           }
           todo.sort(s::compareDownloads);
         }

@@ -11,8 +11,8 @@ android {
         minSdk 26
         targetSdk 34
         ndk { abiFilters(project.findProperty("abi") ?: "armeabi-v7a") }
-        versionCode 22
-        versionName '0.7.6-Gecko'
+        versionCode 23
+        versionName '0.7.7-Gecko'
     }
 
     compileOptions {

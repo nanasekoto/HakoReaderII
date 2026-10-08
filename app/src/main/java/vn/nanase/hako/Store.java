@@ -51,7 +51,7 @@ public final class Store extends SQLiteOpenHelper {
     prefs.edit().putBoolean("read_baseline_"+id,true).commit();
   }
   public boolean favorite(Book b){return b.pinned||b.visits>=3;}
-  public boolean syncTarget(Book b){return !b.id.equals("demo")&&!b.dropped&&(b.stamp>0||favorite(b)||isKeepFull(b.id));}
+  public boolean syncTarget(Book b){return !b.id.equals("demo")&&!b.dropped&&DownloadScope.eligible(b.visits>0,isKeepFull(b.id),context.getSharedPreferences("settings",0).getBoolean("auto_dl_"+b.id,false));}
   public boolean hasShelfUpdate(Book b){
     android.content.SharedPreferences p=context.getSharedPreferences("settings",0);
     String now=p.getString("shelf_key_"+b.id,""), old=p.getString("catalog_shelf_key_"+b.id,"");
