@@ -48,6 +48,68 @@ public class MainActivity extends Activity {
   private BroadcastReceiver powerReceiver;
   private android.net.ConnectivityManager.NetworkCallback networkCallback;
 
+
+  private static volatile UiLibrarySnapshot readyLibrary;
+  private final ExecutorService libraryIo=Executors.newSingleThreadExecutor();
+  private final Handler libraryHandler=new Handler(Looper.getMainLooper());
+  private boolean libraryLoading=false,libraryReloadAgain=false;
+  private Runnable libraryLoaded;
+  private long libraryLoadStarted;
+  private TextView listLoadStatus;
+  private final Runnable libraryClock=new Runnable(){public void run(){
+    if(isFinishing()||isDestroyed())return;
+    if(listLoadStatus!=null&&libraryLoading)listLoadStatus.setText("Đọc dữ liệu cục bộ · "+((SystemClock.elapsedRealtime()-libraryLoadStarted)/1000)+"s · Giao diện vẫn dùng bản đã lưu");
+    if(status!=null&&(Repository.busy.get()||Repository.pendingAll))status.setText(Repository.status+" · "+Math.max(0,(SystemClock.elapsedRealtime()-Repository.stageStarted)/1000)+"s");
+    if(libraryLoading||Repository.busy.get()||Repository.pendingAll)libraryHandler.postDelayed(this,1000);
+  }};
+  private void reloadLibrary(boolean force,Runnable after){
+    if(after!=null)libraryLoaded=after;
+    if(libraryLoading){if(force)libraryReloadAgain=true;return;}
+    libraryLoading=true;libraryLoadStarted=SystemClock.elapsedRealtime();
+    libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);
+    libraryIo.execute(()->{
+      UiLibrarySnapshot result=null;String error=null;
+      try{result=UiLibrarySnapshot.load(store,prefs);}catch(Exception e){error=e.getMessage();}
+      final UiLibrarySnapshot loaded=result;final String failure=error;
+      runOnUiThread(()->{
+        if(isFinishing()||isDestroyed())return;
+        libraryLoading=false;
+        if(loaded!=null)readyLibrary=loaded;
+        Runnable done=libraryLoaded;libraryLoaded=null;
+        if(done!=null&&loaded!=null)done.run();
+        if(listLoadStatus!=null)listLoadStatus.setText(loaded==null?"Không đọc được thư viện: "+failure:"Dữ liệu cục bộ sẵn · "+loaded.books.size()+" bộ · chuẩn bị "+loaded.loadMillis+"ms");
+        if(libraryReloadAgain){libraryReloadAgain=false;reloadLibrary(false,()->refreshLibraryView());}
+      });
+    });
+  }
+  private void refreshLibraryView(){
+    if(readyLibrary==null)return;
+    int page=currentList==null?0:currentList.getFirstVisiblePosition();
+    if(libraryListMode==1)renderBookList(true);
+    else if(libraryListMode==4)renderBookList(false);
+    else if(libraryListMode==2)renderFrequentList(false);
+    else if(libraryListMode==3)renderFrequentList(true);
+    if(currentList!=null)currentList.setSelection(page);
+  }
+  private void openLibraryList(int mode){
+    if(readyLibrary==null){
+      leaveReader();reset();bookId="";chapterId="";libraryListMode=mode;
+      row(new String[]{"Trang chính"},new Runnable[]{this::library});
+      root.addView(text("Đang chuẩn bị thư viện đã lưu…",18));
+      listLoadStatus=text("Đọc dữ liệu cục bộ · không chờ mạng HAKO",12);root.addView(listLoadStatus);
+      status=text(Repository.status,11);root.addView(status);
+    }else{
+      libraryListMode=mode;refreshLibraryView();
+    }
+    final int token=generation;
+    reloadLibrary(false,()->{if(generation==token&&libraryListMode==mode)refreshLibraryView();});
+    libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);
+  }
+  private void addLibraryLoadStatus(LinearLayout header){
+    listLoadStatus=text(readyLibrary==null?"Đang chuẩn bị dữ liệu cục bộ":"Thư viện sẵn · chuẩn bị "+readyLibrary.loadMillis+"ms",11);
+    listLoadStatus.setSingleLine(true);header.addView(listLoadStatus);
+  }
+
   private Store store;
   private android.content.SharedPreferences prefs;
   private LinearLayout root, bar, topBar, boundaryPrompt; private int boundaryDir = 0; private boolean pendingOpenAtEnd = false;
@@ -99,9 +161,7 @@ public class MainActivity extends Activity {
         new BroadcastReceiver() {
           public void onReceive(Context c, Intent i) {
             String text = i.getStringExtra("text");
-            if(i.getBooleanExtra("shelf_changed",false)&&libraryListMode==1)bookList(true);
-            if(i.getBooleanExtra("books_changed",false)&&libraryListMode==3)frequentList(true);
-            else if(i.getBooleanExtra("books_changed",false)&&libraryListMode==2&&currentList!=null&&currentList.getAdapter() instanceof BaseAdapter)((BaseAdapter)currentList.getAdapter()).notifyDataSetChanged();
+            if(i.getBooleanExtra("shelf_changed",false)||i.getBooleanExtra("books_changed",false))reloadLibrary(true,()->refreshLibraryView());
             if (status != null&&!String.valueOf(status.getText()).equals(text)) status.setText(text);
             if(i.getBooleanExtra("books_changed",false)&&!bookId.isEmpty()&&chapterId.isEmpty()&&currentList!=null&&currentList.getAdapter() instanceof BaseAdapter)((BaseAdapter)currentList.getAdapter()).notifyDataSetChanged();
             if (syncBadge != null) {
@@ -124,6 +184,7 @@ public class MainActivity extends Activity {
     // Do not scan the library on the main thread before the home screen appears.
     io.execute(()->{store.cleanStartup();int pct=store.totalOfflinePercent();runOnUiThread(()->{if(!Repository.busy.get())Repository.syncPct=pct;});});
     library();
+    reloadLibrary(false,null);
   }
 
   private int dp(int x) {
@@ -175,7 +236,7 @@ public class MainActivity extends Activity {
     generation++;
     caughtUpPrompt=false; caughtUpBook=null;
     cancelLockKey();
-    currentList=null; currentScroll=null; status=null;libraryListMode=0;
+    currentList=null; currentScroll=null; status=null;listLoadStatus=null;libraryListMode=0;
     nativeReader=null;
     readerReady = false;
     topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0; syncBadge = null;
@@ -250,13 +311,13 @@ public class MainActivity extends Activity {
         });
   }
 
-  private void leaveReader(){visitSession="";String old=Repository.activeBook;Repository.activeBook="";if(!old.isEmpty())store.clearTemporary(old);}
+  private void leaveReader(){visitSession="";String old=Repository.activeBook;Repository.activeBook="";if(!old.isEmpty())io.execute(()->store.clearTemporary(old));}
   private void exitApp(){isSyncingShelf=false;saveThen(()->{leaveReader();Repository.cancel.set(true);stopService(new Intent(this,DownloadService.class));finishAndRemoveTask();});}
   private void library() {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.10 Gecko",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.11 Gecko",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     boolean paused=prefs.getBoolean("sync_paused",false);
@@ -422,8 +483,9 @@ public class MainActivity extends Activity {
     }).setNegativeButton("Hủy",null).show();
   }
 
-  private void bookList(boolean shelf){
-    leaveReader();reset();bookId="";chapterId="";libraryListMode=shelf?1:0;
+  private void bookList(boolean shelf){openLibraryList(shelf?1:4);}
+  private void renderBookList(boolean shelf){
+    leaveReader();reset();bookId="";chapterId="";libraryListMode=shelf?1:4;
     LinearLayout topBar = new LinearLayout(this);
     topBar.setOrientation(LinearLayout.VERTICAL);
     topBar.setPadding(dp(10), dp(3), dp(10), dp(2));
@@ -444,7 +506,7 @@ public class MainActivity extends Activity {
 
     final TextView syncStatus = new TextView(this);
     IconButton btnSync = new IconButton(this,shelf?8:7,shelf?"Cập nhật":"Lịch sử",()->{
-      if(shelf){Repository.cancel.set(false);syncStatus.setText("Kiểm tra tủ sách và tải chương mới…");startDownloads("",Repository.MODE_SYNC_LIBRARY);}
+      if(shelf){Repository.cancel.set(false);syncStatus.setText("Đã nhận yêu cầu · kiểm tra đầy đủ để nhận truyện mới");Repository.requestShelfScan(1);startDownloads("",Repository.MODE_SYNC_LIBRARY);}
       else browse(HakoParser.ORIGIN+"/lich-su-doc");
     });
     LinearLayout.LayoutParams lpSync = new LinearLayout.LayoutParams(dp(40), dp(38));
@@ -476,9 +538,9 @@ public class MainActivity extends Activity {
       if (Repository.shelfUpdating) {
         statusStr = "Đang cập nhật tủ sách từ HAKO…";
       } else {
-        long lastSync = prefs.getLong("lastShelfSync", 0);
+        long lastSync = readyLibrary.lastShelfSync;
         int totalFollowed = 0;
-        for (Store.Book b : store.books()) if (b.followed) totalFollowed++;
+        for (Store.Book b : readyLibrary.books) if (b.followed) totalFollowed++;
         if (lastSync > 0) {
           statusStr = "Đã cập nhật lúc " + formatVnDate(lastSync, "HH:mm dd/MM/yyyy") + (totalFollowed > 0 ? " · " + totalFollowed + " bộ" : "");
         } else {
@@ -487,7 +549,7 @@ public class MainActivity extends Activity {
       }
     } else {
       int readCount = 0;
-      for (Store.Book b : store.books()) if (b.stamp > 0) readCount++;
+      for (Store.Book b : readyLibrary.books) if (b.stamp > 0) readCount++;
       statusStr = "Lịch sử đọc trên máy · " + readCount + " bộ";
     }
     syncStatus.setText(statusStr);
@@ -498,11 +560,12 @@ public class MainActivity extends Activity {
     topBar.addView(syncStatus);
     if(shelf){TextView downloading=new TextView(this);downloading.setText(Repository.status);downloading.setTextSize(11f);downloading.setTextColor(MUTED);downloading.setSingleLine(true);downloading.setEllipsize(android.text.TextUtils.TruncateAt.END);topBar.addView(downloading);status=downloading;}else status=syncStatus;
 
+    addLibraryLoadStatus(topBar);
     root.addView(topBar);
 
     List<Store.Book> books = new ArrayList<>();
-    for (Store.Book b : store.books()) if (shelf ? (b.followed && (!prefs.getBoolean("unreadOnly", false) || hasNew(b))) : b.stamp > 0) books.add(b);
-    if (shelf) books.sort(store::compareShelf);
+    for (Store.Book b : readyLibrary.books) if (shelf ? (b.followed && (!prefs.getBoolean("unreadOnly", false) || hasNew(b))) : b.stamp > 0) books.add(b);
+    if (shelf) books.sort(readyLibrary::compareShelf);
 
     PagedBookList list = new PagedBookList(this);
     currentList = list;
@@ -525,10 +588,10 @@ public class MainActivity extends Activity {
         card.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         card.setOnClickListener(v -> {
           navStack.push(() -> bookList(shelf));
-          openBook(store.book(b.id));
+          openBook(b);
         });
         card.setOnLongClickListener(v -> {
-          bookMenu(store.book(b.id));
+          bookMenu(b);
           return true;
         });
         card.setGravity(Gravity.CENTER_VERTICAL);
@@ -555,7 +618,8 @@ public class MainActivity extends Activity {
         titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         top.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
 
-        int newCount = newChapterCount(b);
+        UiLibrarySnapshot.Summary summary=readyLibrary.summary(b);
+        int newCount = summary.newCount;
         if (newCount > 0) {
           TextView badge = new TextView(MainActivity.this);
           badge.setText("+" + newCount + " mới");
@@ -570,17 +634,15 @@ public class MainActivity extends Activity {
         }
         card.addView(top);
 
-        List<Store.Chapter> chs = store.chapters(b.id);
-        Store.Chapter ch = store.chapter(b.id, b.current);
-        int unread = ch == null ? -1 : Math.max(0, chs.size() - ch.ord - 1);
+        int unread=summary.remaining;
 
         StringBuilder sub = new StringBuilder();
-        if (b.stamp > 0 && ch != null) {
-          sub.append("Đang đọc: ").append(ch.title);
+        if (b.stamp > 0 && !summary.currentTitle.isEmpty()) {
+          sub.append("Đang đọc: ").append(summary.currentTitle);
           if (unread > 0) sub.append(" · còn ").append(unread).append(" ch");
           sub.append(" · ").append(formatVnDate(b.stamp, "dd/MM"));
-        } else if (!chs.isEmpty()) {
-          sub.append(chs.size()).append(" chương · Chưa đọc");
+        } else if (summary.total>0) {
+          sub.append(summary.total).append(" chương · Chưa đọc");
         } else if (!b.shelfInfo.isEmpty()) {
           sub.append(b.shelfInfo);
         } else {
@@ -597,7 +659,7 @@ public class MainActivity extends Activity {
         subView.setMaxLines(1);
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
-        subView.setText(subView.getText()+" · "+store.unread(b.id)+" chưa đọc");
+        subView.setText(subView.getText()+" · "+summary.unread+" chưa đọc");
         if(shelf)card.addView(subView);
         else {
           LinearLayout controls=new LinearLayout(MainActivity.this);controls.setGravity(Gravity.CENTER_VERTICAL);
@@ -625,7 +687,8 @@ public class MainActivity extends Activity {
   }
   private boolean hasNew(Store.Book b){try{return Integer.parseInt(b.shelfInfo.split(" ")[0])>0;}catch(Exception e){return false;}}
   private void frequentList(){frequentList(false);}
-  private void frequentList(boolean completedOnly){
+  private void frequentList(boolean completedOnly){openLibraryList(completedOnly?3:2);}
+  private void renderFrequentList(boolean completedOnly){
     leaveReader();reset();bookId="";chapterId="";libraryListMode=completedOnly?3:2;
     LinearLayout topBar = new LinearLayout(this);
     topBar.setOrientation(LinearLayout.VERTICAL);
@@ -647,7 +710,7 @@ public class MainActivity extends Activity {
     topBar.addView(header);
 
     List<Store.Book> books = new ArrayList<>();
-    for (Store.Book b : store.books()) if (!b.id.equals("demo")&&(completedOnly?store.completedOffline(b):store.favorite(b))) books.add(b);
+    for (Store.Book b : readyLibrary.books) if (!b.id.equals("demo")&&(completedOnly?readyLibrary.summary(b).completedOffline:store.favorite(b))) books.add(b);
     Collections.sort(books, (a, b) -> {
       int n=Integer.compare(b.visits,a.visits);
       if(n!=0)return n;
@@ -663,6 +726,7 @@ public class MainActivity extends Activity {
     infoView.setPadding(0, dp(1), 0, 0);
     topBar.addView(infoView);
 
+    addLibraryLoadStatus(topBar);
     root.addView(topBar);
 
     PagedBookList list = new PagedBookList(this);
@@ -704,29 +768,11 @@ public class MainActivity extends Activity {
         titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         top.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
 
-        List<Store.Chapter> chs = store.chapters(b.id);
-        int totalChs = chs.size();
-        int currentOrd = 0;
-        if (!b.current.isEmpty()) {
-          for (int i = 0; i < chs.size(); i++) {
-            if (chs.get(i).id.equals(b.current)) { currentOrd = chs.get(i).ord; break; }
-          }
-        } else {
-          for (int i = 0; i < chs.size(); i++) {
-            if (store.wasRead(chs.get(i).id)) currentOrd = i;
-          }
-        }
-
-        boolean fullMode=store.isKeepFull(b.id);
-        if(fullMode)currentOrd=0;
-        int oldChs = Math.max(0, currentOrd);
-        int newChsTotal = Math.max(0, totalChs - currentOrd);
-        int newChsDownloaded = 0;
-        for (int i = currentOrd; i < totalChs; i++) {
-          if (chs.get(i).ready) newChsDownloaded++;
-        }
-
-        int downloadPct = newChsTotal==0?100:Math.min(newChsDownloaded==newChsTotal?100:99,Math.round(newChsDownloaded*100f/newChsTotal));
+        UiLibrarySnapshot.Summary summary=readyLibrary.summary(b);
+        int totalChs=summary.total;
+        boolean fullMode=summary.full;
+        int newChsTotal=totalChs,newChsDownloaded=summary.stored;
+        int downloadPct=totalChs==0?0:Math.min(summary.stored==totalChs?100:99,Math.round(summary.stored*100f/totalChs));
 
         TextView badge = new TextView(MainActivity.this);
         if (totalChs == 0) {
@@ -768,8 +814,8 @@ public class MainActivity extends Activity {
         subView.setMaxLines(1);
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
-        int storedAll=0;for(Store.Chapter ch:chs)if(ch.ready)storedAll++;
-        subView.setText(store.unread(b.id)+" chưa đọc"+(store.newArrivals(b.id)>0?" · "+store.newArrivals(b.id)+" mới":"")+" · Đã lưu "+storedAll+"/"+totalChs);
+        int storedAll=summary.stored;
+        subView.setText(summary.unread+" chưa đọc"+(summary.newCount>0?" · "+summary.newCount+" mới":"")+" · Đã lưu "+storedAll+"/"+totalChs);
         int wholePct=totalChs==0?0:Math.min(storedAll==totalChs?100:99,Math.round(storedAll*100f/totalChs));badge.setText((fullMode?"FULL ":"LƯU ")+wholePct+"%");
         LinearLayout meta=new LinearLayout(MainActivity.this);meta.setGravity(Gravity.CENTER_VERTICAL);meta.addView(subView,new LinearLayout.LayoutParams(0,-2,1));meta.addView(badge);card.addView(meta);
 
@@ -832,6 +878,7 @@ public class MainActivity extends Activity {
       store.setKeepFull(id,true);
 
     }
+    if(mode==Repository.MODE_SYNC_LIBRARY){Repository.ensureManualShelfScan();Repository.notify(this,Repository.busy.get()?"Đã nhận Cập nhật · chờ tác vụ hiện tại kết thúc":"Đã nhận Cập nhật · chuẩn bị kết nối HAKO");libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);}
     Intent i = new Intent(this, DownloadService.class).putExtra("book", id).putExtra("mode", mode);
     startForegroundService(i);
   }
@@ -1483,7 +1530,7 @@ public class MainActivity extends Activity {
   private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setView(input).setPositiveButton("Kiểm tra",(d,w)->{String value=input.getText().toString().trim();if(!value.startsWith("https://"))value="https://"+value;final String origin=value.replaceAll("/+$","");try{java.net.URI u=java.net.URI.create(origin);if(u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty())throw new Exception();}catch(Exception e){message("Chỉ nhập tên miền HTTPS, không có đường dẫn.");return;}task("Kiểm tra tên miền…",()->{String h=Repository.page(origin,false);if(!h.contains("Light Novel")&&!h.contains("HAKO"))throw new Exception("Không nhận diện trang HAKO");return null;},()->{Repository.cancel.set(true);HakoParser.ORIGIN=origin;prefs.edit().putString("origin",origin).apply();store.rebase(origin);message("Đã đổi tên miền. Đăng nhập lại nếu cần.");});}).setNegativeButton("Hủy",null).show();}
   private void webViewInfo(){
     android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
-    String info="Engine của app: GeckoView · 0.7.10 Gecko\nWebView hệ thống (app không dùng đăng nhập):\n"+
+    String info="Engine của app: GeckoView · 0.7.11 Gecko\nWebView hệ thống (app không dùng đăng nhập):\n"+
       "Gói: "+(provider==null?"Không xác định":provider.packageName)+"\n"+
       "Phiên bản: "+(provider==null?"Không xác định":provider.versionName)+"\n\n"+
       "Thiết bị: "+Build.MANUFACTURER+" "+Build.MODEL+"\n"+
@@ -1671,6 +1718,8 @@ public class MainActivity extends Activity {
     if (updates != null) unregisterReceiver(updates);
     if(powerReceiver!=null)unregisterReceiver(powerReceiver);
     if(networkCallback!=null)getSystemService(android.net.ConnectivityManager.class).unregisterNetworkCallback(networkCallback);
+    libraryHandler.removeCallbacksAndMessages(null);
+    libraryIo.shutdown();
     io.shutdown();
     super.onDestroy();
   }
