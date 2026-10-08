@@ -12,11 +12,6 @@ final class PagedBookList extends ListView {
   void compact(){compact=true;requestLayout();}
   private int rows = 6, base = 1, remainder;
   private int scrollState=OnScrollListener.SCROLL_STATE_IDLE;
-  private final Runnable alignFirst=new Runnable(){public void run(){
-    if(scrollState!=OnScrollListener.SCROLL_STATE_IDLE||getChildCount()==0||getCount()==0)return;
-    View first=getChildAt(0);
-    if(first.getTop()!=getPaddingTop())setSelectionFromTop(getFirstVisiblePosition(),0);
-  }};
   private final java.util.ArrayDeque<Integer> previous = new java.util.ArrayDeque<>();
 
   PagedBookList(Context context) {
@@ -61,24 +56,6 @@ final class PagedBookList extends ListView {
       }
     }
     super.onMeasure(widthSpec,heightSpec);
-  }
-
-  @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){
-    super.onSizeChanged(w,h,oldw,oldh);
-    if(h!=oldh){removeCallbacks(alignFirst);post(alignFirst);}
-  }
-
-  @Override protected void onLayout(boolean changed,int l,int t,int r,int b){
-    super.onLayout(changed,l,t,r,b);
-    // ListView may preserve a negative first-row offset when the header/viewport changes.
-    // Keep the whole card, including its rounded top border, inside the padded viewport.
-    if(scrollState==OnScrollListener.SCROLL_STATE_IDLE&&getChildCount()>0&&getChildAt(0).getTop()!=getPaddingTop()){
-      removeCallbacks(alignFirst);post(alignFirst);
-    }
-  }
-
-  @Override protected void onDetachedFromWindow(){
-    removeCallbacks(alignFirst);super.onDetachedFromWindow();
   }
 
   int rowHeight(int position) { return base + (position%rows < remainder ? 1 : 0); }
