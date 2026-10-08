@@ -327,7 +327,7 @@ public class MainActivity extends Activity {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
     root.addView(text("HAKO POCKET",20));
-    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.12 Gecko",11));
+    root.addView(text("Đọc nhẹ • Xteink S4 • v0.7.13 Gecko",11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     boolean paused=prefs.getBoolean("sync_paused",false);
@@ -516,7 +516,7 @@ public class MainActivity extends Activity {
 
     final TextView syncStatus = new TextView(this);
     IconButton btnSync = new IconButton(this,shelf?8:7,shelf?"Cập nhật":"Lịch sử",()->{
-      if(shelf){Repository.cancel.set(false);syncStatus.setText("Đã nhận yêu cầu · kiểm tra đầy đủ để nhận truyện mới");Repository.requestShelfScan(1);startDownloads("",Repository.MODE_SYNC_LIBRARY);}
+      if(shelf){Repository.cancel.set(false);syncStatus.setText("Đã nhận yêu cầu · kiểm tra theo neo đã biết");startDownloads("",Repository.MODE_SYNC_LIBRARY);}
       else browse(HakoParser.ORIGIN+"/lich-su-doc");
     });
     LinearLayout.LayoutParams lpSync = new LinearLayout.LayoutParams(dp(40), dp(38));
@@ -584,7 +584,7 @@ public class MainActivity extends Activity {
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
     list.setDividerHeight(dp(3));
-    list.setPadding(dp(6), dp(2), dp(6), dp(2));
+    list.setPadding(dp(6), dp(6), dp(6), dp(4));
     list.setClipToPadding(true);
 
 
@@ -746,7 +746,7 @@ public class MainActivity extends Activity {
     list.setDrawSelectorOnTop(false);
     list.setDivider(null);
     list.setDividerHeight(dp(3));
-    list.setPadding(dp(6), dp(2), dp(6), dp(2));
+    list.setPadding(dp(6), dp(6), dp(6), dp(4));
     list.setClipToPadding(true);
 
 
@@ -889,7 +889,7 @@ public class MainActivity extends Activity {
       store.setKeepFull(id,true);
 
     }
-    if(mode==Repository.MODE_SYNC_LIBRARY){Repository.ensureManualShelfScan();Repository.notify(this,Repository.busy.get()?"Đã nhận Cập nhật · chờ tác vụ hiện tại kết thúc":"Đã nhận Cập nhật · chuẩn bị kết nối HAKO");libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);}
+    if(mode==Repository.MODE_SYNC_LIBRARY){Repository.notify(this,Repository.busy.get()?"Đã nhận Cập nhật · chờ tác vụ hiện tại kết thúc":"Đã nhận Cập nhật · chuẩn bị kết nối HAKO");libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);}
     Intent i = new Intent(this, DownloadService.class).putExtra("book", id).putExtra("mode", mode);
     startForegroundService(i);
   }
@@ -1541,7 +1541,7 @@ public class MainActivity extends Activity {
   private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setView(input).setPositiveButton("Kiểm tra",(d,w)->{String value=input.getText().toString().trim();if(!value.startsWith("https://"))value="https://"+value;final String origin=value.replaceAll("/+$","");try{java.net.URI u=java.net.URI.create(origin);if(u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty())throw new Exception();}catch(Exception e){message("Chỉ nhập tên miền HTTPS, không có đường dẫn.");return;}task("Kiểm tra tên miền…",()->{String h=Repository.page(origin,false);if(!h.contains("Light Novel")&&!h.contains("HAKO"))throw new Exception("Không nhận diện trang HAKO");return null;},()->{Repository.cancel.set(true);HakoParser.ORIGIN=origin;prefs.edit().putString("origin",origin).apply();store.rebase(origin);message("Đã đổi tên miền. Đăng nhập lại nếu cần.");});}).setNegativeButton("Hủy",null).show();}
   private void webViewInfo(){
     android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
-    String info="Engine của app: GeckoView · 0.7.12 Gecko\nWebView hệ thống (app không dùng đăng nhập):\n"+
+    String info="Engine của app: GeckoView · 0.7.13 Gecko\nWebView hệ thống (app không dùng đăng nhập):\n"+
       "Gói: "+(provider==null?"Không xác định":provider.packageName)+"\n"+
       "Phiên bản: "+(provider==null?"Không xác định":provider.versionName)+"\n\n"+
       "Thiết bị: "+Build.MANUFACTURER+" "+Build.MODEL+"\n"+
