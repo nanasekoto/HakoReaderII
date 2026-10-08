@@ -357,7 +357,9 @@ public final class Store extends SQLiteOpenHelper {
 
   public synchronized void followed(String id,boolean value,int rank){ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   public synchronized void dropped(String id,boolean value){ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
-  private boolean cachedChapter(String id,boolean markedReady){return readable(id);}
+  // List queries must never read/parse chapter HTML while holding the Store monitor.
+  // Content integrity is verified by the worker before queueing and before reuse.
+  private boolean cachedChapter(String id,boolean markedReady){File f=html(id);return f.isFile()&&f.length()>0;}
   private final java.util.concurrent.ConcurrentHashMap<String,String> validatedFiles=new java.util.concurrent.ConcurrentHashMap<>();
   public boolean readable(String cid){try{File f=html(cid);if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);return false;}String fingerprint=f.length()+":"+f.lastModified();if(fingerprint.equals(validatedFiles.get(cid)))return true;boolean ok=HakoParser.validContent(read(f));if(ok)validatedFiles.put(cid,fingerprint);else validatedFiles.remove(cid);return ok;}catch(Exception e){validatedFiles.remove(cid);return false;}}
   public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
