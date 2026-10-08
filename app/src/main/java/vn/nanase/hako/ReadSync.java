@@ -20,7 +20,8 @@ public final class ReadSync extends JobService {
   }
   public static void schedule(Context c){
     if(c.getSharedPreferences("settings",0).getBoolean("sync_paused",false))return;
-    Store store=Store.get(c);boolean eligible=false;for(String id:store.queuedBooks())if(store.canSubmit(id))eligible=true;if(!eligible)return;
+    // Scheduling can be called from the UI/network callback: eligibility is checked in process().
+    if(Store.get(c).queuedBooks().isEmpty())return;
     JobScheduler s=c.getSystemService(JobScheduler.class);
     if(s.getPendingJob(42)==null)s.schedule(wifiJob(c,42,ReadSync.class).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());
   }
