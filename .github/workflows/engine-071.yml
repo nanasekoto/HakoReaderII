@@ -1,7 +1,7 @@
 name: Build Gecko reading and shelf features
 on:
   push:
-    branches: [ 'fix/cache-ui-anr-0710' ]
+    branches: [ 'fix/shelf-snapshot-0711' ]
   workflow_dispatch:
 permissions:
   contents: read
@@ -41,13 +41,17 @@ jobs:
         run: |
           timeout 30 javac -d build/cache-check app/src/main/java/vn/nanase/hako/FetchPolicy.java tests/ReadingRangeTest.java
           timeout 15 java -cp build/cache-check vn.nanase.hako.ReadingRangeTest
+      - name: Check shelf pagination regression
+        run: |
+          timeout 30 javac -d build/cache-check app/src/main/java/vn/nanase/hako/ShelfPagePolicy.java tests/ShelfPagePolicyTest.java
+          timeout 15 java -cp build/cache-check vn.nanase.hako.ShelfPagePolicyTest
       - name: Install SDK and build once
         run: |
           timeout 180 sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
           timeout 600 gradle -I ci/version.gradle assembleRelease -Pabi=armeabi-v7a --no-daemon --stacktrace
           mkdir -p build/deliver
-          cp app/build/outputs/apk/release/app-release.apk build/deliver/Hako-Pocket-0.7.10-Gecko.apk
+          cp app/build/outputs/apk/release/app-release.apk build/deliver/Hako-Pocket-0.7.11-Gecko.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Hako-Pocket-0.7.10-Gecko
+          name: Hako-Pocket-0.7.11-Gecko
           path: build/deliver/*.apk
