@@ -340,19 +340,21 @@ public final class Repository {
 
         boolean isFullMode = (mode == MODE_BOOK_ALL && b.id.equals(book)) || s.isKeepFull(b.id) || s.isCompleted(b.id);
 
+        boolean toEnd = FetchPolicy.toEnd(b.followed,s.favorite(b),isFullMode);
+        int scopeEnd = toEnd ? Integer.MAX_VALUE : current + FetchPolicy.AHEAD;
+
         // 2. Identify EXACT chapters needed
         List<Store.Chapter> needDownload = new ArrayList<>();
         // Priority: current reading chapter to end of book
         for (Store.Chapter ch : chapters) {
-          if (ch.ord >= current && !ch.ready) needDownload.add(ch);
+          if (ch.ord >= current && ch.ord <= scopeEnd && !ch.ready) needDownload.add(ch);
         }
         // If full mode: also earlier chapters
-        if (isFullMode) {
-          for (Store.Chapter ch : chapters) {
-            if (ch.ord < current && !ch.ready) needDownload.add(ch);
-          }
+        for (Store.Chapter ch : chapters) {
+          if (ch.ord < current && FetchPolicy.inDownloadRange(ch.ord,current,toEnd,isFullMode) && !ch.ready) needDownload.add(ch);
         }
 
+        UpdateReport.log(ctx,b.title+": phạm vi — "+(isFullMode?"toàn bộ truyện":toEnd?"từ chương đang đọc đến cuối, giữ 3 chương trước":"chương đang đọc + tối đa 15 chương tiếp, giữ 3 chương trước"));
         int stored=0;for(Store.Chapter ch:chapters)if(ch.ready)stored++;
         UpdateReport.log(ctx,b.title+": đã lưu "+stored+"/"+chapters.size()+" chương toàn bộ · Cần tải "+needDownload.size()+" chương trong phạm vi đã chọn");
         for(Store.Chapter needed:needDownload){if(!needed.book.equals(b.id))throw new IOException("Hàng đợi sai truyện; đã dừng để giữ dữ liệu");ledger.add(needed.id);}
