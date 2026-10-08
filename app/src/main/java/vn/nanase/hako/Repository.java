@@ -347,11 +347,11 @@ public final class Repository {
         List<Store.Chapter> needDownload = new ArrayList<>();
         // Priority: current reading chapter to end of book
         for (Store.Chapter ch : chapters) {
-          if (ch.ord >= current && ch.ord <= scopeEnd && !ch.ready) needDownload.add(ch);
+          if (ch.ord >= current && ch.ord <= scopeEnd && !s.readable(ch.id)) needDownload.add(ch);
         }
         // If full mode: also earlier chapters
         for (Store.Chapter ch : chapters) {
-          if (ch.ord < current && FetchPolicy.inDownloadRange(ch.ord,current,toEnd,isFullMode) && !ch.ready) needDownload.add(ch);
+          if (ch.ord < current && FetchPolicy.inDownloadRange(ch.ord,current,toEnd,isFullMode) && !s.readable(ch.id)) needDownload.add(ch);
         }
 
         UpdateReport.log(ctx,b.title+": phạm vi — "+(isFullMode?"toàn bộ truyện":toEnd?"từ chương đang đọc đến cuối, giữ 3 chương trước":"chương đang đọc + tối đa 15 chương tiếp, giữ 3 chương trước"));
