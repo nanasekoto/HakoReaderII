@@ -44,7 +44,6 @@ public final class Repository {
   public static volatile String syncState = "IDLE";
   public static volatile String priorityChapterId = "";
 
-  public static void ensureManualShelfScan(){requestedShelfScan.compareAndSet(0,1);}
   public static volatile long stageStarted=android.os.SystemClock.elapsedRealtime();
   public static void notify(Context c, String s) {
     if(!s.equals(status))stageStarted=android.os.SystemClock.elapsedRealtime();
