@@ -25,13 +25,17 @@ jobs:
           mkdir -p build/cache-check
           timeout 30 javac -d build/cache-check app/src/main/java/vn/nanase/hako/CachePolicy.java tests/CachePolicyTest.java
           timeout 15 java -cp build/cache-check vn.nanase.hako.CachePolicyTest
+      - name: Check unique queue regression
+        run: |
+          timeout 30 javac -d build/cache-check app/src/main/java/vn/nanase/hako/DownloadLedger.java tests/DownloadLedgerTest.java
+          timeout 15 java -cp build/cache-check vn.nanase.hako.DownloadLedgerTest
       - name: Install SDK and build once
         run: |
           timeout 180 sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
           timeout 600 gradle assembleRelease -Pabi=armeabi-v7a --no-daemon --stacktrace
           mkdir -p build/deliver
-          cp app/build/outputs/apk/release/app-release.apk build/deliver/Hako-Pocket-0.7.5-Gecko.apk
+          cp app/build/outputs/apk/release/app-release.apk build/deliver/Hako-Pocket-0.7.6-Gecko.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Hako-Pocket-0.7.5-Gecko
+          name: Hako-Pocket-0.7.6-Gecko
           path: build/deliver/*.apk

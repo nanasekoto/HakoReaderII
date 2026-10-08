@@ -246,7 +246,9 @@ public final class Store extends SQLiteOpenHelper {
       List<Chapter> previous=chapters(book);Set<String> oldIds=new HashSet<>();for(Chapter old:previous)oldIds.add(old.id);
       int added=0;for(HakoParser.Link l:links)if(!oldIds.contains(l.id))added++;
       if(!previous.isEmpty())context.getSharedPreferences("settings",0).edit().putInt("new_arrivals_"+book,added).apply();
-      Set<String> valid=new HashSet<>();for(HakoParser.Link l:links)valid.add(l.id);for(Chapter old:previous)if(!valid.contains(old.id)){d.delete("chapters","id=?",new String[]{old.id});delete(dir(old.id));}
+      Set<String> valid=new HashSet<>();for(HakoParser.Link l:links)valid.add(l.id);
+      // A partial or mismatched web catalog must never erase existing offline chapters.
+      for(Chapter old:previous)if(!valid.contains(old.id))throw new IllegalStateException("Mục lục mới thiếu chương đã biết. Đã giữ nguyên dữ liệu offline; chưa cập nhật mục lục.");
       int i = 0;
       for (HakoParser.Link l : links) {
         ContentValues v = new ContentValues();

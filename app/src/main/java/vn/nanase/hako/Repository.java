@@ -262,11 +262,12 @@ public final class Repository {
 
       if(librarySync)todo.sort(s::compareDownloads);
       Set<String> refreshedCatalogs=new HashSet<>();
+      DownloadLedger ledger=new DownloadLedger();
       while (!cancel.get() && !pauseAutomatic(charging) && (!todo.isEmpty() || !pendingBook.isEmpty() || pendingAll)) {
         if (pendingAll) {
           pendingAll = false;librarySync=true;currentMode=MODE_SYNC_LIBRARY;
           // A refresh request preempts the bulk queue after the current chapter.
-          importShelf(ctx);refreshedCatalogs.clear();todo.clear();syncTotal=0;syncDone=0;
+          importShelf(ctx);refreshedCatalogs.clear();todo.clear();ledger.clear();syncTotal=0;syncDone=0;
           for(Store.Book candidate:s.books()){
             if(candidate.id.equals("demo")||candidate.dropped)continue;
             boolean autoDl=ctx.getSharedPreferences("settings",0).getBoolean("auto_dl_"+candidate.id,false);
@@ -316,7 +317,8 @@ public final class Repository {
           }
         }
 
-        syncTotal += needDownload.size();
+        for(Store.Chapter needed:needDownload)ledger.add(needed.id);
+        syncTotal=ledger.total();syncDone=ledger.done();
         syncState = "DOWNLOADING";
         if (syncTotal == 0) {
           notify(ctx, b.title + ": Đã tải đủ ✓");
@@ -340,13 +342,13 @@ public final class Repository {
               notify(ctx, "Ưu tiên: " + pch.title);
               try {
                 download(ctx, pch);
-                if (s.readable(pch.id)) syncDone++;
+                if (s.readable(pch.id)){ledger.complete(pch.id);syncDone=ledger.done();}
               } catch (Exception ignored) {}
             }
           }
 
           // Recheck disk: this snapshot may predate a priority download.
-          if (s.readable(ch.id)) continue;
+          if (s.readable(ch.id)){ledger.complete(ch.id);syncDone=ledger.done();continue;}
 
           long delay = FetchPolicy.delayMillis(++distance);
           if (!waitFor(ctx, delay, b.id, charging)) break;
@@ -354,7 +356,7 @@ public final class Repository {
           try {
             download(ctx, ch);
             if (s.readable(ch.id)) {
-              syncDone++;
+              ledger.complete(ch.id);syncDone=ledger.done();
               syncPct = syncTotal > 0 ? Math.min(99, Math.round(syncDone * 100f / syncTotal)) : 100;
               notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
             }
