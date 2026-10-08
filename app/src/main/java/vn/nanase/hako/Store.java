@@ -35,7 +35,8 @@ public final class Store extends SQLiteOpenHelper {
   public boolean isCompleted(String id){return context.getSharedPreferences("settings",0).getBoolean("completed_"+id,false);}
   public void setCompleted(String id,boolean value){context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();if(value)setKeepFull(id,true);}
   public int newArrivals(String id){return context.getSharedPreferences("settings",0).getInt("new_arrivals_"+id,0);}
-  public synchronized void mergeShelf(List<HakoParser.Link> links){int rank=0;for(HakoParser.Link l:links){putBook(l);followed(l.id,true,rank++);shelfInfo(l.id,l.info);}}
+  public synchronized void mergeShelf(List<HakoParser.Link> links){mergeShelf(links,0);}
+  public synchronized void mergeShelf(List<HakoParser.Link> links,int firstRank){int rank=firstRank;SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(HakoParser.Link l:links){putBook(l);followed(l.id,true,rank++);shelfInfo(l.id,l.info);}d.setTransactionSuccessful();}finally{d.endTransaction();}}
   public synchronized void queueIfAllRead(String id){if(!chapters(id).isEmpty()&&unread(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
 
   public synchronized void establishReadBaseline(String id){
