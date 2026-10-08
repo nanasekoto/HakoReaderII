@@ -44,7 +44,10 @@ public final class Repository {
   public static volatile String syncState = "IDLE";
   public static volatile String priorityChapterId = "";
 
+  public static void ensureManualShelfScan(){requestedShelfScan.compareAndSet(0,1);}
+  public static volatile long stageStarted=android.os.SystemClock.elapsedRealtime();
   public static void notify(Context c, String s) {
+    if(!s.equals(status))stageStarted=android.os.SystemClock.elapsedRealtime();
     status = s;
     long now=android.os.SystemClock.elapsedRealtime();
     if(s.equals(lastNoticeText)|| (s.startsWith("Đang tải ")&&now-lastNotice<1200))return;
@@ -116,6 +119,14 @@ public final class Repository {
         count++;
         shelfKeys.put(l.id,l.latestKey);shelfTimes.put(l.id,l.updatedAt);newest=Math.max(newest,l.updatedAt);
       }
+      // Publish each successfully parsed page without waiting for the remaining network requests.
+      // Never remove membership or advance the successful-sync timestamp for a partial scan.
+      s.mergeShelf(links,collected.size()-links.size());
+      android.content.SharedPreferences.Editor pageEdit=prefs.edit();
+      for(HakoParser.Link row:links){pageEdit.putString("shelf_key_"+row.id,row.latestKey);pageEdit.putLong("shelf_updated_at_"+row.id,row.updatedAt);}
+      pageEdit.putLong("lastShelfPartial",System.currentTimeMillis()).commit();
+      notify(ctx,"Đã nhận trang "+done.size()+" · "+count+" truyện · đang kiểm tra phần còn lại");
+      ctx.sendBroadcast(new Intent(EVENT).setPackage(ctx.getPackageName()).putExtra("shelf_changed",true).putExtra("text",status));
       List<String> following=HakoParser.shelfPages(html,next);
       boolean orderSafe=true;
       for(Element option:Jsoup.parse(html).select("select option[selected]")){String v=(option.text()+" "+option.attr("value")).toLowerCase(Locale.ROOT);if(v.matches(".*(a-z|z-a|title|tên truyện|cũ nhất|_asc).*"))orderSafe=false;}
@@ -132,7 +143,8 @@ public final class Repository {
       if(quickObserved==null)UpdateReport.log(ctx,"Không gặp mốc dừng: quét nhanh cũng cần kiểm tra toàn bộ");
       else for(HakoParser.Link row:collected)if(!quickObserved.contains(row.id)&&(!ShelfPolicy.unchanged(row.latestKey,previousKeys.get(row.id)))){missed++;UpdateReport.log(ctx,"Quét nhanh có thể bỏ sót: "+row.title+" (chương mới hoặc thông tin chưa rõ)");}
       if(missed>0){prefs.edit().putBoolean("shelf_fast_disabled",true).putBoolean("shelf_anchor_verified",false).commit();UpdateReport.log(ctx,"Đã tắt dừng sớm do đối chiếu không khớp. Những lần sau quét đầy đủ.");}
-      else {prefs.edit().putBoolean("shelf_anchor_verified",true).commit();UpdateReport.log(ctx,"Đối chiếu: không phát hiện cập nhật bị bỏ sót"+(quickObserved==null?"; không có lối tắt":""));}
+      else if(quickObserved!=null){prefs.edit().putBoolean("shelf_anchor_verified",true).putBoolean("shelf_fast_disabled",false).commit();UpdateReport.log(ctx,"Đối chiếu điểm dừng: không phát hiện cập nhật bị bỏ sót");}
+      else prefs.edit().putBoolean("shelf_anchor_verified",false).commit();
     }
     if(partial)s.mergeShelf(collected);else s.replaceShelf(collected);
     android.content.SharedPreferences.Editor edit=prefs.edit();
