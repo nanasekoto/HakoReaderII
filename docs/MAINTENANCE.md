@@ -25,6 +25,8 @@ main là nguồn phát hành, dựa trên 0.7.15 đã được người dùng ch
 
 README, tài liệu kiến trúc/kiểm chứng, build.sh và test.sh được viết lại. Version root áp dụng cho cả build local/CI. Test JVM trước đây chỉ nằm trong một workflow được gom vào test.sh; vẫn giữ toàn bộ test Android, font, giấy phép, assets Gecko, khóa ký và dependency cần thiết.
 
+Script kiểm tra emulator được khóa vào emulator-5554 để lệnh tạo fixture/xóa dữ liệu không nhắm vào máy đọc đang kết nối.
+
 Lịch sử Git vẫn giữ các commit cũ. Không dùng nội dung tài liệu cũ trong lịch sử làm quy tắc vận hành hiện hành.
 
 ## Nguồn phiên bản

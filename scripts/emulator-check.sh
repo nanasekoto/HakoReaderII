@@ -3,10 +3,11 @@ set -euo pipefail
 mkdir -p build/evidence
 export ANDROID_AVD_HOME="$PWD/build/avds"
 mkdir -p "$ANDROID_AVD_HOME"
+export ANDROID_SERIAL=emulator-5554
 adb start-server
 printf 'no\n' | avdmanager create avd -n hako-check -k 'system-images;android-30;default;x86_64' --force --path "$PWD/build/hako-check.avd"
 printf '\nhw.lcd.width=480\nhw.lcd.height=800\nhw.lcd.density=220\nhw.ramSize=2048\n' >> "$PWD/build/hako-check.avd/config.ini"
-"$ANDROID_HOME/emulator/emulator" -avd hako-check -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -skin 480x800 > build/evidence/emulator.log 2>&1 &
+"$ANDROID_HOME/emulator/emulator" -avd hako-check -port 5554 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -skin 480x800 > build/evidence/emulator.log 2>&1 &
 emulator_pid=$!
 trap 'adb emu kill || true' EXIT
 booted=false

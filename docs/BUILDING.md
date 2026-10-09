@@ -53,7 +53,7 @@ bash test-android.sh
 bash scripts/emulator-check.sh
 ```
 
-scripts/emulator-check.sh xóa dữ liệu **ứng dụng trong emulator thử nghiệm** để tạo fixture. Không chạy script này trên S4 có dữ liệu đọc thật. Nó dùng Android 11, 480×800, DPI 219/220; kết quả ở build/evidence. Các assert lịch sử cần rà lại khi sửa giao diện; một workflow manual chưa chạy không là bằng chứng đã vượt test.
+scripts/emulator-check.sh xóa dữ liệu **ứng dụng trong emulator thử nghiệm** để tạo fixture. Script khóa mục tiêu adb ở emulator-5554, không gửi lệnh xóa dữ liệu tới S4. Không đổi mục tiêu này sang thiết bị có dữ liệu đọc thật. Nó dùng Android 11, 480×800, DPI 219/220; kết quả ở build/evidence. Các assert lịch sử cần rà lại khi sửa giao diện; một workflow manual chưa chạy không là bằng chứng đã vượt test.
 
 ## Đóng gói dữ liệu phụ
 

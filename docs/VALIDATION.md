@@ -6,6 +6,10 @@ Source 0.7.15 Gecko: commit aed36f73bd4d3d13fb8ab0de4e0c77e4098aa3fb.
 
 [GitHub Actions thành công](https://github.com/nanasekoto/HakoReaderII/actions/runs/37932154389) kiểm tra các policy tải/cache/hàng đợi/neo/phân trang, parser, hồi quy và hợp nhất mục lục/đọc hết, rồi build release ARM32. APK đã được kiểm tra chữ ký phù hợp bản trước. Người dùng phản hồi phiên bản này khá ổn trên thiết bị; phản hồi này không thay thế phép đo từng chức năng.
 
+## Kiểm tra bản hợp nhất
+
+[Run hợp nhất thành công](https://github.com/nanasekoto/HakoReaderII/actions/runs/37935805438), commit d9b9f634a524ac6accadeea5ea16d48862092321: toàn bộ 12 lớp test JVM, kiểm tra JS, release Android, chữ ký và 13 thư viện ELF32 ARM đã đạt. Root version được áp dụng trong đường build mới. Chỉnh sửa sau run này giới hạn ở tài liệu, cấu hình trigger/kiểm tra metadata CI và khóa mục tiêu script emulator; main chạy lại đường build chuẩn sau hợp nhất.
+
 ## Bộ test hiện hành
 
 bash test.sh chạy tất cả test JVM ở tests/*.java, cùng kiểm tra JavaScript:
