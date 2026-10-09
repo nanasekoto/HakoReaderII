@@ -124,12 +124,12 @@ public final class Store extends SQLiteOpenHelper {
 
     int currentOrd = readingStart(b,chs);
     boolean full=isKeepFull(b.id)||isCompleted(b.id);
-    boolean toEnd=FetchPolicy.toEnd(b.followed,favorite(b),full);
+    boolean toEnd=FetchPolicy.toEnd(b.followed,favorite(b),b.visits>0,full);
     int oldChs = full?0:Math.max(0,currentOrd-FetchPolicy.BEHIND);
     int newChsTotal=0,newChsDownloaded=0;
     for(Chapter ch:chs)if(FetchPolicy.inDownloadRange(ch.ord,currentOrd,toEnd,full)){
       newChsTotal++;
-      if(ch.ready)newChsDownloaded++;
+      if(readable(ch.id))newChsDownloaded++;
     }
 
     int pct = newChsTotal==0?100:Math.min(newChsDownloaded==newChsTotal?100:99, Math.max(0, Math.round(newChsDownloaded * 100f / newChsTotal)));
@@ -234,32 +234,55 @@ public final class Store extends SQLiteOpenHelper {
     return null;
   }
 
-  public synchronized void catalog(String book, List<HakoParser.Link> links) {
-    SQLiteDatabase d = getWritableDatabase();
+  public synchronized void catalog(String book,List<HakoParser.Link> links){
+    List<Chapter> previous=chapters(book);
+    List<String> oldIds=new ArrayList<>(),webIds=new ArrayList<>();
+    Map<String,HakoParser.Link> web=new HashMap<>();
+    for(Chapter ch:previous)oldIds.add(ch.id);
+    for(HakoParser.Link link:links){
+      if(!book.equals("demo")&&(!book.equals(HakoParser.storyId(HakoParser.storyUrl(link.url)))||!link.id.equals(HakoParser.chapterId(link.url))))throw new IllegalArgumentException("Mục lục sai truyện");
+      webIds.add(link.id);web.put(link.id,link);
+    }
+    List<String> order=CatalogPolicy.merge(oldIds,webIds);
+    Set<String> old=new HashSet<>(oldIds),hidden=new HashSet<>(oldIds);
+    hidden.removeAll(webIds);
+    SQLiteDatabase d=getWritableDatabase();
     d.beginTransaction();
-    try {
-      List<Chapter> previous=chapters(book);Set<String> oldIds=new HashSet<>();for(Chapter old:previous)oldIds.add(old.id);
-      int added=0;for(HakoParser.Link l:links)if(!oldIds.contains(l.id))added++;
-      Set<String> valid=new HashSet<>();for(HakoParser.Link l:links)valid.add(l.id);
-      // A partial or mismatched web catalog must never erase existing offline chapters.
-      for(Chapter old:previous)if(!valid.contains(old.id))throw new IllegalStateException("Mục lục mới thiếu chương đã biết. Đã giữ nguyên dữ liệu offline; chưa cập nhật mục lục.");
-      int i = 0;
-      for (HakoParser.Link l : links) {
-        ContentValues v = new ContentValues();
-        v.put("id", l.id);
-        v.put("book", book);
-        v.put("title", l.title);
-        v.put("url", l.url);
-        v.put("ord", i++);
-        d.insertWithOnConflict("chapters", null, v, SQLiteDatabase.CONFLICT_IGNORE);
-        v.remove("id");
-        d.update("chapters", v, "id=?", new String[] {l.id});
+    try{
+      for(int ord=0;ord<order.size();ord++){
+        String id=order.get(ord);
+        HakoParser.Link link=web.get(id);
+        ContentValues v=new ContentValues();v.put("ord",ord);
+        if(link!=null){
+          v.put("id",id);v.put("book",book);v.put("title",link.title);v.put("url",link.url);
+          d.insertWithOnConflict("chapters",null,v,SQLiteDatabase.CONFLICT_IGNORE);
+          v.remove("id");
+        }
+        d.update("chapters",v,"id=?",new String[]{id});
       }
       d.setTransactionSuccessful();
-      if(!previous.isEmpty())context.getSharedPreferences("settings",0).edit().putInt("new_arrivals_"+book,added).apply();
-    } finally {
-      d.endTransaction();
-    }
+    }finally{d.endTransaction();}
+    org.json.JSONArray server=new org.json.JSONArray(webIds);
+    android.content.SharedPreferences.Editor edit=context.getSharedPreferences("settings",0).edit()
+      .putStringSet("hidden_chapters_"+book,hidden).putString("server_catalog_"+book,server.toString());
+    int added=0;for(String id:webIds)if(!old.contains(id))added++;
+    if(!previous.isEmpty())edit.putInt("new_arrivals_"+book,added);
+    edit.commit();
+    if(!hidden.isEmpty())UpdateReport.checkpoint(context,"Mục lục "+book+": giữ "+hidden.size()+" chương cũ không còn xuất hiện trên web; không xóa cache hoặc tiến độ");
+  }
+  public boolean isHidden(String book,String chapter){
+    return context.getSharedPreferences("settings",0).getStringSet("hidden_chapters_"+book,Collections.emptySet()).contains(chapter);
+  }
+  public boolean canSubmitServer(String book){
+    android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
+    try{
+      org.json.JSONArray serverJson=new org.json.JSONArray(prefs.getString("server_catalog_"+book,"[]"));
+      org.json.JSONArray queuedJson=new org.json.JSONArray(context.getSharedPreferences("read_queue",0).getString(book,"[]"));
+      List<String> server=new ArrayList<>();Set<String> read=new HashSet<>(),snapshot=new HashSet<>();
+      for(int i=0;i<queuedJson.length();i++)snapshot.add(queuedJson.getString(i));
+      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);server.add(id);if(wasRead(id))read.add(id);}
+      return ReadPolicy.canSubmit(server,read,snapshot,!prefs.getBoolean("catalog_failed_"+book,true)&&prefs.getStringSet("hidden_chapters_"+book,Collections.emptySet()).isEmpty());
+    }catch(Exception e){return false;}
   }
 
   public synchronized List<Chapter> chapters(String book) {
@@ -350,7 +373,7 @@ public final class Store extends SQLiteOpenHelper {
     if (current == null) return;
     for (Chapter c : chapters(b.id))
       // Preserve all future/unread chapters; only prune read chapters far in the past
-      if (c.ord < current.ord - FetchPolicy.BEHIND && wasRead(c.id)) {
+      if (!isHidden(b.id,c.id) && c.ord < current.ord - FetchPolicy.BEHIND && wasRead(c.id)) {
         delete(dir(c.id));
         state(c.id, false, "");
       }
@@ -360,11 +383,38 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void dropped(String id,boolean value){ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   // List queries must never read/parse chapter HTML while holding the Store monitor.
   // Content integrity is verified by the worker before queueing and before reuse.
-  private boolean cachedChapter(String id,boolean markedReady){File f=html(id);return f.isFile()&&f.length()>0;}
+  private boolean cachedChapter(String id,boolean markedReady){File f=html(id);if(!f.isFile()||f.length()==0)return false;String known=validatedFiles.get(id);return fileStamp(f).equals(known)||(known==null&&markedReady);}
   private final java.util.concurrent.ConcurrentHashMap<String,String> validatedFiles=new java.util.concurrent.ConcurrentHashMap<>();
-  public boolean readable(String cid){try{File f=html(cid);if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);return false;}String fingerprint=f.length()+":"+f.lastModified();if(fingerprint.equals(validatedFiles.get(cid)))return true;boolean ok=HakoParser.validContent(read(f));if(ok)validatedFiles.put(cid,fingerprint);else validatedFiles.remove(cid);return ok;}catch(Exception e){validatedFiles.remove(cid);return false;}}
+  public boolean readable(String cid){try{File f=html(cid);if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);return false;}String fingerprint=f.length()+":"+f.lastModified();if(fingerprint.equals(validatedFiles.get(cid)))return true;boolean ok=HakoParser.validContent(read(f));if(ok)validatedFiles.put(cid,fingerprint);else validatedFiles.put(cid,"invalid:"+fingerprint);return ok;}catch(Exception e){validatedFiles.remove(cid);return false;}}
   public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
-  public void cleanStartup(){for(Book b:books())if(!b.id.equals("demo")){if(!b.followed&&!b.id.equals(Repository.activeBook))clearTemporary(b.id);for(Chapter c:chapters(b.id))if(!html(c.id).isFile()||html(c.id).length()==0){state(c.id,false,"");}}}
+  public void cleanStartup(){
+    // Disk validation happens outside Store's monitor and outside SQLite transactions.
+    Map<String,String> invalid=new LinkedHashMap<>();
+    for(Book b:books())if(!b.id.equals("demo")){
+      for(Chapter ch:chapters(b.id)){
+        String before=fileStamp(html(ch.id));
+        if(!readable(ch.id)&&before.equals(fileStamp(html(ch.id))))invalid.put(ch.id,before);
+      }
+    }
+    List<String> ids=new ArrayList<>(invalid.keySet());
+    for(int offset=0;offset<ids.size();offset+=128){
+      synchronized(this){
+        SQLiteDatabase d=getWritableDatabase();d.beginTransaction();
+        try{
+          for(int n=offset;n<Math.min(ids.size(),offset+128);n++){
+            String id=ids.get(n);
+            // Writers use the same monitor. A newer atomic file replacement wins.
+            if(!invalid.get(id).equals(fileStamp(html(id))))continue;
+            ContentValues v=new ContentValues();v.put("ready",0);
+            d.update("chapters",v,"id=?",new String[]{id});
+          }
+          d.setTransactionSuccessful();
+        }finally{d.endTransaction();}
+      }
+    }
+  }
+  private String fileStamp(File f){return f.isFile()?f.length()+":"+f.lastModified():"missing";}
+
 
   public synchronized void rebase(String origin){for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}}
   public static void delete(File f) {
