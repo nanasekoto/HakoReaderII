@@ -73,6 +73,13 @@ public class ParserTest {
       failed = true;
     }
     check(failed, "Missing content is an error, never stored as chapter");
+    check(HakoParser.validContent("<p>A</p>"),"Short chapter is valid");
+    check(HakoParser.validContent("<p>Access denied! Just a moment...</p>"),"Dialogue is not a challenge");
+    check(HakoParser.validContent("<img src='https://i2.hako.vip/image.jpg'>"),"Image-only chapter");
+    check(!HakoParser.validContent("<html><head><title>Just a moment...</title></head><body>Checking your browser</body></html>"),"Challenge cache rejected");
+    check(!HakoParser.validContent("<h1>503 Service Unavailable</h1>"),"HTTP error cache rejected");
+    check(!HakoParser.validContent("<script>bad()</script>"),"Script-only cache rejected");
+    check(!HakoParser.validContent("<p style='display:none'>hidden</p>"),"Hidden-only cache rejected");
     System.out.println("PASS " + passed + " parser assertions");
   }
 }
