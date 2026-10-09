@@ -1,0 +1,12 @@
+gradle.beforeProject { project ->
+    project.afterEvaluate {
+        if (project.path == ':app') {
+            def releaseVersion = new Properties()
+            project.rootProject.file('version.properties').withInputStream { releaseVersion.load(it) }
+            project.extensions.getByName('android').defaultConfig {
+                versionCode Integer.parseInt(releaseVersion.getProperty('VERSION_CODE'))
+                versionName releaseVersion.getProperty('VERSION_NAME')
+            }
+        }
+    }
+}

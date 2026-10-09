@@ -8,7 +8,7 @@ public class ChargeJob extends JobService {
   private static final java.util.concurrent.atomic.AtomicBoolean running=new java.util.concurrent.atomic.AtomicBoolean();
   public static void schedule(Context c, boolean enabled) {
     JobScheduler s = c.getSystemService(JobScheduler.class);
-    if (!enabled) {
+    if (!enabled||c.getSharedPreferences("settings",0).getBoolean("sync_paused",false)) {
       s.cancel(40);s.cancel(41);
       return;
     }
@@ -18,7 +18,7 @@ public class ChargeJob extends JobService {
     kick(c);
   }
   public static void kick(Context c){
-    if(!c.getSharedPreferences("settings",0).getBoolean("charging",true))return;
+    if(c.getSharedPreferences("settings",0).getBoolean("sync_paused",false)||!c.getSharedPreferences("settings",0).getBoolean("charging",true))return;
     JobScheduler s=c.getSystemService(JobScheduler.class);
     if(s.getPendingJob(41)==null)s.schedule(ReadSync.wifiJob(c,41,ChargeJob.class).setRequiresCharging(true).setPersisted(true).build());
   }
@@ -29,7 +29,7 @@ public class ChargeJob extends JobService {
   }
 
   public boolean onStartJob(JobParameters p) {
-    if (Repository.busy.get() || !ReadSync.wifi(this) || !isCharging(this) || !running.compareAndSet(false,true)) return false;
+    if (getSharedPreferences("settings",0).getBoolean("sync_paused",false) || Repository.busy.get() || !ReadSync.wifi(this) || !isCharging(this) || !running.compareAndSet(false,true)) return false;
     new Thread(
             () -> {
               boolean retry = false;
@@ -51,4 +51,3 @@ public class ChargeJob extends JobService {
     return false;
   }
 }
-

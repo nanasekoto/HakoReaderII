@@ -1,47 +1,43 @@
-# Validation — 0.7.0 Lite
+# Kiểm chứng và giới hạn
 
-Successful workflow: https://github.com/nanasekoto/HakoReaderII/actions/runs/37504472355
-Production source commit: 22b33e4a47dd62a1a4fb4bb1b4849f70a12e0c76. Later commits add only test diagnostics.
+## Phiên bản nền
 
-- ARM32 release compiled; 13 native libraries verified as ELF32/ARM, with no other ABI included.
-- Delivered APK: 92,486,400 bytes; SHA256 4ae0b20873463bda60512a99ab7934d1c7b3605a6f2e7d74bada2a747e66bc93.
-- APK v2 signature verified; signing certificate matches 0.6.4 for an in-place update.
-- JVM parser, pagination/regression and hardware-hold tests passed.
-- Actual Android 11/API30 emulator installation at 480×800, 2048MB RAM: 145 native checks at DPI219 and 145 at DPI220 passed. Emulator APK is x86_64; shipped APK is ARM32.
-- 15 actual Gecko checks passed: HTTPS executor/IPC, shipped extraction script with delayed Vietnamese DOM, cookie shared by HTTP/rendering, cookie persistence after shutdown, actual visible page content through Gecko virtual accessibility nodes, browser handoff/return, and all engine child processes absent before instrumentation ends.
-- Public HTTPS page and synthetic chapter fixture were used; no Hako account or credentials.
-- Stationary native-reader sample: zero process CPU-time increase and no redraws over three seconds, both locked and unlocked. This is not a physical battery measurement.
+Source 0.7.15 Gecko: commit aed36f73bd4d3d13fb8ab0de4e0c77e4098aa3fb.
 
-## Limits
-Live Hako/Cloudflare verification and RAM/battery consumption on the physical S4 remain unverified. Emulator display tests do not measure E-ink ghosting or prove physical key mapping. Existing website follow/read-all commands are preserved, not newly authenticated in this test.
+[GitHub Actions thành công](https://github.com/nanasekoto/HakoReaderII/actions/runs/37932154389) kiểm tra các policy tải/cache/hàng đợi/neo/phân trang, parser, hồi quy và hợp nhất mục lục/đọc hết, rồi build release ARM32. APK đã được kiểm tra chữ ký phù hợp bản trước. Người dùng phản hồi phiên bản này khá ổn trên thiết bị; phản hồi này không thay thế phép đo từng chức năng.
 
-The initial text-search assertion could not find Gecko content via the Android window text-search helper. Walking the virtual accessibility children confirmed the visible page text; the assertion was not removed.
+## Bộ test hiện hành
 
-## Historical 0.3.0 validation
+bash test.sh chạy tất cả test JVM ở tests/*.java, cùng kiểm tra JavaScript:
 
-### Original 0.3.0 record
+| Nhóm | Test |
+| --- | --- |
+| Parser, nội dung lỗi, bảo vệ HTML | ParserTest |
+| Phân trang, vị trí, quy tắc hồi quy | FixTest |
+| Thời gian, khóa chương, thứ tự kệ | ShelfFeatureTest, ShelfPagePolicyTest |
+| Cache chữ, ảnh và hàng đợi duy nhất | CachePolicyTest, DownloadLedgerTest |
+| Phạm vi truyện/chương và ưu tiên | DownloadScopeTest, ReadingRangeTest, DownloadPriorityTest |
+| Điều kiện dừng theo neo | ShelfAnchorTest |
+| Giữ phím | HoldKeyTest |
+| Catalog hợp nhất, ID lỗi, điều kiện đọc hết | PolicyIntegrityTest |
 
-## Executed
-- 18 JVM parser assertions: source order, URL boundaries, Vietnamese text, sanitization, notes and image hosts.
-- 3215 regression assertions: empty/unrendered protected chapter rejection, Hako data-unread count, rolling window, progressive delay, 200 deterministic variable-line pagination cases with resume boundaries.
-- JavaScript syntax check of extract.js.
-- Android application compilation / dex / resource packaging.
-- Android instrumentation compilation and APK packaging (not execution).
-- APK signature verification v2/v3; development signing certificate compared with prior 0.1 APK.
+build.yml bổ sung biên dịch Android, đóng gói release, chữ ký APK, ABI/ELF32 ARM và checksum. Không gọi kết quả build là test toàn bộ trên máy thật.
 
-## Not executed
-- Android instrumentation: no attached device (adb devices empty); no installed runnable emulator/system image; /dev/kvm absent.
-- Real chapter loading inside this APK on Android, WebView login, follow, mark-read, renderer history restoration.
-- S4 physical key mapping, E Ink ghosting/full refresh, memory/battery/performance measurements.
+## Kiểm chứng Android trước đây
 
-Tests under tests/android/ are executable instructions for future device validation, not evidence of a passed Android test.
+[Run emulator lịch sử 0.7.0](https://github.com/nanasekoto/HakoReaderII/actions/runs/37504472355) đã kiểm tra Android 11/API30 ở 480×800 và DPI219/220, reader native, IPC, DOM chương tổng hợp xuất hiện trễ, cookie qua đóng/mở engine và thoát tiến trình. Các kết quả đó chỉ áp dụng source của run, không tự chuyển thành bằng chứng emulator cho 0.7.15.
 
-## Website evidence used to implement behavior
-- Authenticated shelf labels count as chapters since last mark-read.
-- Website .mark-read uses POST /action/series/usermarkread with series_id and CSRF; app operates website control and waits for success UI.
-- Viewing Rebuild World latest chapter left unread shelf count at 17 in live browser test.
-- Series CSS uses a:visited for gray links. History page reads localStorage reading_series.
-- These observations establish website behavior, not runtime validation of the new APK.
+tests/android và workflow emulator thủ công được giữ để kiểm tra tiếp. Trang web fixture tổng hợp không chứng minh challenge Hako thực tế.
 
-## Remaining risks
-Website selectors or markup may change. Native HTML conversion simplifies advanced layout. Renderer shares normal WebView origin storage, so conditional history restoration still requires concurrency testing. Prefetch pause is cooperative between chapters. No claim of spam avoidance or measured resource savings.
+## Cần kiểm tra trên S4 khi thay đổi liên quan
+
+- Cài đè vẫn giữ bộ nghìn chương, vị trí đọc và dùng chung cache giữa các danh sách.
+- Truyện chưa đọc trên APK không vào hàng tải chỉ vì có trên web.
+- Phạm vi thường 15 chương, theo dõi/yêu thích đã đọc tải đến cuối, full giữ đủ.
+- Neo không bỏ sót cập nhật khi đọc/mark-read làm thay đổi thứ tự kệ.
+- Hoàn thành có chương thêm không tự bị xác nhận đã đọc.
+- Bố cục không nhảy, không cắt góc/nhãn ở font người dùng; nút phản hồi kèm trạng thái.
+- ReadSync bận thì lệnh Cập nhật vẫn được tiếp tục; pause/resume đúng.
+- Đăng nhập, phiên Gecko, tốc độ, pin/RAM và e-ink/ánh xạ phím thật.
+
+Khoảng cách giữa xác minh mục lục và mark-read server vẫn là giới hạn không nguyên tử. Hako có thể đổi markup hoặc yêu cầu xác minh mới. Không cam kết “không lỗi”, mức tiết kiệm pin hay tỷ lệ challenge thành công nếu chưa đo.

@@ -52,6 +52,7 @@ public class DownloadService extends Service {
       stopSelf();
       return START_NOT_STICKY;
     }
+    if(getSharedPreferences("settings",0).getBoolean("sync_paused",false)){stopSelf();return START_NOT_STICKY;}
     Repository.cancel.set(false);
     startForeground(9, notice("Chuẩn bị tải"));
     String book = i.getStringExtra("book");
@@ -63,7 +64,7 @@ public class DownloadService extends Service {
     final int finalMode = mode;
     if (worker != null && worker.isAlive()) {
       if (finalMode == Repository.MODE_SYNC_LIBRARY) Repository.pendingAll = true;
-      else if (book != null) Repository.pendingBook = book;
+      else if (book != null) {if(finalMode==Repository.MODE_BOOK_ALL)Store.get(this).setKeepFull(book,true);Repository.pendingBook = book;}
       if(finalMode==Repository.MODE_BOOK_ALL || finalMode==Repository.MODE_SYNC_LIBRARY)Repository.manualOverride=true;
       return START_NOT_STICKY;
     }
@@ -71,8 +72,16 @@ public class DownloadService extends Service {
         new Thread(
             () -> {
               try {
+                Repository.awaitIdle();
                 Repository.run(this, book, finalMode, false);
                 Repository.awaitIdle();
+                while(!Repository.syncPaused&&!Repository.cancel.get()&&(Repository.pendingAll||!Repository.pendingBook.isEmpty())){
+                  boolean shelf=Repository.pendingAll;
+                  String queued=Repository.pendingBook;
+                  if(shelf)Repository.pendingAll=false;else Repository.pendingBook="";
+                  Repository.run(this,shelf?"":queued,shelf?Repository.MODE_SYNC_LIBRARY:Repository.MODE_BOOK_NEXT,false);
+                  Repository.awaitIdle();
+                }
               } catch (Exception e) {
                 Repository.notify(this, "Tạm dừng: " + e.getMessage());
               } finally {
@@ -94,4 +103,3 @@ public class DownloadService extends Service {
     return null;
   }
 }
-

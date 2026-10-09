@@ -1,7 +1,5 @@
-name: Verify Gecko Lite 0.7.0
+name: Verify Android emulator (manual)
 on:
-  push:
-    branches: [ 'codex/behavior-fix-051' ]
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,20 +22,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '9.3.1'
-      - name: Resolve stable Gecko version
-        run: |
-          python3 scripts/select-gecko.py
-          cat gecko-version.txt
-      - name: Build ARM32 Lite and emulator APK
+      - name: Build ARM32 and emulator APK
         run: |
           bash test.sh
           gradle assembleRelease -Pabi=armeabi-v7a --stacktrace
           mkdir -p build/lite
-          cp app/build/outputs/apk/release/app-release.apk build/lite/Hako-Pocket-0.7.0-Lite-arm32.apk
+          cp app/build/outputs/apk/release/app-release.apk build/lite/Hako-Pocket-arm32.apk
           cp gecko-version.txt build/lite/
           python3 - <<'PY'
           import zipfile
-          p='build/lite/Hako-Pocket-0.7.0-Lite-arm32.apk'
+          p='build/lite/Hako-Pocket-arm32.apk'
           with zipfile.ZipFile(p) as z:
             libs=[n for n in z.namelist() if n.startswith('lib/') and n.endswith('.so')]
             assert any(n.endswith('/libxul.so') for n in libs), 'Gecko engine missing'
@@ -47,8 +41,8 @@ jobs:
           gradle assembleDebug -Pabi=x86_64 --stacktrace
           jar cf build/classes.jar -C app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes .
           bash test-android.sh
-          sha256sum build/lite/Hako-Pocket-0.7.0-Lite-arm32.apk > build/lite/SHA256.txt
-          stat -c "APK bytes: %s" build/lite/Hako-Pocket-0.7.0-Lite-arm32.apk
+          sha256sum build/lite/Hako-Pocket-arm32.apk > build/lite/SHA256.txt
+          stat -c "APK bytes: %s" build/lite/Hako-Pocket-arm32.apk
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm
       - name: Run installed APK at 480x800
@@ -56,13 +50,13 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Hako-0.7.0-Lite-evidence
+          name: Hako-emulator-evidence
           path: build/evidence/
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: Hako-0.7.0-Lite-tested-APK
+          name: Hako-emulator-tested-APK
           path: |
-            build/lite/Hako-Pocket-0.7.0-Lite-arm32.apk
+            build/lite/Hako-Pocket-arm32.apk
             build/lite/gecko-version.txt
             build/lite/SHA256.txt

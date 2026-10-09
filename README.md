@@ -1,44 +1,63 @@
-# Hako Pocket 0.7.0 Lite
+# Hako Pocket — 0.7.15 Gecko
 
-Android 11 / Xteink S4 · ARM 32-bit · bộ đọc native + GeckoView stable.
+Ứng dụng đọc Hako offline cho Xteink S4: Android 11, ARM 32-bit, màn hình e-ink. `main` là bộ source chính thức, thống nhất từ phiên bản 0.7.15 người dùng đã phản hồi chạy khá ổn.
 
-## Bắt đầu
+## Sử dụng
 
-1. Cài APK cập nhật tại chỗ để giữ tủ sách và vị trí đọc.
-2. Trang chính → Tài khoản, hoặc Cài đặt → Tài khoản HAKO. Đăng nhập và xác minh trực tiếp trong Gecko.
-3. Bấm **Về app** → Tủ sách → Cập nhật. Cookie của WebView cũ không được chuyển sang Gecko; cần đăng nhập lần đầu trong engine mới.
-4. Bấm tên truyện để đọc tiếp; Yêu thích mở chọn chương. Ngôi sao trong chọn chương thêm/bỏ yêu thích. Icon tải toàn bộ giữ đủ các chương của bộ đó.
-5. Giữ Vol+/Page Up khoảng 700ms để khóa/mở cảm ứng trong giao diện native. Bấm ngắn lật trang. Khóa này không chặn thanh thông báo của Android.
+1. Cài đè APK cùng package và chữ ký để giữ dữ liệu. Không gỡ app hoặc xóa dữ liệu.
+2. Mở **Tài khoản**, đăng nhập Hako và hoàn tất xác minh trong Gecko; quay về app.
+3. Mở **Tủ sách** hoặc bấm **Cập nhật**. App nhập thông tin kệ sách trước, rồi tải các truyện thuộc phạm vi đã chọn.
+4. Dùng **Đọc tiếp**, **Vừa đọc**, **Yêu thích** để đọc nội dung đã lưu. Trong mục lục có lối đọc tiếp.
+5. Trong **Vừa đọc**, chọn **Tải full** hoặc tự đánh dấu **Hoàn thành** khi muốn lưu cả bộ. **Đã tải xong** chỉ hiển thị bộ được đánh dấu hoàn thành và đã có đủ chữ offline theo mục lục đang biết.
+6. Giữ Vol+/Page Up khoảng 700 ms để khóa hoặc mở cảm ứng. Phím ngắn lật trang; khóa không chặn thanh thông báo Android.
 
-## Lite hoạt động thế nào
+## Trang chính
 
-- Không tích hợp Firefox đầy đủ, nhiều tab, đồng bộ Firefox hoặc tiện ích tải từ bên ngoài.
-- APK S4 chỉ chứa thư viện ARMv7; APK x86_64 phục vụ kiểm tra được build riêng.
-- Bộ đọc offline không tạo GeckoRuntime và không khởi tạo Android WebView/CookieManager. Văn bản, font và vị trí đọc vẫn thuộc bộ đọc native.
-- Đăng nhập, tải tủ sách/mục lục, lấy chương và các lệnh theo dõi/đọc hết dùng chung profile Gecko lưu trên máy. Không xuất cookie sang trình duyệt khác.
-- Mỗi lượt chỉ xử lý một yêu cầu web. Sau trích xuất đóng trang; cuối lượt tải bỏ kết nối service. Sau 5 giây không có người dùng hay công việc mới, runtime đóng và tiến trình `:gecko` thoát. Sau 8 giây không có kết nối tải hoặc màn đăng nhập, phần native dọn các tiến trình con còn cache, gồm crash helper; chỉ có lịch dọn một lần, không polling nền.
-- Chờ DOM chỉ trong trang chương đang tải; không tải lại CAPTCHA tự động, không lưu chương rỗng. Các quy tắc tốc độ tải, đọc full/tiếp theo và hàng chờ đọc hết được giữ từ 0.6.x.
-- Mở Tài khoản dừng lượt tải và chặn yêu cầu nền mới trong lúc đăng nhập. Rời màn web sẽ quay về giao diện native.
+| Hàng | Ô 1 | Ô 2 | Ô 3 |
+| --- | --- | --- | --- |
+| 1 | Đọc tiếp | Vừa đọc | Yêu thích |
+| 2 | Tủ sách | Mới cập nhật | Đã tải xong |
+| 3 | Cập nhật | Tạm dừng/Tiếp tục | Tìm kiếm |
+| 4 | Tài khoản | Cài đặt | Thoát |
 
-Gecko là engine trình duyệt thực nên dung lượng không chỉ tăng vài MB. Đóng engine sau công việc giảm tài nguyên khi đọc offline; chưa có phép đo pin/RAM trên S4 để cam kết con số cụ thể. Firefox hoạt động trên máy là cơ sở lựa chọn Gecko, không phải bằng chứng mọi thử thách Cloudflare sẽ thành công trong app.
+Trạng thái tải và tải danh sách có vùng cố định, để thẻ truyện không nhảy khi thông báo thay đổi. Truyện ghim dễ tìm; ghim không đồng nghĩa đọc nhiều hoặc được tải full.
 
-## Build
+## Những quy tắc quan trọng
 
-JDK17, Gradle9.3.1, Android Gradle Plugin9.1.0, compileSdk36, build-tools35.0.0. `targetSdk34` và `minSdk26` được giữ; compileSdk không có nghĩa phải dùng API36.
+- Đồng bộ tủ sách không tự tải tất cả truyện đang theo dõi trên web.
+- Truyện thực sự đọc trong APK nhưng chưa lưu/theo dõi/yêu thích: tải từ chương hiện tại đến 15 chương phía sau; giữ ba chương phía trước.
+- Truyện theo dõi hoặc yêu thích **và đã đọc trong APK**: tải từ chương hiện tại đến cuối; giữ ba chương phía trước.
+- Tải full/Hoàn thành: tải đủ bộ và giữ toàn bộ. Hoàn thành do người dùng đánh dấu.
+- Chữ offline hợp lệ được dùng chung giữa mọi danh sách. Thiếu ảnh không khiến app tải lại chữ.
+- Quét tủ sách thủ công và tự động đều có thể dừng sớm khi neo đã được đối chiếu; thiếu bằng chứng thì quét đầy đủ.
+- Đọc hết offline không tự xác nhận toàn bộ truyện trên Hako nếu mục lục server còn chương chưa đọc.
+
+Chi tiết và ngoại lệ: [quy tắc vận hành](docs/OPERATING_RULES.md).
+
+## Build và kiểm tra
+
+Cần JDK 17, Node.js, Gradle 9.3.1, Android SDK 36 và build-tools 35.0.0.
 
 ```sh
-gradle assembleRelease -Pabi=armeabi-v7a
+bash test.sh
+bash build.sh
 ```
 
-Phiên bản Gecko được cố định trong `gecko-version.txt`; không tự nâng engine ở mỗi lần build. Khóa ký kèm repository là khóa phát triển cho bản thử cá nhân.
+APK nằm trong `build/deliver/`. `version.properties` là nguồn phiên bản duy nhất cho build; `gecko-version.txt` cố định engine. Cấu hình giữ package `vn.nanase.hako`, minSdk 26, targetSdk 34 và SQLite v3.
 
-## Kiểm tra
+[Hướng dẫn build](docs/BUILDING.md) · [GitHub Actions](https://github.com/nanasekoto/HakoReaderII/actions)
 
-- `bash test.sh`: parser, phân trang, các quy tắc hồi quy và giữ phím.
-- Workflow **Verify Gecko Lite 0.7.0** build ARM32, xác nhận ABI, rồi cài APK x86_64 trên Android11/API30 ở 480×800, mật độ219 và220.
-- `SmokeTest`: bố cục sáu thẻ, chọn chương, đọc native, phím khóa, tiến độ và hàng chờ offline.
-- `GeckoSmokeTest`: HTTPS thực qua executor, IPC, bộ trích xuất thật với DOM tiếng Việt xuất hiện trễ, cookie còn sau khi đóng/mở tiến trình và engine thoát sau lượt tải. Trang chương trong phép thử là dữ liệu tổng hợp trên trang công khai, không phải một chương Hako thật.
+## Tài liệu source
 
-Kết quả từng lần build có trong artifact evidence của Actions. Chỉ run có toàn bộ kiểm tra thành công mới xuất artifact **tested-APK**. Kiểm tra emulator không thay thế xác minh Cloudflare và đo pin trên S4 thật.
+| Tài liệu | Nội dung |
+| --- | --- |
+| [OPERATING_RULES](docs/OPERATING_RULES.md) | Quy tắc người dùng, phạm vi tải, ưu tiên, cập nhật, đọc hết |
+| [ARCHITECTURE_INVARIANTS](docs/ARCHITECTURE_INVARIANTS.md) | Thành phần, luồng xử lý, cache, dữ liệu, UI, điều phối |
+| [BUILDING](docs/BUILDING.md) | Build local/CI, ký APK, kiểm tra emulator |
+| [VALIDATION](docs/VALIDATION.md) | Bằng chứng đã có và giới hạn kiểm chứng |
+| [MAINTENANCE](docs/MAINTENANCE.md) | Cách sửa tiếp, kiểm tra lỗi, danh mục file đã dọn |
+| [AGENTS](AGENTS.md) | Hướng dẫn dành cho công cụ bảo trì source |
 
-Các ràng buộc giao diện và dữ liệu: [ARCHITECTURE_INVARIANTS.md](docs/ARCHITECTURE_INVARIANTS.md).
+Gecko chạy riêng khi cần truy cập web; đọc offline dùng bộ đọc native. Phiên đăng nhập được giữ trong profile Gecko. Khi Hako yêu cầu xác minh mới, người dùng xử lý trong Tài khoản. Không cam kết mọi thử thách Cloudflare luôn thành công hoặc đưa ra số liệu pin/RAM chưa đo.
+
+Các giấy phép font và jsoup đi kèm được giữ trong source và assets. Khóa ký hiện có được giữ để tương thích cài đè bản cá nhân; đây không phải mô hình phân phối công khai bằng một khóa bí mật.

@@ -4,15 +4,15 @@ plugins {
 
 android {
     namespace 'vn.nanase.hako'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId 'vn.nanase.hako'
         minSdk 26
         targetSdk 34
         ndk { abiFilters(project.findProperty("abi") ?: "armeabi-v7a") }
-        versionCode 17
-        versionName '0.7.1'
+        versionCode 25
+        versionName '0.7.9-Gecko'
     }
 
     compileOptions {

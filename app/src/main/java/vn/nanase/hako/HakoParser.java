@@ -16,7 +16,8 @@ public final class HakoParser {
 
   public static class Link {
     public String id, title, url;
-    public String info="";
+    public String info="", latestKey="";
+    public long updatedAt;
 
     public Link(String i, String t, String u) {
       id = i;
@@ -105,9 +106,24 @@ public final class HakoParser {
     Set<String> seen = new HashSet<>();
     for (Element a : d.select("table a[href]")) {
       String u = normalize(a.absUrl("href")), id = storyId(u);
-      if (!id.isEmpty() && seen.add(id)) {Link l=new Link(id,a.text(),u);Element row=a.closest("tr");if(row!=null){Element marker=row.selectFirst(".mark-read[data-unread]");if(marker!=null)l.info=marker.attr("data-unread")+" chương mới";else {Element count=row.selectFirst(".update-status");l.info=count==null?"Chưa rõ số chương mới":count.text();}}out.add(l);}
+      if (!id.isEmpty() && seen.add(id)) {Link l=new Link(id,a.text(),u);Element row=a.closest("tr");if(row!=null){Element marker=row.selectFirst(".mark-read[data-unread]");if(marker!=null)l.info=marker.attr("data-unread")+" chương mới";else {Element count=row.selectFirst(".update-status");l.info=count==null?"Chưa rõ số chương mới":count.text();}}if(row!=null){
+        Element chapter=row.selectFirst("a[href*='/c']");
+        if(chapter!=null&&!chapterId(chapter.absUrl("href")).isEmpty())l.latestKey=chapterId(chapter.absUrl("href"))+"|"+chapter.text().trim();
+        Element time=row.selectFirst("time[datetime], [data-timestamp], .timeago[title]");
+        if(time!=null){String date=time.hasAttr("datetime")?time.attr("datetime"):time.hasAttr("data-timestamp")?time.attr("data-timestamp"):time.attr("title");l.updatedAt=ShelfPolicy.timestamp(date);if(l.latestKey.isEmpty()&&l.updatedAt>0)l.latestKey="time:"+l.updatedAt;}
+      }out.add(l);}
     }
     return out;
+  }
+
+  /** Early pagination exit is allowed only when the server explicitly selects update order. */
+  public static boolean shelfUpdateOrder(String html){
+    Document d=Jsoup.parse(html);
+    for(Element e:d.select("select option[selected], .sorting .active, .sort .active, [data-sort][aria-selected=true]")){
+      String v=(e.text()+" "+e.attr("value")+" "+e.attr("data-sort")).toLowerCase(Locale.ROOT);
+      if((v.contains("cập nhật")||v.contains("updated")||v.contains("latest-update"))&&!v.contains("asc")&&!v.contains("cũ nhất"))return true;
+    }
+    return false;
   }
 
   public static List<String> shelfPages(String html, String base) {
@@ -116,10 +132,7 @@ public final class HakoParser {
     for (Element a : d.select("a[href]")) {
       try {
         URI u = URI.create(a.absUrl("href"));
-        if (URI.create(ORIGIN).getHost().equals(u.getHost())
-            && "/ke-sach".equals(u.getPath())
-            && u.getQuery() != null
-            && u.getQuery().matches("page=\\d+")) out.add(u.toString());
+        if (ShelfPagePolicy.isPage(ORIGIN,u.toString())) out.add(u.toString());
       } catch (Exception ignored) {
       }
     }
@@ -168,6 +181,7 @@ public final class HakoParser {
 
   public static String content(String html, String base) throws Exception {
     Document d = Jsoup.parse(html, base);
+    if(errorDocument(d))throw new Exception("Trang lỗi hoặc yêu cầu xác minh — không lưu chương");
     Element c = d.selectFirst("#chapter-content");
     if (c == null)
       throw new Exception(
@@ -267,7 +281,25 @@ public final class HakoParser {
     return result.body().html();
   }
 
-  public static boolean validContent(String html) { Document d=Jsoup.parseBodyFragment(html); return !d.text().trim().isEmpty() || d.selectFirst("img[src]")!=null; }
+  private static boolean errorLabel(String text){
+    return text.trim().toLowerCase(Locale.ROOT).matches("(just a moment|attention required|access denied|checking your browser|verify you are human|too many requests|(?:[45][0-9]{2} )?(?:service unavailable|forbidden|not found|internal server error))[.!… ]*");
+  }
+  private static boolean errorDocument(Document d){
+    if(d.selectFirst("#challenge-form,.cf-browser-verification")!=null)return true;
+    if(!d.title().isEmpty()&&errorLabel(d.title()))return true;
+    Element heading=d.selectFirst("h1");
+    return heading!=null&&errorLabel(heading.text())&&d.body().text().trim().equals(heading.text().trim())&&d.selectFirst("img[src]")==null;
+  }
+  public static boolean validContent(String html){
+    if(html==null||html.trim().isEmpty())return false;
+    Document d=Jsoup.parse(html);
+    if(errorDocument(d))return false;
+    d.select("script,style,iframe,form,[hidden]").remove();
+    for(Element e:d.select("[style]"))if(e.attr("style").matches("(?is).*(display\\s*:\\s*none|visibility\\s*:\\s*hidden).*"))e.remove();
+    if(!d.body().text().trim().isEmpty())return true;
+    for(Element img:d.select("img[src]"))if(!img.attr("src").trim().isEmpty())return true;
+    return false;
+  }
 
   public static boolean imageAllowed(String url) {
     try {

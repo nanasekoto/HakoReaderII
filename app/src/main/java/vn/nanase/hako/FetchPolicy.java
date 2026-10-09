@@ -2,6 +2,11 @@ package vn.nanase.hako;
 /** Pure scheduling policy; delays are a courtesy, not a promise of server acceptance. */
 public final class FetchPolicy {
  public static final int AHEAD=15, BEHIND=3;
+ public static boolean toEnd(boolean followed,boolean favorite,boolean full){return followed||favorite||full;}
+ public static boolean toEnd(boolean followed,boolean favorite,boolean readInApp,boolean full){return full||((followed||favorite)&&readInApp);}
+ public static boolean inDownloadRange(int ordinal,int current,boolean toEnd,boolean full){
+  return full||(ordinal>=Math.max(0,current)&&(toEnd||(long)ordinal<=(long)current+AHEAD));
+ }
  public static long delayMillis(int distance) {
   if(distance<=0)return 2000;
   if(distance<=2)return 4000;

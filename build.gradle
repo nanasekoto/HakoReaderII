@@ -2,3 +2,6 @@ plugins {
     id 'com.android.application' version '9.1.0' apply false
 }
 
+
+// One version source for local builds and GitHub Actions.
+apply from: rootProject.file('ci/version.gradle')
