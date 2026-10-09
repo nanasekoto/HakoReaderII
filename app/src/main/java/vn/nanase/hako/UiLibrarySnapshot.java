@@ -31,7 +31,7 @@ public final class UiLibrarySnapshot {
    Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);
    s.total=chapters.size();s.unread=store.unread(b.id);s.full=store.isKeepFull(b.id);
    for(Store.Chapter ch:chapters){
-    if(ch.ready)s.stored++;
+    if(store.readable(ch.id))s.stored++;
     if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.remaining=Math.max(0,s.total-ch.ord-1);}
    }
    s.newCount=s.total>0?store.newArrivals(b.id):shelfCount(b.shelfInfo);
