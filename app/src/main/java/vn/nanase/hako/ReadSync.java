@@ -40,7 +40,7 @@ public final class ReadSync extends JobService {
           Repository.allowed(c);
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();
           Repository.catalog(c,b,true);
-          if(Repository.syncPaused||!s.canSubmit(id))continue;
+          if(Repository.syncPaused||Repository.cancel.get()||!s.canSubmitServer(id))continue;
           String snapshot=c.getSharedPreferences("read_queue",0).getString(id,"");
           RenderedPage.action(c,HakoParser.ORIGIN+"/ke-sach","read:"+id.substring(id.lastIndexOf('-')+1));
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();
@@ -51,7 +51,7 @@ public final class ReadSync extends JobService {
         }catch(Exception e){retry=true;android.util.Log.w("HakoSync","Read queue retained: "+e.getClass().getSimpleName());}
       }
       return retry;
-      }finally{Repository.busy.set(false);GeckoClient.release();synchronized(Repository.busy){Repository.busy.notifyAll();}}
+      }finally{GeckoClient.release();Repository.busy.set(false);synchronized(Repository.busy){Repository.busy.notifyAll();}Repository.resumePending(c);}
     }
   }
   public boolean onStartJob(JobParameters p){
