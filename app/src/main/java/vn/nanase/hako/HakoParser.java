@@ -181,6 +181,7 @@ public final class HakoParser {
 
   public static String content(String html, String base) throws Exception {
     Document d = Jsoup.parse(html, base);
+    if(errorDocument(d))throw new Exception("Trang lỗi hoặc yêu cầu xác minh — không lưu chương");
     Element c = d.selectFirst("#chapter-content");
     if (c == null)
       throw new Exception(
@@ -280,7 +281,25 @@ public final class HakoParser {
     return result.body().html();
   }
 
-  public static boolean validContent(String html) { Document d=Jsoup.parseBodyFragment(html); return !d.text().trim().isEmpty() || d.selectFirst("img[src]")!=null; }
+  private static boolean errorLabel(String text){
+    return text.trim().toLowerCase(Locale.ROOT).matches("(just a moment|attention required|access denied|checking your browser|verify you are human|too many requests|(?:[45][0-9]{2} )?(?:service unavailable|forbidden|not found|internal server error))[.!… ]*");
+  }
+  private static boolean errorDocument(Document d){
+    if(d.selectFirst("#challenge-form,.cf-browser-verification")!=null)return true;
+    if(!d.title().isEmpty()&&errorLabel(d.title()))return true;
+    Element heading=d.selectFirst("h1");
+    return heading!=null&&errorLabel(heading.text())&&d.body().text().trim().equals(heading.text().trim())&&d.selectFirst("img[src]")==null;
+  }
+  public static boolean validContent(String html){
+    if(html==null||html.trim().isEmpty())return false;
+    Document d=Jsoup.parse(html);
+    if(errorDocument(d))return false;
+    d.select("script,style,iframe,form,[hidden]").remove();
+    for(Element e:d.select("[style]"))if(e.attr("style").matches("(?is).*(display\\s*:\\s*none|visibility\\s*:\\s*hidden).*"))e.remove();
+    if(!d.body().text().trim().isEmpty())return true;
+    for(Element img:d.select("img[src]"))if(!img.attr("src").trim().isEmpty())return true;
+    return false;
+  }
 
   public static boolean imageAllowed(String url) {
     try {
