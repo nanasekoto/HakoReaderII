@@ -27,7 +27,7 @@ Không tự thử CAPTCHA liên tục. Lỗi giới hạn truy cập phải hi�
 
 SQLite `hako.db` giữ phiên bản 3. Tên cột SQL là `shelf_rank`, `shelf_info`, không dùng tên field Java camelCase. Book lookup phải xử lý null. Các khóa bổ sung của phiên bản hiện tại nằm trong SharedPreferences; không giả định đã có bảng/cột của thiết kế migration v4 cũ.
 
-Cache chữ chung: `files/chapters/<chapter-id>/content.html`. Ảnh có trạng thái riêng với khả năng đọc chữ. Không dùng duy nhất cờ ready hoặc file.length > 0 để quyết định chữ đã lưu.
+Cache chữ chung: `files/chapters/<chapter-id>/content.html`. Ảnh có trạng thái riêng với khả năng đọc chữ. Chương chỉ có ảnh cần mọi file ảnh local được BitmapFactory nhận diện; fingerprint gồm metadata ảnh. Giữ nguồn ảnh để thử lại phần thiếu; không thay ảnh lỗi bằng văn bản rồi tính hoàn tất. Xem IMAGE_CHAPTER_FIX_0716.md. Không dùng duy nhất cờ ready hoặc file.length > 0 để quyết định chữ đã lưu.
 
 CatalogPolicy dùng ID: mục lục web quyết định thứ tự các chương còn hiện; chương cũ thiếu trên web được giữ gần các chương còn tồn tại và đánh dấu ẩn. Bảo toàn file, ID đã đọc và vị trí hiện tại; không ném lỗi chỉ vì một chương cũ biến mất. Mục lục rỗng, ID không hợp lệ/trùng cần báo lỗi và giữ dữ liệu cũ.
 
