@@ -80,6 +80,31 @@ public class ParserTest {
     check(!HakoParser.validContent("<h1>503 Service Unavailable</h1>"),"HTTP error cache rejected");
     check(!HakoParser.validContent("<script>bad()</script>"),"Script-only cache rejected");
     check(!HakoParser.validContent("<p style='display:none'>hidden</p>"),"Hidden-only cache rejected");
+
+    for(String host:Arrays.asList("i.docln.net","i2.docln.net","i.hako.re","I.DOCLN.NET")){
+      check(HakoParser.imageAllowed("https://"+host+"/image.jpg"),"Allow "+host);
+      check(HakoParser.imageAllowed("http://"+host+"/image.jpg"),"Legacy HTTP URL "+host);
+    }
+    check(!HakoParser.imageAllowed("https://i.docln.net.evil.test/image.jpg"),"Reject Docln suffix spoof");
+    check(!HakoParser.imageAllowed("https://evilhako.re/image.jpg"),"Reject Hako prefix spoof");
+    check(!HakoParser.imageAllowed("file:///image.jpg"),"Reject file source");
+    check(!HakoParser.imageAllowed("https://evil@i.docln.net/image.jpg"),"Reject URL credentials");
+    check(HakoParser.imageFetchUrl("http://i.docln.net/a.jpg").equals("https://i.docln.net/a.jpg"),"Upgrade legacy image to HTTPS");
+    String imageOnly=HakoParser.content("<div id='chapter-content'><img data-src='http://i.docln.net/a.jpg'></div>",base);
+    check(imageOnly.contains("http://i.docln.net/a.jpg"),"Preserve HTTP image through sanitizer");
+    String local="https://offline.hako.invalid/book-1/image-0123456789abcdef01234567.bin";
+    check(HakoParser.offlineImageName("book-1",local).equals("image-0123456789abcdef01234567.bin"),"Recognize local image filename");
+    check(HakoParser.offlineImageName("book-2",local).isEmpty(),"Reject another chapter cache");
+    check(HakoParser.offlineImageName("book-1","https://offline.hako.invalid/book-1/../outside.bin").isEmpty(),"Reject traversal");
+    HakoParser.OfflineContent images=HakoParser.offlineContent("<img src='"+local+"'><img src='second'>");
+    check(!images.readable(src->src.equals(local)),"Partial image-only chapter is incomplete");
+    check(images.readable(src->true),"All image files make image-only chapter readable");
+    check(!HakoParser.offlineContent("<img src='https://i.docln.net/a.jpg'>").readable(src->false),"Remote image markup alone is not offline");
+    check(HakoParser.offlineContent("<p>Nội dung chữ</p><img src='missing'>").readable(src->false),"Keep text despite missing illustration");
+    check(!HakoParser.offlineContent("<p>[Ảnh ngoài máy chủ HAKO — xem trên web]</p>").readable(src->true),"Repair legacy placeholder-only cache");
+    check(!HakoParser.offlineContent("<p>[Ảnh chưa tải được — thử tải lại khi có mạng]</p>").readable(src->true),"Missing-image message is not content");
+    check(!HakoParser.offlineContent("<p style='display:none'>hidden</p><img src='missing'>").readable(src->false),"Hidden text cannot complete image chapter");
+    check(!HakoParser.offlineContent("<h1>503 Service Unavailable</h1>").readable(src->true),"Never accept error page as offline content");
     System.out.println("PASS " + passed + " parser assertions");
   }
 }

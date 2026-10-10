@@ -269,7 +269,7 @@ public final class HakoParser {
             .addAttributes(":all", "id", "class")
             .addAttributes("img", "src", "alt")
             .addAttributes("a", "href")
-            .addProtocols("img", "src", "https")
+            .addProtocols("img", "src", "https", "http")
             .addProtocols("a", "href", "https", "#")
             .preserveRelativeLinks(true);
     String clean =
@@ -301,13 +301,61 @@ public final class HakoParser {
     return false;
   }
 
+
+  /** Text tolerates missing illustrations; an image-only chapter needs every image. */
+  public static final class OfflineContent {
+    public final boolean text;
+    public final List<String> images;
+    private OfflineContent(boolean text,List<String> images){this.text=text;this.images=images;}
+    public boolean readable(java.util.function.Predicate<String> imageAvailable){
+      if(text)return true;
+      if(images.isEmpty())return false;
+      for(String image:images)if(!imageAvailable.test(image))return false;
+      return true;
+    }
+  }
+  public static OfflineContent offlineContent(String html){
+    List<String> images=new ArrayList<>();
+    if(!validContent(html))return new OfflineContent(false,images);
+    Document d=Jsoup.parseBodyFragment(html);
+    d.select("script,style,iframe,form,[hidden]").remove();
+    for(Element el:d.select("[style]"))if(el.attr("style").matches("(?is).*(display\\s*:\\s*none|visibility\\s*:\\s*hidden).*"))el.remove();
+    // Old releases replaced failed images with these paragraphs. They are not chapter text.
+    for(Element el:d.select("p"))if(el.text().equals("[Ảnh ngoài máy chủ HAKO — xem trên web]")||
+        el.text().equals("[Ảnh chưa tải được — thử tải lại khi có mạng]"))el.remove();
+    for(Element img:d.select("img[src]"))if(!img.attr("src").trim().isEmpty())images.add(img.attr("src"));
+    return new OfflineContent(!d.body().text().trim().isEmpty(),images);
+  }
+  public static String offlineImageName(String chapterId,String src){
+    try{
+      URI uri=URI.create(src);
+      if(!"https".equals(uri.getScheme())||!"offline.hako.invalid".equals(uri.getHost())||
+          uri.getUserInfo()!=null||uri.getPort()!=-1||uri.getQuery()!=null||uri.getFragment()!=null)return "";
+      String prefix="/"+chapterId+"/",path=uri.getPath();
+      if(path==null||!path.startsWith(prefix))return "";
+      String name=path.substring(prefix.length());
+      return name.matches("image-[a-f0-9]{24}\\.bin")?name:"";
+    }catch(Exception e){return "";}
+  }
+
+  public static String imageFetchUrl(String url){
+    if(!imageAllowed(url))return url;
+    return url.regionMatches(true,0,"http:",0,5)?"https:"+url.substring(5):url;
+  }
+
   public static boolean imageAllowed(String url) {
     try {
       URI u = URI.create(url);
       String h = u.getHost();
-      return "https".equals(u.getScheme())
+      if(h != null) h = h.toLowerCase(Locale.ROOT);
+      return ("https".equalsIgnoreCase(u.getScheme()) || "http".equalsIgnoreCase(u.getScheme()))
           && h != null
-          && (h.equals(URI.create(ORIGIN).getHost())
+          && u.getUserInfo() == null
+          && (h.equals(URI.create(ORIGIN).getHost().toLowerCase(Locale.ROOT))
+              || h.equals("docln.net")
+              || h.endsWith(".docln.net")
+              || h.equals("hako.re")
+              || h.endsWith(".hako.re")
               || h.equals("hako.vip")
               || h.endsWith(".hako.vip")
               || h.equals("hako.vn")

@@ -216,7 +216,7 @@ public final class Repository {
 
   public static synchronized void download(Context ctx,Store.Chapter c,boolean force) throws Exception {
     Store s = Store.get(ctx);
-    if(!CachePolicy.shouldFetch(s.readable(c.id),force))return;
+    if(!CachePolicy.shouldFetch(s.readable(c.id),force)){if(!c.ready)s.state(c.id,true,c.error);return;}
     allowed(ctx);
     long pause=Math.max(0,1500-(android.os.SystemClock.elapsedRealtime()-lastNetwork));
     if(pause>0)Thread.sleep(pause);
@@ -225,34 +225,53 @@ public final class Repository {
     dir.mkdirs();
     if (dir.getUsableSpace() < 64L * 1024 * 1024)
       throw new IOException("Bộ nhớ còn dưới 64 MB. Hãy giải phóng dung lượng trước khi tải tiếp.");
-    String content = HakoParser.content(RenderedPage.chapter(ctx,c.url), c.url);
+    String content = "";
+    // Retained image markup allows retrying missing image files without fetching the chapter again.
+    if(!force&&s.html(c.id).isFile()){
+      String cached=Store.read(s.html(c.id));
+      HakoParser.OfflineContent offline=HakoParser.offlineContent(cached);
+      if(!offline.text&&!offline.images.isEmpty()){
+        boolean retry=true;
+        for(Element img:Jsoup.parseBodyFragment(cached).select("img[src]")){
+          String name=HakoParser.offlineImageName(c.id,img.attr("src"));
+          if(!name.isEmpty()&&!Store.imageFileReadable(new File(dir,name))&&!img.hasAttr("data-hako-src"))retry=false;
+        }
+        if(retry)content=cached;
+      }
+    }
+    if(content.isEmpty())content=HakoParser.content(RenderedPage.chapter(ctx,c.url), c.url);
     Document d = Jsoup.parseBodyFragment(content);
     int errors = 0, index = 0;
     String error = "";
     for (Element img : d.select("img[src]")) {
-      String src = img.attr("src");
+      String src = HakoParser.imageFetchUrl(img.hasAttr("data-hako-src")?img.attr("data-hako-src"):img.attr("src"));
+      img.attr("data-hako-src",src);
+      String localName=HakoParser.offlineImageName(c.id,img.attr("src"));
+      if(!localName.isEmpty()&&Store.imageFileReadable(new File(dir,localName)))continue;
       String name = "image-" + imageKey(src) + ".bin";
       File file = new File(dir, name);
       if (!HakoParser.imageAllowed(src)) {
         errors++;
-        img.replaceWith(new Element("p").text("[Ảnh ngoài máy chủ HAKO — xem trên web]"));
+        error = "Máy chủ ảnh chưa được hỗ trợ";
+        img.attr("src",src);
         continue;
       }
       try {
-        if (!file.isFile()) {
+        if (!Store.imageFileReadable(file)) {
           byte[] data = fetch(src, false, 16 * 1024 * 1024);
           File tmp = new File(dir, name + ".tmp");
           try (FileOutputStream out = new FileOutputStream(tmp)) {
             out.write(data);
             out.getFD().sync();
           }
+          if(!Store.imageFileReadable(tmp)){tmp.delete();throw new IOException("Máy chủ không trả ảnh đọc được");}
           if (!tmp.renameTo(file)) throw new IOException("Không lưu được ảnh");
         }
         img.attr("src", "https://offline.hako.invalid/" + c.id + "/" + name);
       } catch (Exception e) {
         errors++;
         error = e.getMessage();
-        img.replaceWith(new Element("p").text("[Ảnh chưa tải được — thử tải lại khi có mạng]"));
+        img.attr("src",src);
       }
     }
     if(!HakoParser.validContent(d.body().html()))throw new IOException("Nội dung rỗng");
@@ -260,7 +279,10 @@ public final class Repository {
     if(owner!=null&&!FetchPolicy.allowCache(owner.followed||s.syncTarget(owner),c.book.equals(activeBook),s.isKeepFull(owner.id)))return;
     if(!CachePolicy.shouldFetch(s.readable(c.id),force))return;
     Store.write(s.html(c.id), d.body().html());
-    s.state(c.id, true, errors == 0 ? "" : "Thiếu " + errors + " ảnh. " + error);}
+    boolean readable=s.readable(c.id);
+    String warning=errors == 0 ? "" : "Thiếu " + errors + " ảnh. " + error;
+    s.state(c.id,readable,warning);
+    if(!readable)throw new IOException("Chương chỉ có ảnh chưa tải đủ: "+c.title+" · "+warning);}
   }
 
   private static String imageKey(String src) throws Exception {

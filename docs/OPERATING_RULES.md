@@ -1,6 +1,6 @@
 # Quy tắc vận hành hiện hành
 
-Áp dụng cho 0.7.15 Gecko trên main. Đây là quy tắc đã chốt với người dùng; tài liệu lịch sử không được dùng để thay thế bảng dưới.
+Quy tắc nền 0.7.15 và bản vá chương ảnh 0.7.16. Đây là quy tắc đã chốt với người dùng; tài liệu lịch sử không được dùng để thay thế bảng dưới.
 
 ## 1. Phân biệt các danh sách
 
@@ -64,7 +64,7 @@ Chỉ đến cuối phần đã tải, ví dụ chương 70 trong bộ 100 chư�
 
 ## 5. Cache và an toàn dữ liệu
 
-- Chương có chữ hợp lệ được coi là đọc offline được, kể cả thiếu ảnh.
+- Chương có chữ thật hợp lệ được coi là đọc offline được, kể cả thiếu minh họa. Chương chỉ có ảnh cần đủ file ảnh local giải mã được; thông báo lỗi ảnh không phải nội dung. Xem [bản vá 0.7.16](IMAGE_CHAPTER_FIX_0716.md).
 - File không rỗng chưa đủ: phải nhận diện nội dung truyện, loại trang lỗi và challenge.
 - Cùng ID chương dùng cùng file; hàng đợi không trùng ID và kiểm tra cache trước request.
 - Mục lục thay đổi không được xóa chương cũ hoặc vị trí đọc. Chương cũ thiếu trên web được giữ và đánh dấu ẩn, không tự tải lại.

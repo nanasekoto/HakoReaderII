@@ -383,9 +383,39 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void dropped(String id,boolean value){ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   // List queries must never read/parse chapter HTML while holding the Store monitor.
   // Content integrity is verified by the worker before queueing and before reuse.
-  private boolean cachedChapter(String id,boolean markedReady){File f=html(id);if(!f.isFile()||f.length()==0)return false;String known=validatedFiles.get(id);return fileStamp(f).equals(known)||(known==null&&markedReady);}
+  private boolean cachedChapter(String id,boolean markedReady){File f=html(id);if(!f.isFile()||f.length()==0)return false;String known=validatedFiles.get(id);return contentStamp(id,f).equals(known)||(known==null&&markedReady);}
   private final java.util.concurrent.ConcurrentHashMap<String,String> validatedFiles=new java.util.concurrent.ConcurrentHashMap<>();
-  public boolean readable(String cid){try{File f=html(cid);if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);return false;}String fingerprint=f.length()+":"+f.lastModified();if(fingerprint.equals(validatedFiles.get(cid)))return true;boolean ok=HakoParser.validContent(read(f));if(ok)validatedFiles.put(cid,fingerprint);else validatedFiles.put(cid,"invalid:"+fingerprint);return ok;}catch(Exception e){validatedFiles.remove(cid);return false;}}
+  private final java.util.concurrent.ConcurrentHashMap<String,List<String>> validatedImages=new java.util.concurrent.ConcurrentHashMap<>();
+  private String contentStamp(String id,File file){
+    StringBuilder stamp=new StringBuilder(fileStamp(file));
+    List<String> names=validatedImages.get(id);
+    if(names!=null)for(String name:names)stamp.append('|').append(name).append(':').append(fileStamp(new File(dir(id),name)));
+    return stamp.toString();
+  }
+  public static boolean imageFileReadable(File file){
+    if(!file.isFile()||file.length()==0)return false;
+    android.graphics.BitmapFactory.Options options=new android.graphics.BitmapFactory.Options();
+    options.inJustDecodeBounds=true;
+    android.graphics.BitmapFactory.decodeFile(file.getPath(),options);
+    return options.outWidth>0&&options.outHeight>0;
+  }
+  public boolean readable(String cid){
+    try{
+      File f=html(cid);
+      if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);validatedImages.remove(cid);return false;}
+      String fingerprint=contentStamp(cid,f);
+      if(fingerprint.equals(validatedFiles.get(cid)))return true;
+      HakoParser.OfflineContent content=HakoParser.offlineContent(read(f));
+      List<String> names=new ArrayList<>();
+      if(!content.text)for(String src:content.images){String name=HakoParser.offlineImageName(cid,src);if(!name.isEmpty())names.add(name);}
+      validatedImages.put(cid,names);
+      fingerprint=contentStamp(cid,f);
+      boolean ok=content.readable(src->{String name=HakoParser.offlineImageName(cid,src);return !name.isEmpty()&&imageFileReadable(new File(dir(cid),name));});
+      ok=ok&&fingerprint.equals(contentStamp(cid,f));
+      validatedFiles.put(cid,ok?fingerprint:"invalid:"+fingerprint);
+      return ok;
+    }catch(Exception e){validatedFiles.remove(cid);validatedImages.remove(cid);return false;}
+  }
   public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
   public void cleanStartup(){
     // Disk validation happens outside Store's monitor and outside SQLite transactions.

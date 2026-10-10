@@ -1,0 +1,40 @@
+name: Verify image-only chapter cache
+on:
+  push:
+    branches: [ fix/image-only-chapters-0716 ]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
+      - name: Android tools
+        run: |
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          timeout 240 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'platforms;android-36' 'build-tools;35.0.0' 'emulator' 'system-images;android-30;default;x86_64'
+      - name: Build focused cache test
+        run: |
+          timeout 600 gradle assembleDebug -Pabi=x86_64 --no-daemon
+          mkdir -p build
+          jar cf build/classes.jar -C app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes .
+          bash test-android.sh
+      - name: Android 11 image-cache regression
+        run: |
+          sudo chmod a+rw /dev/kvm
+          bash scripts/image-cache-check.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Image-cache-evidence
+          path: build/image-cache-evidence/
