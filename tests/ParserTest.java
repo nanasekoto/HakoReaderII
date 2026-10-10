@@ -92,6 +92,7 @@ public class ParserTest {
     check(HakoParser.imageFetchUrl("http://i.docln.net/a.jpg").equals("https://i.docln.net/a.jpg"),"Upgrade legacy image to HTTPS");
     String imageOnly=HakoParser.content("<div id='chapter-content'><img data-src='http://i.docln.net/a.jpg'></div>",base);
     check(imageOnly.contains("http://i.docln.net/a.jpg"),"Preserve HTTP image through sanitizer");
+    check(HakoParser.content("<div id='chapter-content'><div id='chapter-c-protected' data-s='x'><img src='https://i.docln.net/a.jpg'></div></div>",base).contains("i.docln.net/a.jpg"),"Protected image-only DOM is valid without text");
     String local="https://offline.hako.invalid/book-1/image-0123456789abcdef01234567.bin";
     check(HakoParser.offlineImageName("book-1",local).equals("image-0123456789abcdef01234567.bin"),"Recognize local image filename");
     check(HakoParser.offlineImageName("book-2",local).isEmpty(),"Reject another chapter cache");

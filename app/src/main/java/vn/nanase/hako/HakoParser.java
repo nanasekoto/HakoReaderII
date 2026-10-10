@@ -186,7 +186,7 @@ public final class HakoParser {
     if (c == null)
       throw new Exception(
           "Không tìm thấy nội dung chương. Có thể cần đăng nhập hoặc HAKO đã đổi cấu trúc.");
-    if(c.selectFirst("#chapter-c-protected[data-s]")!=null && c.selectFirst("#chapter-c-protected[data-s]").text().trim().isEmpty()) throw new Exception("Nội dung chưa được trang hiển thị");
+    if(c.selectFirst("#chapter-c-protected[data-s]")!=null && c.selectFirst("#chapter-c-protected[data-s]").text().trim().isEmpty() && c.selectFirst("#chapter-c-protected[data-s] img[src],#chapter-c-protected[data-s] img[data-src]")==null) throw new Exception("Nội dung chưa được trang hiển thị");
     c.select("script,style,iframe,form,input,button,video,audio,object,embed").remove();
     for (Element e : new ArrayList<Element>(c.getAllElements())) {
       if (e == c) continue;
