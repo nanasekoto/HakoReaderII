@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 export ANDROID_SERIAL=emulator-5556
-mkdir -p build/image-cache-evidence
+export ANDROID_AVD_HOME="$PWD/build/image-cache-avds"
+mkdir -p build/image-cache-evidence "$ANDROID_AVD_HOME"
 adb start-server
-printf 'no\n' | avdmanager create avd -n image-cache -k 'system-images;android-30;default;x86_64' --force
+printf 'no\n' | avdmanager create avd -n image-cache -k 'system-images;android-30;default;x86_64' --force --path "$PWD/build/image-cache.avd"
 "$ANDROID_HOME/emulator/emulator" -avd image-cache -port 5556 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > build/image-cache-evidence/emulator.log 2>&1 &
 emulator_pid=$!
 trap 'adb -s emulator-5556 emu kill || true' EXIT
