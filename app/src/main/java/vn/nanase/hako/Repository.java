@@ -218,9 +218,9 @@ public final class Repository {
   public static synchronized void downloadImages(Context ctx,Store.Chapter c)throws Exception{download(ctx,c,true,true);}
   private static synchronized void download(Context ctx,Store.Chapter c,boolean force,boolean imagesOnly) throws Exception {
     Store s = Store.get(ctx);
-    boolean cached=s.readable(c.id);
+    boolean cachedContent=s.readable(c.id);
     if(!force&&s.cachedIllustration(c.id)){UpdateReport.log(ctx,c.title+": giữ minh họa đã lưu · không tải lại trang");return;}
-    if(!CachePolicy.shouldFetch(cached,force)){if(!c.ready)s.state(c.id,true,c.error);return;}
+    if(!CachePolicy.shouldFetch(cachedContent,force)){if(!c.ready)s.state(c.id,true,c.error);return;}
     allowed(ctx);
     long pause=Math.max(0,1500-(android.os.SystemClock.elapsedRealtime()-lastNetwork));
     if(pause>0)Thread.sleep(pause);

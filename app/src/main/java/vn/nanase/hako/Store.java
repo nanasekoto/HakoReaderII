@@ -93,6 +93,7 @@ public final class Store extends SQLiteOpenHelper {
   public int unread(String id){Set<String> read=readIds(id);int count=0;for(Chapter ch:chapters(id))if(!illustration(ch.id)&&!read.contains(ch.id))count++;return count;}
   public boolean illustration(String id){return context.getSharedPreferences("settings",0).getInt("chapter_kind_"+id,0)==2;}
   public boolean illustrationHint(Chapter ch){int kind=context.getSharedPreferences("settings",0).getInt("chapter_kind_"+ch.id,0);return kind==2||kind==3||(kind==0&&IllustrationPolicy.hint(ch.title));}
+  private void rememberTitle(String id,String title){String previous=chapterTitles.put(id,title==null?"":title);if(!java.util.Objects.equals(previous,title))validatedFiles.remove(id);}
   public void classify(String id,String html){int kind=IllustrationPolicy.kind(chapterTitles.get(id),html);android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(p.getInt("chapter_kind_"+id,0)!=kind)p.edit().putInt("chapter_kind_"+id,kind).apply();}
   public boolean cachedIllustration(String id){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);return illustration(id)&&html(id).isFile()&&fileStamp(html(id)).equals(p.getString("illustration_cached_"+id,""));}
   public int unreadIllustrations(String book){Set<String> read=readIds(book);int n=0;for(Chapter ch:chapters(book))if(illustration(ch.id)&&!read.contains(ch.id))n++;return n;}
@@ -263,7 +264,7 @@ public final class Store extends SQLiteOpenHelper {
     for(Chapter ch:previous)oldIds.add(ch.id);
     for(HakoParser.Link link:links){
       if(!book.equals("demo")&&(!book.equals(HakoParser.storyId(HakoParser.storyUrl(link.url)))||!link.id.equals(HakoParser.chapterId(link.url))))throw new IllegalArgumentException("Mục lục sai truyện");
-      webIds.add(link.id);web.put(link.id,link);chapterTitles.put(link.id,link.title);
+      webIds.add(link.id);web.put(link.id,link);rememberTitle(link.id,link.title);
     }
     List<String> order=CatalogPolicy.merge(oldIds,webIds);
     Set<String> old=new HashSet<>(oldIds),hidden=new HashSet<>(oldIds);
@@ -318,7 +319,7 @@ public final class Store extends SQLiteOpenHelper {
         Chapter x = new Chapter();
         x.id = c.getString(0);
         x.book = c.getString(1);
-        x.title = c.getString(2);chapterTitles.put(x.id,x.title);
+        x.title = c.getString(2);rememberTitle(x.id,x.title);
         x.url = c.getString(3);
         x.ord = c.getInt(4);
         x.ready = cachedChapter(x.id,c.getInt(5)==1);
@@ -333,7 +334,7 @@ public final class Store extends SQLiteOpenHelper {
     try (Cursor c = getReadableDatabase().rawQuery("SELECT id,book,title,url,ord,ready,error FROM chapters WHERE id=?", new String[]{id})) {
       if (c.moveToNext()) {
         Chapter x = new Chapter();
-        x.id = c.getString(0); x.book = c.getString(1); x.title = c.getString(2);
+        x.id = c.getString(0); x.book = c.getString(1); x.title = c.getString(2);rememberTitle(x.id,x.title);
         x.url = c.getString(3); x.ord = c.getInt(4);
         x.ready = cachedChapter(x.id,c.getInt(5)==1);
         x.error = c.getString(6);
