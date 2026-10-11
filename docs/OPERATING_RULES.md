@@ -77,3 +77,8 @@ Giao diện báo giai đoạn: chuẩn bị cache, quét trang, kiểm tra/bỏ 
 Vùng trạng thái dành sẵn chỗ, không thêm/bỏ gạch chân làm thẻ nhảy. Không chen thẻ ra ngoài màn hình hoặc cắt góc bo tròn. Khoảng sáu thẻ ở cỡ chữ mặc định; giảm số thẻ nếu font lớn hoặc vùng nhìn hẹp. Giữ tên dài để xem đầy đủ.
 
 Tạm dừng/Tiếp tục điều khiển đồng bộ. Mở Tài khoản dừng tải nền để đăng nhập; đọc offline không cần engine chạy liên tục.
+
+
+## Bổ sung 0.7.17 (thay thế quy tắc tiến độ ảnh gộp của 0.7.16)
+
+Xem [quy tắc minh họa và hàng chờ](READING_ILLUSTRATIONS_0717.md). Truyện đang đọc có ưu tiên trước bốn nhóm tải nền. Minh họa vẫn cần ảnh thật để xem; tiến độ chữ không tính minh họa. Xác nhận bỏ qua minh họa khi gửi Đọc hết không tạo lịch sử đã đọc chữ.

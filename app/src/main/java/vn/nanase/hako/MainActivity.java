@@ -823,7 +823,7 @@ public class MainActivity extends Activity {
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
         int storedAll=summary.stored;
-        subView.setText(summary.unread+" chưa đọc"+(summary.newCount>0?" · "+summary.newCount+" mới":"")+" · Đã lưu "+storedAll+"/"+totalChs);
+        subView.setText(summary.unread+" chưa đọc"+(summary.newCount>0?" · "+summary.newCount+" mới":"")+" · Chữ "+storedAll+"/"+totalChs+(summary.missingImages>0?" · Thiếu "+summary.missingImages+" ảnh":""));
         int wholePct=totalChs==0?0:Math.min(storedAll==totalChs?100:99,Math.round(storedAll*100f/totalChs));badge.setText((fullMode?"FULL ":"LƯU ")+wholePct+"%");
         LinearLayout meta=new LinearLayout(MainActivity.this);meta.setGravity(Gravity.CENTER_VERTICAL);meta.addView(subView,new LinearLayout.LayoutParams(0,-2,1));meta.addView(badge);card.addView(meta);
 
@@ -865,7 +865,12 @@ public class MainActivity extends Activity {
 
   private void submitCaughtUp(Store.Book b){
     if(caughtUpUpdating)return;
-    try{store.queueCaughtUp(b.id);ReadSync.schedule(this);if(nativeReader!=null)nativeReader.setNotice("Đã đọc · Chờ đồng bộ HAKO");if(status!=null)status.setText("Đã lưu hàng chờ HAKO");}catch(Exception e){message(e.getMessage());}
+    if(store.unread(b.id)>0){message("Còn chương chữ chưa đọc · Chưa gửi Đọc hết lên HAKO");return;}
+    if(store.unreadIllustrations(b.id)>0){EinkDialog.show(this,"Còn minh họa chưa xem","Bạn đã đọc hết chương chữ. HAKO đánh dấu cả truyện, bao gồm "+store.unreadIllustrations(b.id)+" chương minh họa chưa xem. Xác nhận gửi sau khi kiểm tra mục lục mới?","Xác nhận",()->submitCaughtUpConfirmed(b,true),"Để sau",null);return;}
+    submitCaughtUpConfirmed(b,false);
+  }
+  private void submitCaughtUpConfirmed(Store.Book b,boolean acceptIllustrations){
+    try{store.queueCaughtUp(b.id,acceptIllustrations);ReadSync.schedule(this);if(nativeReader!=null)nativeReader.setNotice("Đã đọc · Chờ đồng bộ HAKO");if(status!=null)status.setText("Đã lưu hàng chờ HAKO");}catch(Exception e){message(e.getMessage());}
   }
 
   private void readerMenu(){new AlertDialog.Builder(this).setItems(new String[]{"Chương trước","Chương tiếp","Đánh dấu đoạn","Ẩn thanh công cụ","Tải trước / tiếp tục","Dừng tải","Mở HAKO","Chạm lật trang: "+(prefs.getBoolean("taps",true)?"Bật":"Tắt"),"Đầu chương","Cuối chương","Đã bắt kịp trên HAKO","Tải lại chương này"},(d,w)->{
@@ -975,20 +980,18 @@ public class MainActivity extends Activity {
     if (chs.isEmpty()) return 0;
     if (!b.current.isEmpty()) {
       for (int i = 0; i < chs.size(); i++) {
-        if (chs.get(i).id.equals(b.current)) return i;
+        if (chs.get(i).id.equals(b.current)&&!store.illustrationHint(chs.get(i))) return i;
       }
-    }
-    int newCount = store.unread(b.id);
-    if (newCount > 0 && newCount <= chs.size()) {
-      return chs.size() - newCount;
     }
     int lastRead = -1;
     for (int i = 0; i < chs.size(); i++) {
       if (store.wasRead(chs.get(i).id)) lastRead = i;
     }
     if (lastRead >= 0) {
-      return Math.min(lastRead + 1, chs.size() - 1);
+      for(int n=lastRead+1;n<chs.size();n++)if(!store.illustrationHint(chs.get(n)))return n;
+      for(int n=lastRead;n>=0;n--)if(!store.illustrationHint(chs.get(n)))return n;
     }
+    for(int n=0;n<chs.size();n++)if(!store.illustrationHint(chs.get(n)))return n;
     return 0;
   }
 
@@ -1286,6 +1289,7 @@ public class MainActivity extends Activity {
     if(!Repository.activeBook.equals(bid)){leaveReader();Repository.activeBook=bid;}
     Repository.cancel.set(false);
     Repository.pendingBook=bid;
+    Repository.priorityChapterId=cid;
     if (store.readable(cid)) {
       showReader(bid, cid);
     } else {
@@ -1364,7 +1368,7 @@ public class MainActivity extends Activity {
     nativeReader=new NativeReader(this,store.dir(cid),new NativeReader.Listener(){
       public void position(int p,float f,int page,int count){
         if(isFinishing()||isDestroyed()||!bid.equals(bookId)||!cid.equals(chapterId))return;
-        lastPos=p;lastFraction=f;store.position(bid,cid,p,f);if(page==count-1){store.readChapter(cid);store.queueIfAllRead(bid);ReadSync.schedule(MainActivity.this);}
+        lastPos=p;lastFraction=f;if(!store.illustration(c.id))store.position(bid,cid,p,f);if(page==count-1){store.readChapter(cid);store.queueIfAllRead(bid);ReadSync.schedule(MainActivity.this);}
         if(title!=null)title.setText(c.title+" · "+(page+1)+"/"+count);
         if(!readerReady){readerReady=true;io.execute(()->store.prune(store.book(bid)));if(!bid.equals("demo"))startDownloads(bid,Repository.MODE_BOOK_NEXT);}
       }
@@ -1375,7 +1379,7 @@ public class MainActivity extends Activity {
           return;
         }
         List<Store.Chapter> allChs=store.chapters(bid);
-        boolean isLastChapter=(!allChs.isEmpty()&&allChs.get(allChs.size()-1).id.equals(cid));
+        boolean isLastChapter=true;boolean found=false;for(Store.Chapter ch:allChs){if(ch.id.equals(cid)){found=true;continue;}if(found&&!store.illustrationHint(ch)){isLastChapter=false;break;}}isLastChapter=isLastChapter&&found;
         if(dir>0&&isLastChapter){
           markCaughtUp(store.book(bid));
           return;
@@ -1436,13 +1440,14 @@ public class MainActivity extends Activity {
     try{nativeReader.content(Store.read(store.html(cid)),pos,fraction);applyReaderStyle();}catch(Exception e){message(e.getMessage());}
   }
 
-  private void saveThen(Runnable next){if(nativeReader!=null&&readerReady)store.position(bookId,chapterId,lastPos,lastFraction);next.run();}
+  private void saveThen(Runnable next){if(nativeReader!=null&&readerReady&&!store.illustration(chapterId))store.position(bookId,chapterId,lastPos,lastFraction);next.run();}
 
   private void adjacent(int delta) {
     List<Store.Chapter> chs = store.chapters(bookId);
     for (int n = 0; n < chs.size(); n++)
       if (chs.get(n).id.equals(chapterId)) {
         int target = n + delta;
+        while(target>=0&&target<chs.size()&&store.illustrationHint(chs.get(target)))target+=delta;
         if (target >= 0 && target < chs.size()) {
           if (delta < 0) pendingOpenAtEnd = true;
           openChapter(bookId, chs.get(target).id);

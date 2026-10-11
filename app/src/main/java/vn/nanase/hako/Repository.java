@@ -137,7 +137,7 @@ public final class Repository {
       if(stop&&!full){partial=true;UpdateReport.log(ctx,"Dừng quét nhanh ở trang "+done.size()+"; giữ các trang phía sau trong bộ nhớ");break;}
       urls.addAll(following);
       boolean more=false;for(String u:urls)if(!done.contains(u)){more=true;break;}
-      if(more)Thread.sleep(2000);
+      if(more){notify(ctx,"Đã nhận trang "+done.size()+" · nghỉ 2 giây giữa các trang");Thread.sleep(2000);}
     }
     if(cancel.get()||syncPaused)throw new IOException("Đã tạm dừng cập nhật tủ sách");
     if(audit){
@@ -240,6 +240,8 @@ public final class Repository {
       }
     }
     if(content.isEmpty())content=HakoParser.content(RenderedPage.chapter(ctx,c.url), c.url);
+    s.classify(c.id,content);
+    if(s.illustration(c.id))ctx.getSharedPreferences("settings",0).edit().putBoolean("illustration_attempted_"+c.id,true).commit();
     Document d = Jsoup.parseBodyFragment(content);
     int errors = 0, index = 0;
     String error = "";
@@ -261,7 +263,7 @@ public final class Repository {
           byte[] data = fetch(src, false, 16 * 1024 * 1024);
           File tmp = new File(dir, name + ".tmp");
           try (FileOutputStream out = new FileOutputStream(tmp)) {
-            out.write(data);
+            writeSmallImage(data,out);
             out.getFD().sync();
           }
           if(!Store.imageFileReadable(tmp)){tmp.delete();throw new IOException("Máy chủ không trả ảnh đọc được");}
@@ -283,6 +285,27 @@ public final class Repository {
     String warning=errors == 0 ? "" : "Thiếu " + errors + " ảnh. " + error;
     s.state(c.id,readable,warning);
     if(!readable)throw new IOException("Chương chỉ có ảnh chưa tải đủ: "+c.title+" · "+warning);}
+  }
+
+  private static void promoteActive(List<Store.Book> todo){for(int i=0;i<todo.size();i++)if(todo.get(i).id.equals(activeBook)){Store.Book b=todo.remove(i);todo.add(0,b);break;}}
+  public static void writeSmallImage(byte[] data,OutputStream out)throws IOException{
+    android.graphics.BitmapFactory.Options o=new android.graphics.BitmapFactory.Options();o.inJustDecodeBounds=true;
+    android.graphics.BitmapFactory.decodeByteArray(data,0,data.length,o);
+    if(o.outWidth<=0||o.outHeight<=0)throw new IOException("Máy chủ không trả ảnh hợp lệ");
+    o.inSampleSize=1;while(o.outWidth/o.inSampleSize>960||o.outHeight/o.inSampleSize>2400)o.inSampleSize*=2;
+    o.inJustDecodeBounds=false;o.inPreferredConfig=android.graphics.Bitmap.Config.RGB_565;
+    android.graphics.Bitmap raw=android.graphics.BitmapFactory.decodeByteArray(data,0,data.length,o);
+    if(raw==null)throw new IOException("Không giải mã được ảnh");
+    android.graphics.Bitmap small=null;
+    try{
+      float scale=Math.min(1f,Math.min(480f/raw.getWidth(),1600f/raw.getHeight()));
+      int w=Math.max(1,Math.round(raw.getWidth()*scale)),h=Math.max(1,Math.round(raw.getHeight()*scale));
+      small=android.graphics.Bitmap.createBitmap(w,h,android.graphics.Bitmap.Config.RGB_565);
+      android.graphics.Canvas canvas=new android.graphics.Canvas(small);canvas.drawColor(android.graphics.Color.WHITE);
+      android.graphics.Paint paint=new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+      canvas.drawBitmap(raw,null,new android.graphics.Rect(0,0,w,h),paint);
+      if(!small.compress(android.graphics.Bitmap.CompressFormat.JPEG,78,out))throw new IOException("Không nén được ảnh");
+    }finally{if(small!=null)small.recycle();raw.recycle();}
   }
 
   private static String imageKey(String src) throws Exception {
@@ -337,6 +360,7 @@ public final class Repository {
       }
 
       if(librarySync)s.sortDownloads(todo);
+      promoteActive(todo);
       Set<String> refreshedCatalogs=new HashSet<>();
       DownloadLedger ledger=new DownloadLedger();
       boolean hadFailures=false;
@@ -349,15 +373,15 @@ public final class Repository {
             if(candidate.id.equals("demo")||candidate.dropped)continue;
             if(s.syncTarget(candidate)||candidate.id.equals(activeBook))todo.add(candidate);
           }
-          s.sortDownloads(todo);
+          s.sortDownloads(todo);promoteActive(todo);
         }
         if (!pendingBook.isEmpty()) {
           Store.Book p = s.book(pendingBook);
           pendingBook = "";
           if (p != null) {
             todo.removeIf(x -> x.id.equals(p.id));
-            todo.add(p);
-            if(librarySync)s.sortDownloads(todo);else {todo.remove(p);todo.add(0,p);}
+            todo.add(0,p);
+            notify(ctx,"Ưu tiên truyện đang đọc: "+p.title);
           }
         }
         if (todo.isEmpty() || (charging && !ChargeJob.isCharging(ctx))) break;
@@ -386,17 +410,18 @@ public final class Repository {
         List<Store.Chapter> needDownload = new ArrayList<>();
         // Priority: current reading chapter to end of book
         for (Store.Chapter ch : chapters) {
-          if (ch.ord >= current && ch.ord <= scopeEnd && !s.isHidden(b.id,ch.id) && !s.readable(ch.id)) needDownload.add(ch);
+          if (ch.ord >= current && ch.ord <= scopeEnd && !s.isHidden(b.id,ch.id) && !s.readable(ch.id) && s.autoIllustration(ch)) needDownload.add(ch);
         }
         // If full mode: also earlier chapters
         for (Store.Chapter ch : chapters) {
-          if (isFullMode && ch.ord < current && !s.isHidden(b.id,ch.id) && !s.readable(ch.id)) needDownload.add(ch);
+          if (isFullMode && ch.ord < current && !s.isHidden(b.id,ch.id) && !s.readable(ch.id) && s.autoIllustration(ch)) needDownload.add(ch);
         }
 
+        needDownload.sort((a,z)->Boolean.compare(s.illustrationHint(a),s.illustrationHint(z)));
         UpdateReport.log(ctx,b.title+": phạm vi — "+(isFullMode?"toàn bộ truyện":toEnd?"từ chương đang đọc đến cuối, giữ 3 chương trước":"chương đang đọc + tối đa 15 chương tiếp, giữ 3 chương trước"));
         int stored=0;for(Store.Chapter ch:chapters)if(ch.ready)stored++;
         UpdateReport.log(ctx,b.title+": đã lưu "+stored+"/"+chapters.size()+" chương toàn bộ · Cần tải "+needDownload.size()+" chương trong phạm vi đã chọn");
-        for(Store.Chapter needed:needDownload){if(!needed.book.equals(b.id))throw new IOException("Hàng đợi sai truyện; đã dừng để giữ dữ liệu");ledger.add(needed.id);}
+        for(Store.Chapter needed:needDownload){if(!needed.book.equals(b.id))throw new IOException("Hàng đợi sai truyện; đã dừng để giữ dữ liệu");if(!s.illustrationHint(needed))ledger.add(needed.id);}
         syncTotal=ledger.total();syncDone=ledger.done();
         syncState = "DOWNLOADING";
         if (syncTotal == 0) {
@@ -409,15 +434,15 @@ public final class Repository {
         // 3. Download loop per chapter with preemption
         int distance=0;
         for (Store.Chapter ch : needDownload) {
-          if (cancel.get() || pauseAutomatic(charging) || pendingAll) break;
+          if (cancel.get() || pauseAutomatic(charging) || pendingAll || IllustrationPolicy.shouldYield(b.id,pendingBook)) break;
           if (charging && !ChargeJob.isCharging(ctx)) break;
 
           // Priority check: did user open another chapter?
           if (!priorityChapterId.isEmpty()) {
             String pCid = priorityChapterId;
-            priorityChapterId = "";
             Store.Chapter pch = s.chapter(b.id, pCid);
-            if (pch != null && !s.readable(pch.id)) {
+            if (pch != null && pch.book.equals(b.id)) priorityChapterId = "";
+            if (pch != null && pch.book.equals(b.id) && !s.readable(pch.id)) {
               notify(ctx, "Ưu tiên: " + pch.title);
               try {
                 download(ctx, pch);
@@ -440,7 +465,7 @@ public final class Repository {
               notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
             }
           } catch (Exception e) {
-            hadFailures=true;
+            if(!s.illustration(ch.id))hadFailures=true;
             s.state(ch.id, false, e.getMessage());
             UpdateReport.log(ctx,b.title+" · "+ch.title+": lỗi tải — "+e.getMessage());
             notify(ctx, "Lỗi tải " + ch.title + ": " + e.getMessage());
@@ -448,7 +473,8 @@ public final class Repository {
           }
         }
 
-        UpdateReport.checkpoint(ctx,"Hoàn tất lượt xử lý: "+b.title);
+        if(!pendingAll&&(IllustrationPolicy.shouldYield(b.id,pendingBook)||!priorityChapterId.isEmpty())){final String interrupted=b.id;todo.removeIf(x->x.id.equals(interrupted));todo.add(b);UpdateReport.checkpoint(ctx,"Nhường lượt tải: "+b.title+" · giữ phần còn lại trong hàng chờ");}
+        else UpdateReport.checkpoint(ctx,"Hoàn tất lượt xử lý: "+b.title);
         Store.Book latest = s.book(b.id);
         if (latest != null && !isFullMode) s.prune(latest);
         ctx.sendBroadcast(new Intent(EVENT).setPackage(ctx.getPackageName()).putExtra("books_changed",true).putExtra("text",status));
@@ -463,12 +489,12 @@ public final class Repository {
         syncState = "COMPLETED";
         syncPct = 100;
         isSyncing = false;
-        notify(ctx, "✓ Đã tải xong tất cả chương mới");
+        notify(ctx, "✓ Đã tải xong chương chữ mới · Ảnh lỗi xem riêng");
       } else if (syncTotal == 0) {
         syncState = "COMPLETED";
         syncPct = 100;
         isSyncing = false;
-        notify(ctx, "✓ Tất cả chương đã có đủ offline");
+        notify(ctx, "✓ Phạm vi chữ đã đủ offline · Ảnh lỗi xem riêng");
       } else {
         syncState = "INCOMPLETE";
         isSyncing = false;
@@ -483,7 +509,7 @@ public final class Repository {
       if(cancel.get()||syncPaused){pendingBook="";pendingAll=false;}
       manualOverride = false;
       isSyncing = false;
-      notify(ctx,syncPaused?"Đã tạm dừng đồng bộ · Dữ liệu tải được giữ nguyên":syncPct==100?"Offline đã đủ · Có thể tắt Wi-Fi":"Offline "+syncPct+"% · Chưa tải đủ");
+      notify(ctx,syncPaused?"Đã tạm dừng đồng bộ · Dữ liệu tải được giữ nguyên":syncPct==100?"Chữ offline đã đủ · Xem cảnh báo ảnh riêng":"Offline "+syncPct+"% · Chưa tải đủ");
       UpdateReport.finish(ctx);
       resumePending(ctx);
     }
@@ -500,7 +526,7 @@ public final class Repository {
   private static boolean waitFor(Context c, long delay, String id, boolean charging) throws Exception {
     long end = android.os.SystemClock.elapsedRealtime() + delay;
     while (android.os.SystemClock.elapsedRealtime() < end) {
-      if (cancel.get() || pauseAutomatic(charging) || pendingAll || !priorityChapterId.isEmpty()) return false;
+      if (cancel.get() || pauseAutomatic(charging) || pendingAll || IllustrationPolicy.shouldYield(id,pendingBook) || !priorityChapterId.isEmpty()) return false;
       if (charging && !ChargeJob.isCharging(c)) return false;
       Thread.sleep(Math.min(500, Math.max(1, end - android.os.SystemClock.elapsedRealtime())));
     }

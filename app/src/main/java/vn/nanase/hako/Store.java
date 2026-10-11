@@ -36,8 +36,18 @@ public final class Store extends SQLiteOpenHelper {
   public void setCompleted(String id,boolean value){context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();if(value)setKeepFull(id,true);}
   public int newArrivals(String id){return context.getSharedPreferences("settings",0).getInt("new_arrivals_"+id,0);}
   public synchronized void mergeShelf(List<HakoParser.Link> links){mergeShelf(links,0);}
-  public synchronized void mergeShelf(List<HakoParser.Link> links,int firstRank){int rank=firstRank;SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(HakoParser.Link l:links){putBook(l);followed(l.id,true,rank++);shelfInfo(l.id,l.info);}d.setTransactionSuccessful();}finally{d.endTransaction();}}
-  public synchronized void queueIfAllRead(String id){if(!chapters(id).isEmpty()&&unread(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
+  public synchronized void mergeShelf(List<HakoParser.Link> links,int firstRank){
+    List<Book> previous=books();previous.removeIf(b->!b.followed);previous.sort((a,b)->Integer.compare(a.shelfRank,b.shelfRank));
+    LinkedHashSet<String> observed=new LinkedHashSet<>();for(HakoParser.Link l:links)observed.add(l.id);
+    List<String> order=new ArrayList<>();for(Book b:previous)if(order.size()<firstRank&&!observed.contains(b.id))order.add(b.id);
+    order.addAll(observed);for(Book b:previous)if(!order.contains(b.id))order.add(b.id);
+    SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{
+      for(HakoParser.Link l:links){putBook(l);shelfInfo(l.id,l.info);}
+      for(int rank=0;rank<order.size();rank++)followed(order.get(rank),true,rank);
+      d.setTransactionSuccessful();
+    }finally{d.endTransaction();}
+  }
+  public synchronized void queueIfAllRead(String id){if(!chapters(id).isEmpty()&&unread(id)==0&&unreadIllustrations(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
 
   public synchronized void establishReadBaseline(String id){
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
@@ -76,15 +86,24 @@ public final class Store extends SQLiteOpenHelper {
     n=Long.compare(b.stamp,a.stamp);if(n!=0)return n;
     n=Integer.compare(a.shelfRank,b.shelfRank);return n!=0?n:a.id.compareTo(b.id);
   }
-  public int compareShelf(Book a,Book b){
-    int n=Boolean.compare(hasShelfUpdate(b),hasShelfUpdate(a));if(n!=0)return n;
-    n=Long.compare(shelfUpdatedAt(b),shelfUpdatedAt(a));if(n!=0)return n;
-    n=Integer.compare(a.shelfRank,b.shelfRank);return n!=0?n:a.title.compareToIgnoreCase(b.title);
+  public int compareShelf(Book a,Book b){int n=Integer.compare(a.shelfRank,b.shelfRank);return n!=0?n:a.id.compareTo(b.id);}
+  public boolean completedOffline(Book b){if(!isCompleted(b.id))return false;android.content.SharedPreferences p=context.getSharedPreferences("settings",0);String current=p.getString("shelf_key_"+b.id,""),known=p.getString("catalog_shelf_key_"+b.id,"");if(p.getBoolean("shelf_changed_"+b.id,false)||(!current.isEmpty()&&!current.equals(known)))return false;List<Chapter> all=chapters(b.id);if(all.isEmpty())return false;for(Chapter ch:all)if(!illustration(ch.id)&&!ch.ready)return false;return true;}
+  public int unread(String id){int count=0;for(Chapter ch:chapters(id))if(!illustration(ch.id)&&!wasRead(ch.id))count++;return count;}
+  public boolean illustration(String id){return context.getSharedPreferences("settings",0).getInt("chapter_kind_"+id,0)==2;}
+  public boolean illustrationHint(Chapter ch){int kind=context.getSharedPreferences("settings",0).getInt("chapter_kind_"+ch.id,0);return kind==2||(kind==0&&IllustrationPolicy.hint(ch.title));}
+  public void classify(String id,String html){int kind=IllustrationPolicy.kind(html);android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(kind>0&&p.getInt("chapter_kind_"+id,0)!=kind)p.edit().putInt("chapter_kind_"+id,kind).apply();}
+  public int unreadIllustrations(String book){int n=0;for(Chapter ch:chapters(book))if(illustration(ch.id)&&!wasRead(ch.id))n++;return n;}
+  public int missingImages(String id){
+    try{int n=0;for(String src:HakoParser.offlineContent(read(html(id))).images){String name=HakoParser.offlineImageName(id,src);if(name.isEmpty()||!imageFileReadable(new File(dir(id),name)))n++;}return n;}catch(Exception e){return 0;}
   }
-  public boolean completedOffline(Book b){if(!isCompleted(b.id))return false;android.content.SharedPreferences p=context.getSharedPreferences("settings",0);String current=p.getString("shelf_key_"+b.id,""),known=p.getString("catalog_shelf_key_"+b.id,"");if(p.getBoolean("shelf_changed_"+b.id,false)||(!current.isEmpty()&&!current.equals(known)))return false;List<Chapter> all=chapters(b.id);if(all.isEmpty())return false;for(Chapter ch:all)if(!ch.ready)return false;return true;}
-  public int unread(String id){try(Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM chapters c LEFT JOIN read_chapters r ON r.id=c.id WHERE c.book=? AND r.id IS NULL",new String[]{id})){return c.moveToFirst()?c.getInt(0):0;}}
+  public boolean autoIllustration(Chapter ch){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);return IllustrationPolicy.shouldAttempt(illustrationHint(ch),p.getBoolean("illustration_attempted_"+ch.id,false),false);}
+
   public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
-  public synchronized void queueCaughtUp(String id){
+  public synchronized void queueCaughtUp(String id){queueCaughtUp(id,false);}
+  public synchronized void queueCaughtUp(String id,boolean acceptIllustrations){
+    if(unreadIllustrations(id)>0&&!acceptIllustrations)throw new IllegalStateException("Còn minh họa chưa xem: cần xác nhận riêng");
+    Set<String> accepted=new HashSet<>();if(acceptIllustrations)for(Chapter ch:chapters(id))if(illustration(ch.id))accepted.add(ch.id);
+    context.getSharedPreferences("settings",0).edit().putStringSet("read_illustrations_"+id,accepted).commit();
     if(chapters(id).isEmpty()||unread(id)>0)throw new IllegalStateException("Chỉ đồng bộ đọc hết sau khi đã đọc hết các chương offline");
     context.getSharedPreferences("settings",0).edit().putBoolean("read_baseline_"+id,true).commit();
     org.json.JSONArray ids=new org.json.JSONArray();
@@ -99,7 +118,7 @@ public final class Store extends SQLiteOpenHelper {
   }
   public void extendQueueIfCaughtUp(String id){if(queued(id)&&!canSubmit(id)&&unread(id)==0)queueCaughtUp(id);}
   public void clearQueue(String id){context.getSharedPreferences("read_queue",0).edit().remove(id).commit();}
-  public int totalOfflinePercent(){int total=0,done=0;boolean unknown=false;for(Book b:books())if(syncTarget(b)){BookProgress p=progress(b);if(p.totalChs==0)unknown=true;total+=p.newChsTotal;done+=p.newChsDownloaded;}return unknown?0:total==0?0:Math.min(done==total&&context.getSharedPreferences("settings",0).getBoolean("sync_verified",false)?100:99,Math.round(done*100f/total));}
+  public int totalOfflinePercent(){int total=0,done=0;boolean unknown=false;for(Book b:books())if(syncTarget(b)){BookProgress p=progress(b);if(p.totalChs==0)unknown=true;total+=p.newChsTotal;done+=p.newChsDownloaded;}return unknown?0:total==0?100:Math.min(done==total&&context.getSharedPreferences("settings",0).getBoolean("sync_verified",false)?100:99,Math.round(done*100f/total));}
   public static class BookProgress {
     public final int totalChs;
     public final int oldChs;
@@ -127,7 +146,7 @@ public final class Store extends SQLiteOpenHelper {
     boolean toEnd=FetchPolicy.toEnd(b.followed,favorite(b),b.visits>0,full);
     int oldChs = full?0:Math.max(0,currentOrd-FetchPolicy.BEHIND);
     int newChsTotal=0,newChsDownloaded=0;
-    for(Chapter ch:chs)if(FetchPolicy.inDownloadRange(ch.ord,currentOrd,toEnd,full)){
+    for(Chapter ch:chs)if(!illustration(ch.id)&&FetchPolicy.inDownloadRange(ch.ord,currentOrd,toEnd,full)){
       newChsTotal++;
       if(readable(ch.id))newChsDownloaded++;
     }
@@ -280,7 +299,7 @@ public final class Store extends SQLiteOpenHelper {
       org.json.JSONArray queuedJson=new org.json.JSONArray(context.getSharedPreferences("read_queue",0).getString(book,"[]"));
       List<String> server=new ArrayList<>();Set<String> read=new HashSet<>(),snapshot=new HashSet<>();
       for(int i=0;i<queuedJson.length();i++)snapshot.add(queuedJson.getString(i));
-      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);server.add(id);if(wasRead(id))read.add(id);}
+      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);server.add(id);if(wasRead(id)||(illustration(id)&&prefs.getStringSet("read_illustrations_"+book,Collections.emptySet()).contains(id)))read.add(id);}
       return ReadPolicy.canSubmit(server,read,snapshot,!prefs.getBoolean("catalog_failed_"+book,true)&&prefs.getStringSet("hidden_chapters_"+book,Collections.emptySet()).isEmpty());
     }catch(Exception e){return false;}
   }
@@ -405,7 +424,8 @@ public final class Store extends SQLiteOpenHelper {
       if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);validatedImages.remove(cid);return false;}
       String fingerprint=contentStamp(cid,f);
       if(fingerprint.equals(validatedFiles.get(cid)))return true;
-      HakoParser.OfflineContent content=HakoParser.offlineContent(read(f));
+      String body=read(f);classify(cid,body);
+      HakoParser.OfflineContent content=HakoParser.offlineContent(body);
       List<String> names=new ArrayList<>();
       if(!content.text)for(String src:content.images){String name=HakoParser.offlineImageName(cid,src);if(!name.isEmpty())names.add(name);}
       validatedImages.put(cid,names);

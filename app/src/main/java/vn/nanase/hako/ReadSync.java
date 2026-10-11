@@ -35,12 +35,12 @@ public final class ReadSync extends JobService {
       try{
       Store s=Store.get(c);boolean retry=false;
       for(String id:s.queuedBooks()){
-        Store.Book b=s.book(id);if(b==null||id.equals("demo")||!s.canSubmit(id))continue;
+        Store.Book b=s.book(id);if(b==null||id.equals("demo"))continue;if(!s.canSubmit(id)){Repository.notify(c,"Đọc hết còn chờ: "+b.title+" · Còn chương chữ chưa đọc hoặc mục lục đã đổi");continue;}
         try{
           Repository.allowed(c);
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();
           Repository.catalog(c,b,true);
-          if(Repository.syncPaused||Repository.cancel.get()||!s.canSubmitServer(id))continue;
+          if(Repository.syncPaused||Repository.cancel.get())continue;if(!s.canSubmitServer(id)){Repository.notify(c,"Chưa gửi Đọc hết: "+b.title+" · Mục lục mới có chương chưa xác nhận hoặc chưa đủ bằng chứng");continue;}
           String snapshot=c.getSharedPreferences("read_queue",0).getString(id,"");
           RenderedPage.action(c,HakoParser.ORIGIN+"/ke-sach","read:"+id.substring(id.lastIndexOf('-')+1));
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();

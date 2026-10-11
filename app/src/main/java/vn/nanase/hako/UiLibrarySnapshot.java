@@ -4,7 +4,7 @@ import java.util.*;
 /** Prepared only on a worker. Adapters read this snapshot, never SQLite or chapter files. */
 public final class UiLibrarySnapshot {
  public static final class Summary {
-  public int total,stored,unread,newCount;
+  public int total,stored,unread,newCount,illustrations,missingImages;
   public boolean updated,completedOffline,full;
   public long updatedAt;
   public String currentTitle="";
@@ -19,19 +19,17 @@ public final class UiLibrarySnapshot {
  }
  public Summary summary(Store.Book b){Summary s=summaries.get(b.id);return s==null?new Summary():s;}
  public int compareShelf(Store.Book a,Store.Book b){
-  Summary x=summary(a),y=summary(b);int n=Boolean.compare(y.updated,x.updated);
-  if(n==0)n=Long.compare(y.updatedAt,x.updatedAt);
-  if(n==0)n=Integer.compare(a.shelfRank,b.shelfRank);
-  return n==0?a.title.compareToIgnoreCase(b.title):n;
+  int n=Integer.compare(a.shelfRank,b.shelfRank);return n==0?a.id.compareTo(b.id):n;
  }
  public static UiLibrarySnapshot load(Store store,SharedPreferences prefs){
   long started=android.os.SystemClock.elapsedRealtime();
   List<Store.Book> books=store.books();Map<String,Summary> out=new HashMap<>();
   for(Store.Book b:books){
    Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);
-   s.total=chapters.size();s.unread=store.unread(b.id);s.full=store.isKeepFull(b.id);
+   s.total=0;s.unread=store.unread(b.id);s.full=store.isKeepFull(b.id);
    for(Store.Chapter ch:chapters){
-    if(store.readable(ch.id))s.stored++;
+    boolean readable=store.readable(ch.id);if(store.illustration(ch.id))s.illustrations++;else {s.total++;if(readable)s.stored++;}
+    s.missingImages+=store.missingImages(ch.id);
     if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.remaining=Math.max(0,s.total-ch.ord-1);}
    }
    s.newCount=s.total>0?store.newArrivals(b.id):shelfCount(b.shelfInfo);
