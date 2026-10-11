@@ -68,6 +68,7 @@ public final class ImageCacheTest extends Instrumentation {
       check(blocked,"Read-all requires explicit consent for unseen illustrations");
       store.queueCaughtUp("demo",true);
       check(!store.wasRead("demo-1"),"Consent does not fabricate local illustration reading");
+      getTargetContext().getSharedPreferences("settings",0).edit().putBoolean("catalog_failed_demo",false).commit();
       check(store.canSubmitServer("demo"),"Fresh matching catalog permits explicitly accepted illustrations");
       chapters.add(new HakoParser.Link("demo-5","Unread text chapter",""));
       store.catalog("demo",chapters);

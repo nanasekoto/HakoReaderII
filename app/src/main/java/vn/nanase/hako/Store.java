@@ -34,7 +34,7 @@ public final class Store extends SQLiteOpenHelper {
 
   public boolean isCompleted(String id){return context.getSharedPreferences("settings",0).getBoolean("completed_"+id,false);}
   public void setCompleted(String id,boolean value){context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();if(value)setKeepFull(id,true);}
-  public int newArrivals(String id){return context.getSharedPreferences("settings",0).getInt("new_arrivals_"+id,0);}
+  public int newArrivals(String id){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(!p.contains("new_arrival_ids_"+id))return p.getInt("new_arrivals_"+id,0);int n=0;for(String chapter:p.getStringSet("new_arrival_ids_"+id,Collections.emptySet()))if(!illustration(chapter)&&!wasRead(chapter))n++;return n;}
   public synchronized void mergeShelf(List<HakoParser.Link> links){mergeShelf(links,0);}
   public synchronized void mergeShelf(List<HakoParser.Link> links,int firstRank){
     List<Book> previous=books();previous.removeIf(b->!b.followed);previous.sort((a,b)->Integer.compare(a.shelfRank,b.shelfRank));
@@ -94,7 +94,7 @@ public final class Store extends SQLiteOpenHelper {
   public void classify(String id,String html){int kind=IllustrationPolicy.kind(html);android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(kind>0&&p.getInt("chapter_kind_"+id,0)!=kind)p.edit().putInt("chapter_kind_"+id,kind).apply();}
   public int unreadIllustrations(String book){int n=0;for(Chapter ch:chapters(book))if(illustration(ch.id)&&!wasRead(ch.id))n++;return n;}
   public int missingImages(String id){
-    try{int n=0;for(String src:HakoParser.offlineContent(read(html(id))).images){String name=HakoParser.offlineImageName(id,src);if(name.isEmpty()||!imageFileReadable(new File(dir(id),name)))n++;}return n;}catch(Exception e){return 0;}
+    try{String stamp=contentStamp(id,html(id));Integer cached=imageCounts.get(id);if(cached!=null&&stamp.equals(imageCountStamps.get(id)))return cached;int n=0;for(String src:HakoParser.offlineContent(read(html(id))).images){String name=HakoParser.offlineImageName(id,src);if(name.isEmpty()||!imageFileReadable(new File(dir(id),name)))n++;}if(stamp.equals(contentStamp(id,html(id)))){imageCounts.put(id,n);imageCountStamps.put(id,stamp);}return n;}catch(Exception e){return 0;}
   }
   public boolean autoIllustration(Chapter ch){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);return IllustrationPolicy.shouldAttempt(illustrationHint(ch),p.getBoolean("illustration_attempted_"+ch.id,false),false);}
 
@@ -146,10 +146,10 @@ public final class Store extends SQLiteOpenHelper {
     boolean toEnd=FetchPolicy.toEnd(b.followed,favorite(b),b.visits>0,full);
     int oldChs = full?0:Math.max(0,currentOrd-FetchPolicy.BEHIND);
     int newChsTotal=0,newChsDownloaded=0;
-    for(Chapter ch:chs)if(!illustration(ch.id)&&FetchPolicy.inDownloadRange(ch.ord,currentOrd,toEnd,full)){
+    for(Chapter ch:chs){boolean saved=readable(ch.id);if(!illustration(ch.id)&&FetchPolicy.inDownloadRange(ch.ord,currentOrd,toEnd,full)){
       newChsTotal++;
-      if(readable(ch.id))newChsDownloaded++;
-    }
+      if(saved)newChsDownloaded++;
+    }}
 
     int pct = newChsTotal==0?100:Math.min(newChsDownloaded==newChsTotal?100:99, Math.max(0, Math.round(newChsDownloaded * 100f / newChsTotal)));
     return new BookProgress(total, oldChs, newChsTotal, newChsDownloaded, pct);
@@ -285,7 +285,7 @@ public final class Store extends SQLiteOpenHelper {
     android.content.SharedPreferences.Editor edit=context.getSharedPreferences("settings",0).edit()
       .putStringSet("hidden_chapters_"+book,hidden).putString("server_catalog_"+book,server.toString());
     int added=0;for(String id:webIds)if(!old.contains(id))added++;
-    if(!previous.isEmpty())edit.putInt("new_arrivals_"+book,added);
+    if(!previous.isEmpty()){Set<String> arrivals=new HashSet<>(webIds);arrivals.removeAll(old);edit.putInt("new_arrivals_"+book,added).putStringSet("new_arrival_ids_"+book,arrivals);}
     edit.commit();
     if(!hidden.isEmpty())UpdateReport.checkpoint(context,"Mục lục "+book+": giữ "+hidden.size()+" chương cũ không còn xuất hiện trên web; không xóa cache hoặc tiến độ");
   }
@@ -403,6 +403,8 @@ public final class Store extends SQLiteOpenHelper {
   // List queries must never read/parse chapter HTML while holding the Store monitor.
   // Content integrity is verified by the worker before queueing and before reuse.
   private boolean cachedChapter(String id,boolean markedReady){File f=html(id);if(!f.isFile()||f.length()==0)return false;String known=validatedFiles.get(id);return contentStamp(id,f).equals(known)||(known==null&&markedReady);}
+  private final java.util.concurrent.ConcurrentHashMap<String,Integer> imageCounts=new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.util.concurrent.ConcurrentHashMap<String,String> imageCountStamps=new java.util.concurrent.ConcurrentHashMap<>();
   private final java.util.concurrent.ConcurrentHashMap<String,String> validatedFiles=new java.util.concurrent.ConcurrentHashMap<>();
   private final java.util.concurrent.ConcurrentHashMap<String,List<String>> validatedImages=new java.util.concurrent.ConcurrentHashMap<>();
   private String contentStamp(String id,File file){
@@ -427,7 +429,7 @@ public final class Store extends SQLiteOpenHelper {
       String body=read(f);classify(cid,body);
       HakoParser.OfflineContent content=HakoParser.offlineContent(body);
       List<String> names=new ArrayList<>();
-      if(!content.text)for(String src:content.images){String name=HakoParser.offlineImageName(cid,src);if(!name.isEmpty())names.add(name);}
+      for(String src:content.images){String name=HakoParser.offlineImageName(cid,src);if(!name.isEmpty())names.add(name);}
       validatedImages.put(cid,names);
       fingerprint=contentStamp(cid,f);
       boolean ok=content.readable(src->{String name=HakoParser.offlineImageName(cid,src);return !name.isEmpty()&&imageFileReadable(new File(dir(cid),name));});
