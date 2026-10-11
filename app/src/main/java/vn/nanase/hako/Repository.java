@@ -398,6 +398,7 @@ public final class Repository {
         }
         Store.Book refreshed = s.book(b.id);
         if (refreshed != null) b = refreshed;
+        if(!priorityChapterId.isEmpty()){Store.Chapter priority=s.chapter(b.id,priorityChapterId);if(priority!=null&&priority.book.equals(b.id)&&s.readable(priority.id))priorityChapterId="";}
         List<Store.Chapter> chapters = s.chapters(b.id);
         int current = s.readingStart(b,chapters);
 
@@ -473,7 +474,7 @@ public final class Repository {
           }
         }
 
-        if(!pendingAll&&(IllustrationPolicy.shouldYield(b.id,pendingBook)||!priorityChapterId.isEmpty())){final String interrupted=b.id;todo.removeIf(x->x.id.equals(interrupted));todo.add(b);UpdateReport.checkpoint(ctx,"Nhường lượt tải: "+b.title+" · giữ phần còn lại trong hàng chờ");}
+        if(!pendingAll&&(IllustrationPolicy.shouldYield(b.id,pendingBook)||(!priorityChapterId.isEmpty()&&!needDownload.isEmpty()))){final String interrupted=b.id;todo.removeIf(x->x.id.equals(interrupted));todo.add(b);UpdateReport.checkpoint(ctx,"Nhường lượt tải: "+b.title+" · giữ phần còn lại trong hàng chờ");}
         else UpdateReport.checkpoint(ctx,"Hoàn tất lượt xử lý: "+b.title);
         Store.Book latest = s.book(b.id);
         if (latest != null && !isFullMode) s.prune(latest);

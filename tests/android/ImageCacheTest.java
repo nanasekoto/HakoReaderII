@@ -80,6 +80,26 @@ public final class ImageCacheTest extends Instrumentation {
       android.graphics.BitmapFactory.decodeByteArray(resized.toByteArray(),0,resized.size(),bounds);
       check(bounds.outWidth==480&&bounds.outHeight==720,"Image resize preserves aspect at 480 pixels wide");
       check(resized.size()<source.size(),"Image conversion reduces fixture storage");
+      Store.Book active=new Store.Book(),waiting=new Store.Book();active.id="active";waiting.id="waiting";
+      ArrayList<Store.Book> queue=new ArrayList<>();queue.add(waiting);queue.add(active);Repository.activeBook="active";
+      java.lang.reflect.Method promote=Repository.class.getDeclaredMethod("promoteActive",List.class);promote.setAccessible(true);promote.invoke(null,queue);
+      check(queue.get(0)==active&&queue.get(1)==waiting,"Actual coordinator promotes active book without losing waiting book");
+      HakoParser.Link sa=new HakoParser.Link("shelf-a","A",""),sb=new HakoParser.Link("shelf-b","B",""),sc=new HakoParser.Link("shelf-c","C","");
+      store.mergeShelf(Arrays.asList(sa,sb,sc));
+      store.mergeShelf(Collections.singletonList(sc));
+      check(store.book(sc.id).shelfRank==0&&store.book(sa.id).shelfRank==1&&store.book(sb.id).shelfRank==2,"Partial shelf prefix preserves unique tail ranks");
+      store.mergeShelf(Collections.singletonList(sb),1);
+      check(store.book(sc.id).shelfRank==0&&store.book(sb.id).shelfRank==1&&store.book(sa.id).shelfRank==2,"Next shelf page preserves observed prefix");
+      check(store.compareShelf(store.book(sb.id),store.book(sa.id))<0,"Shelf follows server rank independently of download priority");
+      NativeReader reader=new NativeReader(getTargetContext(),store.dir("demo-1"),new NativeReader.Listener(){
+        public void position(int p,float f,int page,int count){}public void boundary(int d){}public void toolbar(){}public void dismissToolbar(){}
+      });
+      java.lang.reflect.Method imageMethod=NativeReader.class.getDeclaredMethod("image",String.class);imageMethod.setAccessible(true);
+      android.graphics.drawable.Drawable drawable=(android.graphics.drawable.Drawable)imageMethod.invoke(reader,"https://offline.hako.invalid/demo-1/"+name);
+      java.lang.reflect.Field decoded=NativeReader.class.getDeclaredField("activeImage");decoded.setAccessible(true);
+      check(drawable!=null&&decoded.get(reader)==null,"Reader prepares image layout without decoding every bitmap");
+      Bitmap screen=Bitmap.createBitmap(480,800,Bitmap.Config.RGB_565);drawable.draw(new android.graphics.Canvas(screen));screen.recycle();
+      check(decoded.get(reader)!=null,"Reader decodes image only when drawn");
       result.putString("stream","PASS TOTAL "+checks+" image cache checks\n");
       finish(0,result);
     }catch(Throwable error){

@@ -22,6 +22,7 @@ public final class NativeReader extends View {
  private final ArrayList<Integer> anchors=new ArrayList<>(),pages=new ArrayList<>();
  private final Map<String,String> notes=new HashMap<>();
  private final Map<Drawable,int[]> imageSizes=new IdentityHashMap<>();
+ private Bitmap activeImage;private String activeImagePath="";
  private StaticLayout layout;
  private int page=0,margin=10,pendingParagraph=0;private float pendingFraction=0,line=1.30f;private int paraSpaceDp=8,indentDp=9;private String rawHtml="";
  private boolean taps=true,swiped=false,openAtEnd=false,touchLocked=false;private float downX,downY;
@@ -51,7 +52,7 @@ public final class NativeReader extends View {
   footerHeight=(int)(16*getResources().getDisplayMetrics().density);
  }
  public void content(String html,int paragraph,float fraction){
-  rawHtml=html;pendingParagraph=paragraph;pendingFraction=fraction;anchors.clear();notes.clear();imageSizes.clear();
+  releaseImage();rawHtml=html;pendingParagraph=paragraph;pendingFraction=fraction;anchors.clear();notes.clear();imageSizes.clear();
   Element body=Jsoup.parseBodyFragment(html).body();int note=0;
   for(Element e:new ArrayList<Element>(body.select("details"))){String key="hako-note:"+(note++);Element summary=e.selectFirst("summary");if(summary!=null)summary.remove();notes.put(key,e.text());e.replaceWith(new Element("a").attr("href",key).text(" [✎] "));}
   // Stable block anchors are rebuilt from the same sanitized chapter on each opening.
@@ -124,10 +125,29 @@ public final class NativeReader extends View {
   public void updateDrawState(android.text.TextPaint p){apply(p);}
   public void updateMeasureState(android.text.TextPaint p){apply(p);}
  }
+ private void releaseImage(){if(activeImage!=null){activeImage.recycle();activeImage=null;}activeImagePath="";}
+ protected void onDetachedFromWindow(){releaseImage();super.onDetachedFromWindow();}
+ private Bitmap visibleImage(File f){
+  if(activeImage!=null&&activeImagePath.equals(f.getPath()))return activeImage;
+  releaseImage();BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(f.getPath(),o);
+  o.inSampleSize=1;while(o.outWidth/o.inSampleSize>480||o.outHeight/o.inSampleSize>800)o.inSampleSize*=2;
+  o.inJustDecodeBounds=false;o.inPreferredConfig=Bitmap.Config.RGB_565;
+  activeImage=BitmapFactory.decodeFile(f.getPath(),o);activeImagePath=f.getPath();return activeImage;
+ }
+ private final class LocalImage extends Drawable {
+  private final File file;private final Paint imagePaint=new Paint(Paint.FILTER_BITMAP_FLAG);
+  LocalImage(File f){file=f;}
+  public void draw(Canvas canvas){Bitmap bitmap=visibleImage(file);if(bitmap!=null)canvas.drawBitmap(bitmap,null,getBounds(),imagePaint);}
+  public void setAlpha(int alpha){imagePaint.setAlpha(alpha);}
+  public void setColorFilter(ColorFilter filter){imagePaint.setColorFilter(filter);}
+  public int getOpacity(){return PixelFormat.OPAQUE;}
+ }
  private Drawable image(String source){
   try{String name=android.net.Uri.parse(source).getLastPathSegment();if(name==null||!name.matches("image-[a-f0-9]+\\.bin"))return null;
-   File f=new File(chapterDir,name);android.graphics.BitmapFactory.Options o=new android.graphics.BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(f.getPath(),o);o.inSampleSize=1;while(o.outWidth/o.inSampleSize>1000||o.outHeight/o.inSampleSize>1600)o.inSampleSize*=2;o.inJustDecodeBounds=false;Bitmap b=BitmapFactory.decodeFile(f.getPath(),o);if(b==null)return null;
-   Drawable d=new android.graphics.drawable.BitmapDrawable(getResources(),b);int w=Math.max(80,getResources().getDisplayMetrics().widthPixels-40),h=Math.max(80,getResources().getDisplayMetrics().heightPixels-180);float scale=Math.min(1f,Math.min((float)w/b.getWidth(),(float)h/b.getHeight()));d.setBounds(0,0,(int)(b.getWidth()*scale),(int)(b.getHeight()*scale));return d;
+   File f=new File(chapterDir,name);BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(f.getPath(),o);
+   if(o.outWidth<=0||o.outHeight<=0)return null;
+   Drawable d=new LocalImage(f);int w=Math.max(80,getResources().getDisplayMetrics().widthPixels-40),h=Math.max(80,getResources().getDisplayMetrics().heightPixels-180);
+   float scale=Math.min(1f,Math.min((float)w/o.outWidth,(float)h/o.outHeight));d.setBounds(0,0,Math.max(1,(int)(o.outWidth*scale)),Math.max(1,(int)(o.outHeight*scale)));return d;
   }catch(Exception e){return null;}
  }
  private static class Note extends CharacterStyle {final String value;Note(String s){value=s;}public void updateDrawState(TextPaint p){p.setUnderlineText(true);}}

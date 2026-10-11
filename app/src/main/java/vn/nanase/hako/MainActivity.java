@@ -670,7 +670,7 @@ public class MainActivity extends Activity {
         subView.setMaxLines(1);
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
-        subView.setText(subView.getText()+" · "+summary.unread+" chưa đọc");
+        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+subView.getText()+" · "+summary.unread+" chưa đọc");
         if(shelf)card.addView(subView);
         else {
           LinearLayout controls=new LinearLayout(MainActivity.this);controls.setGravity(Gravity.CENTER_VERTICAL);
@@ -823,8 +823,8 @@ public class MainActivity extends Activity {
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
         int storedAll=summary.stored;
-        subView.setText(summary.unread+" chưa đọc"+(summary.newCount>0?" · "+summary.newCount+" mới":"")+" · Chữ "+storedAll+"/"+totalChs+(summary.missingImages>0?" · Thiếu "+summary.missingImages+" ảnh":""));
-        int wholePct=totalChs==0?0:Math.min(storedAll==totalChs?100:99,Math.round(storedAll*100f/totalChs));badge.setText((fullMode?"FULL ":"LƯU ")+wholePct+"%");
+        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+"Chữ "+storedAll+"/"+totalChs+" · "+summary.unread+" chưa đọc"+(summary.newCount>0?" · "+summary.newCount+" mới":""));
+        int wholePct=totalChs==0?0:Math.min(storedAll==totalChs?100:99,Math.round(storedAll*100f/totalChs));badge.setText("CHỮ "+wholePct+"%");
         LinearLayout meta=new LinearLayout(MainActivity.this);meta.setGravity(Gravity.CENTER_VERTICAL);meta.addView(subView,new LinearLayout.LayoutParams(0,-2,1));meta.addView(badge);card.addView(meta);
 
         return card;
@@ -1723,7 +1723,7 @@ public class MainActivity extends Activity {
 
   protected void onPause() {
     cancelLockKey();
-    if(nativeReader!=null&&readerReady)store.position(bookId,chapterId,lastPos,lastFraction);
+    if(nativeReader!=null&&readerReady&&!store.illustration(chapterId))store.position(bookId,chapterId,lastPos,lastFraction);
     Repository.pocketPaused=true;
     super.onPause();
   }

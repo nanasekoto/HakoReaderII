@@ -88,11 +88,12 @@ public final class Store extends SQLiteOpenHelper {
   }
   public int compareShelf(Book a,Book b){int n=Integer.compare(a.shelfRank,b.shelfRank);return n!=0?n:a.id.compareTo(b.id);}
   public boolean completedOffline(Book b){if(!isCompleted(b.id))return false;android.content.SharedPreferences p=context.getSharedPreferences("settings",0);String current=p.getString("shelf_key_"+b.id,""),known=p.getString("catalog_shelf_key_"+b.id,"");if(p.getBoolean("shelf_changed_"+b.id,false)||(!current.isEmpty()&&!current.equals(known)))return false;List<Chapter> all=chapters(b.id);if(all.isEmpty())return false;for(Chapter ch:all)if(!illustration(ch.id)&&!ch.ready)return false;return true;}
-  public int unread(String id){int count=0;for(Chapter ch:chapters(id))if(!illustration(ch.id)&&!wasRead(ch.id))count++;return count;}
+  private Set<String> readIds(String book){Set<String> ids=new HashSet<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT c.id FROM chapters c JOIN read_chapters r ON r.id=c.id WHERE c.book=?",new String[]{book})){while(c.moveToNext())ids.add(c.getString(0));}return ids;}
+  public int unread(String id){Set<String> read=readIds(id);int count=0;for(Chapter ch:chapters(id))if(!illustration(ch.id)&&!read.contains(ch.id))count++;return count;}
   public boolean illustration(String id){return context.getSharedPreferences("settings",0).getInt("chapter_kind_"+id,0)==2;}
   public boolean illustrationHint(Chapter ch){int kind=context.getSharedPreferences("settings",0).getInt("chapter_kind_"+ch.id,0);return kind==2||(kind==0&&IllustrationPolicy.hint(ch.title));}
   public void classify(String id,String html){int kind=IllustrationPolicy.kind(html);android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(kind>0&&p.getInt("chapter_kind_"+id,0)!=kind)p.edit().putInt("chapter_kind_"+id,kind).apply();}
-  public int unreadIllustrations(String book){int n=0;for(Chapter ch:chapters(book))if(illustration(ch.id)&&!wasRead(ch.id))n++;return n;}
+  public int unreadIllustrations(String book){Set<String> read=readIds(book);int n=0;for(Chapter ch:chapters(book))if(illustration(ch.id)&&!read.contains(ch.id))n++;return n;}
   public int missingImages(String id){
     try{String stamp=contentStamp(id,html(id));Integer cached=imageCounts.get(id);if(cached!=null&&stamp.equals(imageCountStamps.get(id)))return cached;int n=0;for(String src:HakoParser.offlineContent(read(html(id))).images){String name=HakoParser.offlineImageName(id,src);if(name.isEmpty()||!imageFileReadable(new File(dir(id),name)))n++;}if(stamp.equals(contentStamp(id,html(id)))){imageCounts.put(id,n);imageCountStamps.put(id,stamp);}return n;}catch(Exception e){return 0;}
   }
