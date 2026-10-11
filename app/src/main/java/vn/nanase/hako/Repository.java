@@ -214,9 +214,13 @@ public final class Repository {
     download(ctx,c,false);
   }
 
-  public static synchronized void download(Context ctx,Store.Chapter c,boolean force) throws Exception {
+  public static synchronized void download(Context ctx,Store.Chapter c,boolean force) throws Exception {download(ctx,c,force,false);}
+  public static synchronized void downloadImages(Context ctx,Store.Chapter c)throws Exception{download(ctx,c,true,true);}
+  private static synchronized void download(Context ctx,Store.Chapter c,boolean force,boolean imagesOnly) throws Exception {
     Store s = Store.get(ctx);
-    if(!CachePolicy.shouldFetch(s.readable(c.id),force)){if(!c.ready)s.state(c.id,true,c.error);return;}
+    boolean cached=s.readable(c.id);
+    if(!force&&s.cachedIllustration(c.id)){UpdateReport.log(ctx,c.title+": giữ minh họa đã lưu · không tải lại trang");return;}
+    if(!CachePolicy.shouldFetch(cached,force)){if(!c.ready)s.state(c.id,true,c.error);return;}
     allowed(ctx);
     long pause=Math.max(0,1500-(android.os.SystemClock.elapsedRealtime()-lastNetwork));
     if(pause>0)Thread.sleep(pause);
@@ -227,10 +231,10 @@ public final class Repository {
       throw new IOException("Bộ nhớ còn dưới 64 MB. Hãy giải phóng dung lượng trước khi tải tiếp.");
     String content = "";
     // Retained image markup allows retrying missing image files without fetching the chapter again.
-    if(!force&&s.html(c.id).isFile()){
+    if((!force||imagesOnly)&&s.html(c.id).isFile()){
       String cached=Store.read(s.html(c.id));
       HakoParser.OfflineContent offline=HakoParser.offlineContent(cached);
-      if(!offline.text&&!offline.images.isEmpty()){
+      if((imagesOnly||!offline.text)&&!offline.images.isEmpty()){
         boolean retry=true;
         for(Element img:Jsoup.parseBodyFragment(cached).select("img[src]")){
           String name=HakoParser.offlineImageName(c.id,img.attr("src"));
@@ -452,8 +456,9 @@ public final class Repository {
             }
           }
 
+          if(s.illustrationHint(ch)&&!s.autoIllustration(ch)){UpdateReport.log(ctx,ch.title+": bỏ qua minh họa đã thử tải; phần thiếu chờ yêu cầu riêng");continue;}
           // Recheck disk: this snapshot may predate a priority download.
-          if (s.readable(ch.id)){ledger.complete(ch.id);syncDone=ledger.done();continue;}
+          if (s.readable(ch.id)){ledger.complete(ch.id);syncDone=ledger.done();UpdateReport.log(ctx,ch.title+": dùng cache hợp lệ, không gọi mạng");continue;}
 
           long delay = FetchPolicy.delayMillis(++distance);
           if (!waitFor(ctx, delay, b.id, charging)) break;
@@ -466,8 +471,9 @@ public final class Repository {
               notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
             }
           } catch (Exception e) {
-            if(!s.illustration(ch.id))hadFailures=true;
+            if(!s.illustrationHint(ch))hadFailures=true;
             s.state(ch.id, false, e.getMessage());
+            if(s.illustrationHint(ch))ctx.getSharedPreferences("settings",0).edit().putBoolean("illustration_attempted_"+ch.id,true).commit();
             UpdateReport.log(ctx,b.title+" · "+ch.title+": lỗi tải — "+e.getMessage());
             notify(ctx, "Lỗi tải " + ch.title + ": " + e.getMessage());
             Thread.sleep(1500);

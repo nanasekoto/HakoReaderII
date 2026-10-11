@@ -1,8 +1,8 @@
-# Hako Pocket — 0.7.17 Gecko (nhánh bản vá)
+# Hako Pocket — 0.7.18 Gecko (nhánh bản vá)
 
 Ứng dụng đọc Hako offline cho Xteink S4: Android 11, ARM 32-bit, màn hình e-ink. `main` là bộ source chính thức, thống nhất từ phiên bản 0.7.15 người dùng đã phản hồi chạy khá ổn.
 
-Bản vá mới: [quy tắc chữ, minh họa và hàng chờ](docs/READING_ILLUSTRATIONS_0717.md).
+Bản vá mới: [quy tắc chữ, minh họa và hàng chờ](docs/ILLUSTRATION_CACHE_0718.md).
 
 ## Sử dụng
 

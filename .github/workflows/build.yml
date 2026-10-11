@@ -1,7 +1,7 @@
 name: Build Hako Pocket
 on:
   push:
-    branches: [ main, fix/reading-illustrations-0717 ]
+    branches: [ main, fix/illustration-cache-0718 ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:

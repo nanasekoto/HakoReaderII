@@ -13,6 +13,21 @@ public class IllustrationPolicyTest {
     check(!IllustrationPolicy.shouldAttempt(true,true,false));
     check(IllustrationPolicy.shouldAttempt(true,true,true));
     check(IllustrationPolicy.shouldAttempt(false,true,false));
-    System.out.println("PASS 11 illustration and queue policy checks");
+    check(IllustrationPolicy.hint("Tập 01: Khởi đầu · Minh họa"));
+    check(IllustrationPolicy.hint("Minh họa · Ellie"));
+    check(IllustrationPolicy.hint("Minh họa các tập · Vol 16"));
+    check(IllustrationPolicy.hint("WN · Vol 1 Illustrations"));
+    check(IllustrationPolicy.hint("〖Volume 12 Light Novel〗Minh Họa"));
+    check(IllustrationPolicy.hint("Minh hoạ - Fanart · Nhân vật"));
+    check(!IllustrationPolicy.hint("Chương 1 · Một hình ảnh đáng nhớ"));
+    check(IllustrationPolicy.kind("Minh họa · Ellie","<p>Ellie</p><img src='https://i.docln.net/a.jpg'>")==IllustrationPolicy.CANDIDATE);
+    check(IllustrationPolicy.kind("Tập 1 · Chương 1","<p>Đây là chương truyện ngắn.</p><img src='https://i.docln.net/a.jpg'>")==IllustrationPolicy.TEXT);
+    check(IllustrationPolicy.kind("Minh họa · Thông báo","<p>Thông báo dịch.</p>")==IllustrationPolicy.TEXT);
+    check(IllustrationPolicy.kind("Minh họa","")==IllustrationPolicy.UNKNOWN);
+    check(IllustrationPolicy.skipCachedIllustration(2,true,false));
+    check(!IllustrationPolicy.skipCachedIllustration(2,false,false));
+    check(!IllustrationPolicy.skipCachedIllustration(2,true,true));
+    check(!IllustrationPolicy.skipCachedIllustration(3,true,false));
+    System.out.println("PASS 26 illustration and queue policy checks");
   }
 }

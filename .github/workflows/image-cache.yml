@@ -1,7 +1,7 @@
 name: Verify image-only chapter cache
 on:
   push:
-    branches: [ fix/reading-illustrations-0717 ]
+    branches: [ fix/illustration-cache-0718 ]
   workflow_dispatch:
 permissions:
   contents: read

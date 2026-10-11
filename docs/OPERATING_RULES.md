@@ -82,3 +82,8 @@ Tạm dừng/Tiếp tục điều khiển đồng bộ. Mở Tài khoản dừng
 ## Bổ sung 0.7.17 (thay thế quy tắc tiến độ ảnh gộp của 0.7.16)
 
 Xem [quy tắc minh họa và hàng chờ](READING_ILLUSTRATIONS_0717.md). Truyện đang đọc có ưu tiên trước bốn nhóm tải nền. Minh họa vẫn cần ảnh thật để xem; tiến độ chữ không tính minh họa. Xác nhận bỏ qua minh họa khi gửi Đọc hết không tạo lịch sử đã đọc chữ.
+
+
+## Bổ sung 0.7.18
+
+[Nhận diện minh họa và kiểm tra cache](ILLUSTRATION_CACHE_0718.md) thay thế cách nhận diện chỉ từ đầu tựa chương. Ứng viên minh họa không được tự coi là đã đọc. Khung minh họa hợp lệ đã lưu không tự tải lại; ảnh thiếu vẫn phải báo riêng.

@@ -43,6 +43,10 @@ public final class ImageCacheTest extends Instrumentation {
       File first=new File(store.dir("demo-1"),name);
       check(first.delete(),"Remove one fixture image");
       check(!store.readable("demo-1"),"Cached validation detects removed image");
+      check(!store.autoIllustration(store.chapter("demo","demo-1")),"Legacy saved image markup is excluded from automatic retry");
+      String cachedHtml=Store.read(store.html("demo-1"));long cachedTime=store.html("demo-1").lastModified();
+      Repository.download(getTargetContext(),store.chapter("demo","demo-1"));
+      check(cachedHtml.equals(Store.read(store.html("demo-1")))&&cachedTime==store.html("demo-1").lastModified(),"Download itself rechecks legacy cache and performs no page fetch or overwrite");
       check(store.progress(store.book("demo")).percent==100,"Missing illustration does not reduce text progress");
       check(store.missingImages("demo-1")==1,"Missing image is reported separately");
       Store.write(first,"<html>Access denied</html>");
@@ -100,6 +104,10 @@ public final class ImageCacheTest extends Instrumentation {
       check(drawable!=null&&decoded.get(reader)==null,"Reader prepares image layout without decoding every bitmap");
       Bitmap screen=Bitmap.createBitmap(480,800,Bitmap.Config.RGB_565);drawable.draw(new android.graphics.Canvas(screen));screen.recycle();
       check(decoded.get(reader)!=null,"Reader decodes image only when drawn");
+      chapters.add(new HakoParser.Link("demo-6","Minh họa · Ellie",""));
+      store.catalog("demo",chapters);Store.write(store.html("demo-6"),"<p>Ellie</p><img src='https://i.docln.net/missing.jpg'>");store.readable("demo-6");
+      check(getTargetContext().getSharedPreferences("settings",0).getInt("chapter_kind_demo-6",0)==IllustrationPolicy.CANDIDATE,"Caption and illustration section produce candidate rather than false certainty");
+      check(!store.illustration("demo-6")&&store.illustrationHint(store.chapter("demo","demo-6")),"Candidate affects queue priority but does not bypass read-all");
       result.putString("stream","PASS TOTAL "+checks+" image cache checks\n");
       finish(0,result);
     }catch(Throwable error){
