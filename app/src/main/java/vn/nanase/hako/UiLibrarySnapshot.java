@@ -66,10 +66,10 @@ public final class UiLibrarySnapshot {
     if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.currentRead=read.contains(ch.id);s.remaining=0;afterCurrent=true;}
    }
    // Classification is retained from actual content opening/downloading, never inferred by scanning files here.
-   Set<String> known=new HashSet<>(ids);
+   Set<String> knownIds=new HashSet<>(ids);
    for(Store.Chapter ch:chapters)if(!images.contains(ch.id)&&!read.contains(ch.id))s.unread++;
    if(s.total==0)s.newCount=shelfCount(b.shelfInfo);
-   else if(prefs.contains("new_arrival_ids_"+b.id)){for(String id:prefs.getStringSet("new_arrival_ids_"+b.id,Collections.emptySet()))if(known.contains(id)&&!images.contains(id)&&!read.contains(id))s.newCount++;}
+   else if(prefs.contains("new_arrival_ids_"+b.id)){for(String id:prefs.getStringSet("new_arrival_ids_"+b.id,Collections.emptySet()))if(knownIds.contains(id)&&!images.contains(id)&&!read.contains(id))s.newCount++;}
    else s.newCount=prefs.getInt("new_arrivals_"+b.id,0);
    String now=prefs.getString("shelf_key_"+b.id,""),known=prefs.getString("catalog_shelf_key_"+b.id,"");
    s.latestKey=now;
