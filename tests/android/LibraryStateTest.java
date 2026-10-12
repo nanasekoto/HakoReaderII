@@ -18,6 +18,7 @@ public final class LibraryStateTest extends Instrumentation {
  public void onStart(){Bundle result=new Bundle();try{
   Context ctx=getTargetContext();Store s=Store.get(ctx);android.content.SharedPreferences prefs=ctx.getSharedPreferences("settings",0);
   prefs.edit().putBoolean("charging",false).putBoolean("sync_paused",true).putString("origin","https://invalid.example").commit();
+  HakoParser.ORIGIN="https://invalid.example";
   String id="truyen-999004",base="https://invalid.example/truyen/999004-fixture";
   s.putBook(new HakoParser.Link(id,"Saved state fixture",base));s.visited(id);s.pin(id,true);s.followed(id,true,0);
   List<HakoParser.Link> links=new ArrayList<>();for(int i=1;i<=250;i++)links.add(new HakoParser.Link(id+"-"+i,"Tập 1 · Chương "+i,base+"/c"+i+"-fixture"));s.catalog(id,links);

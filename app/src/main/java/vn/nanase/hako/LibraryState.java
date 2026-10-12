@@ -40,7 +40,7 @@ public final class LibraryState {
     for(int i=0;i<rows.length();i++){JSONObject row=rows.getJSONObject(i);Store.Book b=readObject(row.getJSONObject("book"),new Store.Book());if(b.id==null||b.id.isEmpty())throw new IOException("Invalid journal row");books.put(b.id,b);summaries.put(b.id,readObject(row.getJSONObject("summary"),new UiLibrarySnapshot.Summary()));records.put(b.id,row);}
     stamp=delta.optLong("lastShelfSync",stamp);
    }
-  }catch(FileNotFoundException ignored){}
+  }catch(Exception ignored){books.clear();for(Store.Book b:saved.books)books.put(b.id,b);summaries=new HashMap<>(saved.summaries);stamp=saved.lastShelfSync;records.clear();}
   if(initialize){baseGeneration=generation;deltaRecords.clear();deltaRecords.putAll(records);}
   return new UiLibrarySnapshot(new ArrayList<>(books.values()),summaries,0,stamp,0);
  }

@@ -551,7 +551,7 @@ public final class Repository {
       GeckoClient.release();busy.set(false);
       ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}
-      if(cancel.get()||syncPaused){pendingBook="";pendingAll=false;}
+      if(cancel.get()||syncPaused){pendingBook="";pendingAll=false;pendingPersonal=false;}
       manualOverride = false;
       isSyncing = false;
       notify(ctx,syncPaused?"Đã tạm dừng đồng bộ · Chữ offline "+syncPct+"%":!"COMPLETED".equals(syncState)?"Lượt cập nhật chưa hoàn tất · Chữ offline "+syncPct+"% · Xem Chi tiết cập nhật":syncPct==100?"Chữ offline 100% · Ảnh thiếu xem riêng":"Lượt tải đã xong · Chữ offline toàn thư viện "+syncPct+"% · Phần còn thiếu xem Chi tiết cập nhật");
