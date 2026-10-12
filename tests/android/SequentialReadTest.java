@@ -44,7 +44,9 @@ public final class SequentialReadTest extends Instrumentation {
     check(list!=null&&list.getAdapter().getItem(0).toString().contains("[Minh họa]"),"Illustration TOC label has no seen or unread state");
     View sort=find(activity.getWindow().getDecorView(),"Sắp xếp chương");check(sort!=null,"Clock is replaced by actionable chapter sorting");
     runOnMainSync(()->sort.performClick());waitForIdleSync();SystemClock.sleep(200);
-    AccessibilityNodeInfo root=getUiAutomation().getRootInActiveWindow();List<AccessibilityNodeInfo> options=root.findAccessibilityNodeInfosByText("Chương mới nhất trước");
+    AccessibilityNodeInfo root=null;List<AccessibilityNodeInfo> options=Collections.emptyList();
+    long dialogLimit=SystemClock.elapsedRealtime()+5000;
+    while(SystemClock.elapsedRealtime()<dialogLimit){root=getUiAutomation().getRootInActiveWindow();if(root!=null){options=root.findAccessibilityNodeInfosByText("Chương mới nhất trước");if(!options.isEmpty())break;}SystemClock.sleep(100);waitForIdleSync();}
     check(!options.isEmpty()&&options.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK),"Actual sort dialog selects newest first");waitForIdleSync();SystemClock.sleep(200);waitForIdleSync();
     list=(ListView)field("currentList");check(list.getAdapter().getItem(0).toString().contains("Chương 3"),"Newest chapter moves to first display row");
     check(s.chapters(book).get(0).id.equals(book+"-1")&&s.book(book).current.equals(book+"-5"),"Visual sorting leaves canonical reading order and position unchanged");
