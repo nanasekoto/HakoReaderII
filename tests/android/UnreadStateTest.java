@@ -43,6 +43,9 @@ public final class UnreadStateTest extends Instrumentation {
     check(first.readingRevision!=s.readingRevision(),"Snapshot detects classification changes while loading");
     UiLibrarySnapshot stable=UiLibrarySnapshot.load(s,prefs);
     check(stable.readingRevision==s.readingRevision(),"Prepared snapshot becomes stable after classification");
+    s.selectChapter(book,book+"-2");
+    check(stable.readingRevision!=s.readingRevision(),"Explicit chapter selection also invalidates old current-chapter labels");
+    s.selectChapter(book,book+"-4");
     Store.ReadCounts art=s.readCounts(Collections.singletonList(s.chapter(book,book+"-1")));
     check(art.textUnread==0&&art.illustrationsUnseen==1,"Illustration volume never repeats unread text from another volume");
     MainActivity activity=(MainActivity)startActivitySync(new Intent().setClassName(ctx.getPackageName(),"vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
