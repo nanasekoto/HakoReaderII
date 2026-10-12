@@ -1538,20 +1538,21 @@ public class MainActivity extends Activity {
       if(n==1)reportSettings();
     }).show()).show();
   }
+  private void optionalPicker(Intent intent,int request){try{startActivityForResult(intent,request);}catch(android.content.ActivityNotFoundException unavailable){Diagnostics.failure("picker.unavailable",unavailable);message("S4 không có trình chọn tệp. Báo cáo có thể lưu bằng nút Lưu trên máy; bản riêng đã có sẵn cấu hình email.");}}
   private void reportSettings(){
     android.content.SharedPreferences p=getSharedPreferences("diagnostics",0);LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(12),dp(8),dp(12),0);
     box.addView(text("Nhập địa chỉ và mã kết nối từ dịch vụ Apps Script đã triển khai.",12));
     EditText url=new EditText(this);url.setHint("Địa chỉ Apps Script /exec");url.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);url.setText(p.getString("endpoint",""));box.addView(url);
     EditText token=new EditText(this);token.setHint("Mã kết nối");token.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);token.setText(p.getString("token",""));box.addView(token);
     box.addView(text("Chỉ gửi khi bạn bấm Gửi ngay. App luôn lưu log trên máy.",12));
-    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Thiết lập báo cáo").setView(box).setPositiveButton("Lưu",null).setNeutralButton("Nhập tệp",(d,w)->startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE),94)).setNegativeButton("Đóng",null).create();dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String endpoint=url.getText().toString().trim(),key=token.getText().toString().trim();if(!endpoint.isEmpty()&&(!ReportJob.validEndpoint(endpoint)||key.length()<16)){url.setError("Cần địa chỉ Apps Script /exec hợp lệ và mã kết nối ít nhất 16 ký tự");return;}p.edit().putString("endpoint",endpoint).putString("token",key).putBoolean("auto",false).apply();if(endpoint.isEmpty())getSystemService(android.app.job.JobScheduler.class).cancel(43);dialog.dismiss();Toast.makeText(this,"Đã lưu thiết lập báo cáo",Toast.LENGTH_SHORT).show();}));dialog.show();
+    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Thiết lập báo cáo").setView(box).setPositiveButton("Lưu",null).setNeutralButton("Nhập tệp",(d,w)->optionalPicker(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE),94)).setNegativeButton("Đóng",null).create();dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String endpoint=url.getText().toString().trim(),key=token.getText().toString().trim();if(!endpoint.isEmpty()&&(!ReportJob.validEndpoint(endpoint)||key.length()<16)){url.setError("Cần địa chỉ Apps Script /exec hợp lệ và mã kết nối ít nhất 16 ký tự");return;}p.edit().putString("endpoint",endpoint).putString("token",key).putBoolean("auto",false).apply();if(endpoint.isEmpty())getSystemService(android.app.job.JobScheduler.class).cancel(43);dialog.dismiss();Toast.makeText(this,"Đã lưu thiết lập báo cáo",Toast.LENGTH_SHORT).show();}));dialog.show();
   }
 
   private void updateDetails(){
     LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(10),dp(8),dp(10),dp(8));
     TextView report=text(UpdateReport.text(this),12);report.setTextIsSelectable(true);box.addView(report);
     ScrollView scroll=new ScrollView(this);scroll.addView(box);
-    new AlertDialog.Builder(this).setTitle("Chi tiết cập nhật").setView(scroll).setPositiveButton("Đóng",null).setNeutralButton("Xuất báo cáo",(d,w)->{reportExportPending=true;startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain").putExtra(Intent.EXTRA_TITLE,"Hako-bao-cao-cap-nhat.txt"),92);}).setNegativeButton("Làm mới",(d,w)->updateDetails()).show();
+    new AlertDialog.Builder(this).setTitle("Chi tiết cập nhật").setView(scroll).setPositiveButton("Đóng",null).setNeutralButton("Xuất báo cáo",(d,w)->{reportExportPending=true;optionalPicker(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain").putExtra(Intent.EXTRA_TITLE,"Hako-bao-cao-cap-nhat.txt"),92);}).setNegativeButton("Làm mới",(d,w)->updateDetails()).show();
   }
   private void requestFullShelf(int mode){Repository.requestShelfScan(mode);startDownloads("",Repository.MODE_SYNC_LIBRARY);}
   private void settings(){
@@ -1586,7 +1587,7 @@ public class MainActivity extends Activity {
     fonts.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> a,View v,int p,long id){update.run();}public void onNothingSelected(AdapterView<?> a){}});
     bold.setOnCheckedChangeListener((a,b)->update.run());update.run();
     CheckBox taps=check("Chạm trên/dưới để lật trang",prefs.getBoolean("taps",true));box.addView(taps);CheckBox charging=check("Đồng bộ tủ sách khi sạc",prefs.getBoolean("charging",true));box.addView(charging);CheckBox touchLockBox=check("Khóa cảm ứng khi đọc (chống chạm túi, chỉ mở bằng phím cứng)",prefs.getBoolean("touch_lock",false));box.addView(touchLockBox);
-    box.addView(button("Nhập font TTF / OTF",()->startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),88)));
+    box.addView(button("Nhập font TTF / OTF",()->optionalPicker(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),88)));
     box.addView(button("Tài khoản HAKO",()->browse(HakoParser.ORIGIN+"/login")));
     box.addView(button("Chi tiết cập nhật / Xuất báo cáo lỗi",this::updateDetails));
     box.addView(button("Kiểm tra toàn bộ tủ sách",()->requestFullShelf(1)));

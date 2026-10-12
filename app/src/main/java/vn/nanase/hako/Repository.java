@@ -122,7 +122,7 @@ public final class Repository {
       done.add(next);
       if (Jsoup.parse(html).selectFirst("input[type=password]") != null)
         throw new IOException("Hãy đăng nhập HAKO trước khi nhập kệ sách.");
-      List<HakoParser.Link> links = HakoParser.shelf(html, next);
+      List<HakoParser.Link> links = HakoParser.shelf(html, next);Diagnostics.count("shelf.page_parsed");for(HakoParser.Link ignored:links)Diagnostics.count("shelf.row_seen");
       if(links.isEmpty()&&!previousKeys.isEmpty())throw new IOException("Không đọc được danh sách tủ sách; đã giữ dữ liệu cũ");
       List<ShelfAnchor.Row> anchorRows=new ArrayList<>();
       for (HakoParser.Link l : links) {
@@ -149,7 +149,7 @@ public final class Repository {
       for(Element option:Jsoup.parse(html).select("select option[selected]")){String v=(option.text()+" "+option.attr("value")).toLowerCase(Locale.ROOT);if(v.matches(".*(a-z|z-a|title|tên truyện|cũ nhất|_asc).*"))orderSafe=false;}
       boolean stop=!following.isEmpty()&&ShelfAnchor.canStopAtUnchanged(anchorRows,previousKeys,anchorKnown&&orderSafe&&(audit||canUseAnchor));
       if(stop&&quickObserved==null){quickObserved=new HashSet<>(shelfKeys.keySet());UpdateReport.log(ctx,"Gặp chương mới nhất không đổi: "+anchorTitle+" · trang "+done.size());}
-      if(stop&&!full){partial=true;UpdateReport.log(ctx,"Dừng quét nhanh ở trang "+done.size()+"; giữ các trang phía sau trong bộ nhớ");break;}
+      if(stop&&!full){Diagnostics.count("shelf.anchor_stop");partial=true;UpdateReport.log(ctx,"Dừng quét nhanh ở trang "+done.size()+"; giữ các trang phía sau trong bộ nhớ");break;}
       urls.addAll(following);
       boolean more=false;for(String u:urls)if(!done.contains(u)){more=true;break;}
       if(more){notify(ctx,"Đã nhận trang "+done.size()+" · mở trang tiếp theo");Thread.sleep(500);}
@@ -504,14 +504,14 @@ public final class Repository {
           if (!waitFor(ctx, delay, b.id, charging)) break;
 
           try {
-            download(ctx, ch);
+            download(ctx, ch);Diagnostics.count("download.attempt_completed");
             if (s.readable(ch.id)) {
               ledger.complete(ch.id);syncDone=ledger.done();
               syncPct = syncTotal > 0 ? Math.min(99, Math.round(syncDone * 100f / syncTotal)) : 100;
               notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
             }
           } catch (Exception e) {
-            if(!s.illustrationHint(ch))hadFailures=true;
+            Diagnostics.count("download.failed");if(!s.illustrationHint(ch))hadFailures=true;
             s.state(ch.id, false, e.getMessage());
             if(s.illustrationHint(ch))ctx.getSharedPreferences("settings",0).edit().putBoolean("illustration_attempted_"+ch.id,true).commit();
             UpdateReport.log(ctx,b.title+" · "+ch.title+": lỗi tải — "+e.getMessage());
@@ -598,3 +598,4 @@ public final class Repository {
     return true;
   }
 }
+

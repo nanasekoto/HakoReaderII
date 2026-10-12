@@ -40,7 +40,7 @@ public final class Store extends SQLiteOpenHelper {
   public void setCompleted(String id,boolean value){displayChanged(id,true);context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();if(value)setKeepFull(id,true);}
   public int newArrivals(String id){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(!p.contains("new_arrival_ids_"+id))return p.getInt("new_arrivals_"+id,0);int n=0;for(String chapter:p.getStringSet("new_arrival_ids_"+id,Collections.emptySet()))if(!illustration(chapter)&&!wasRead(chapter))n++;return n;}
   public synchronized void mergeShelf(List<HakoParser.Link> links){mergeShelf(links,0);}
-  private Cursor query(String sql,String[] args){Diagnostics.count("db.query");return getReadableDatabase().rawQuery(sql,args);}
+  private Cursor query(String sql,String[] args){Diagnostics.count("db.query");String lower=sql.toLowerCase(java.util.Locale.ROOT);Diagnostics.count(lower.contains("from chapters")?"db.chapters_query":lower.contains("from books")?"db.books_query":"db.other_query");return getReadableDatabase().rawQuery(sql,args);}
   private boolean shelfIndexReady;
   private List<Book> shelfBooks(){
     if(!shelfIndexReady){getWritableDatabase().execSQL("CREATE INDEX IF NOT EXISTS book_shelf_rank ON books(followed,shelf_rank)");shelfIndexReady=true;}
@@ -213,7 +213,7 @@ public final class Store extends SQLiteOpenHelper {
     boolean toEnd=FetchPolicy.toEnd(b.followed,favorite(b),b.visits>0,full);
     int oldChs = full?0:Math.max(0,currentOrd-FetchPolicy.BEHIND);
     int newChsTotal=0,newChsDownloaded=0;
-    for(Chapter ch:chs){boolean saved=readable(ch.id);if(!illustration(ch.id)&&FetchPolicy.inDownloadRange(ch.ord,currentOrd,toEnd,full)){
+    for(Chapter ch:chs){if(!FetchPolicy.inDownloadRange(ch.ord,currentOrd,toEnd,full))continue;boolean saved=readable(ch.id);if(!illustration(ch.id)){
       newChsTotal++;
       if(saved)newChsDownloaded++;
     }}
@@ -514,7 +514,8 @@ public final class Store extends SQLiteOpenHelper {
       File f=html(cid);
       if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);validatedImages.remove(cid);return false;}
       String fingerprint=contentStamp(cid,f);
-      if(fingerprint.equals(validatedFiles.get(cid))){Diagnostics.count("cache.hit");return true;}
+      String known=validatedFiles.get(cid);if(fingerprint.equals(known)){Diagnostics.count("cache.hit");return true;}
+      if(("invalid:"+fingerprint).equals(known)){Diagnostics.count("cache.negative_hit");return false;}
       Diagnostics.count("cache.parse");String body=read(f);classify(cid,body);
       if(IllustrationPolicy.skipCachedIllustration(context.getSharedPreferences("settings",0).getInt("chapter_kind_"+cid,0),HakoParser.validContent(body),false))context.getSharedPreferences("settings",0).edit().putString("illustration_cached_"+cid,fileStamp(f)).apply();
       HakoParser.OfflineContent content=HakoParser.offlineContent(body);
@@ -565,3 +566,4 @@ public final class Store extends SQLiteOpenHelper {
     f.delete();
   }
 }
+

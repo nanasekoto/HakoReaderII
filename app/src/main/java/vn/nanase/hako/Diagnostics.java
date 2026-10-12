@@ -66,7 +66,7 @@ public final class Diagnostics {
  public static void flush()throws Exception{if(app!=null)write(new AtomicFile(new File(app.getFilesDir(),"diagnostics-last.json")),payload());}
  private static void write(AtomicFile target,JSONObject json)throws Exception{FileOutputStream stream=null;try{stream=target.startWrite();stream.write(json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));target.finishWrite(stream);}catch(Exception e){if(stream!=null)target.failWrite(stream);throw e;}}
  public static File queue(Context c)throws Exception{
-  JSONObject report=payload();report.put("reportId",UUID.randomUUID().toString());
+  JSONObject report=payload();report.put("reportId",UUID.randomUUID().toString());report.put("workflow",UpdateReport.metrics(c));
   try{report.put("mainPssKb",Debug.getPss());}catch(Exception ignored){}synchronized(Diagnostics.class){if(previousSession!=null)report.put("previousSession",previousSession);}
   for(String name:new String[]{"diagnostics-last.json","diagnostics-crash.json"})try{JSONObject old=new JSONObject(new String(new AtomicFile(new File(c.getFilesDir(),name)).readFully(),java.nio.charset.StandardCharsets.UTF_8));if(!session.equals(old.optString("session")))report.put(name.startsWith("diagnostics-crash")?"previousCrash":"previousSession",old);}catch(Exception ignored){}
   try{report.put("uiStall",new JSONObject(new String(new AtomicFile(new File(c.getFilesDir(),"diagnostics-stall.json")).readFully(),java.nio.charset.StandardCharsets.UTF_8)));}catch(Exception ignored){}
