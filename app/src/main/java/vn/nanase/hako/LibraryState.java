@@ -23,7 +23,7 @@ public final class LibraryState {
  public static UiLibrarySnapshot peek(){return current;}
  public static UiLibrarySnapshot restore(Context c){
   if(current!=null)return current;
-  synchronized(restoreLock){if(current==null)try{current=readDisk(c,true);}catch(Exception ignored){}}
+  synchronized(restoreLock){if(current==null)try{Diagnostics.count(android.os.Looper.myLooper()==android.os.Looper.getMainLooper()?"snapshot.restore_ui":"snapshot.restore_worker");current=readDisk(c,true);}catch(Exception ignored){}}
   return current;
  }
  public static UiLibrarySnapshot readSaved(Context c)throws Exception{return readDisk(c,false);}
@@ -137,3 +137,4 @@ public final class LibraryState {
   return new UiLibrarySnapshot(books,summaries,0,root.optLong("lastShelfSync"),0);
  }
 }
+

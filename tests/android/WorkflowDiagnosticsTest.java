@@ -29,6 +29,7 @@ public final class WorkflowDiagnosticsTest extends Instrumentation {
   int[] reportAt=new int[2],headingAt=new int[2];report.getLocationOnScreen(reportAt);heading.getLocationOnScreen(headingAt);check(reportAt[0]>headingAt[0]&&report.getWidth()<200,"Report control is small and on right side");
   android.graphics.Bitmap screenshot=getUiAutomation().takeScreenshot();if(screenshot!=null){try(FileOutputStream out=new FileOutputStream(new File(ctx.getFilesDir(),"main-page.png"))){screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);}screenshot.recycle();}
   check(find(activity.getWindow().getDecorView(),"Đọc tiếp")!=null&&find(activity.getWindow().getDecorView(),"Tủ sách")!=null,"Main workflow buttons remain present");
+  check(Diagnostics.payload().getJSONObject("counts").optLong("snapshot.restore_ui")==0,"Startup never decodes disk snapshot on UI thread");
   check(!ReportJob.configured(ctx),"No email endpoint or secret is embedded in app");
   check(ReportJob.validEndpoint("https://script.google.com/macros/s/fixture_id/exec")&&!ReportJob.validEndpoint("http://script.google.com/macros/s/id/exec")&&!ReportJob.validEndpoint("https://attacker.example/macros/s/id/exec"),"Report endpoint restricts HTTPS Google Apps Script");
   check(!ReportJob.acknowledged(new JSONObject().put("ok",true).put("reportId","old"),"new")&&!ReportJob.acknowledged(new JSONObject().put("reportId","new"),"new"),"Report stays queued without matching positive acknowledgement");
@@ -46,6 +47,10 @@ public final class WorkflowDiagnosticsTest extends Instrumentation {
   long ranks=Diagnostics.payload().getJSONObject("counts").optLong("shelf.rank_write");s.mergeShelf(Arrays.asList(row));check(Diagnostics.payload().getJSONObject("counts").optLong("shelf.rank_write")==ranks,"Unchanged shelf import does not rewrite ranks");
   File queued=Diagnostics.queue(ctx);check(queued.isFile()&&new JSONObject(Store.read(queued)).getJSONObject("counts").has("db.query"),"Offline report persists aggregate query counters");
   check(!Store.read(queued).contains(html.toString())&&!Store.read(queued).contains("Workflow fixture")&&!Store.read(queued).contains("invalid.example"),"Diagnostic payload excludes novel text titles and URLs");
+  ctx.getSharedPreferences("diagnostics",0).edit().putString("endpoint","https://script.google.com/macros/s/fixture/exec").putString("token","0123456789abcdef").putBoolean("auto",true).commit();
+  ctx.getSystemService(android.app.job.JobScheduler.class).cancel(43);ReportJob.schedule(ctx,false);check(ctx.getSystemService(android.app.job.JobScheduler.class).getPendingJob(43)==null,"Automatic report scheduling is refused even with old auto preference");
+  Diagnostics.captureStall(6000);JSONObject stall=new JSONObject(Store.read(Diagnostics.queue(ctx))).getJSONObject("uiStall");check(stall.getLong("delayMs")==6000&&stall.getJSONArray("mainThread").length()>0,"Manual report includes persisted UI stall stack without uploading");
+  ctx.getSharedPreferences("diagnostics",0).edit().remove("endpoint").remove("token").commit();
   for(int i=0;i<10;i++)Diagnostics.queue(ctx);check(new File(ctx.getFilesDir(),"report-outbox").listFiles((d,n)->n.endsWith(".json")).length<=8,"Outbox retention is bounded");
   result.putString("stream","PASS TOTAL "+checks+" workflow diagnostics checks\n");finish(0,result);
  }catch(Throwable e){result.putString("stream","FAIL "+e+"\n");finish(1,result);}}

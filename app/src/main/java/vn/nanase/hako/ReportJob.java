@@ -12,8 +12,15 @@ import org.json.*;
 public final class ReportJob extends JobService {
  private final AtomicBoolean stopped=new AtomicBoolean();
  public static boolean validEndpoint(String url){try{URI uri=URI.create(url);return "https".equals(uri.getScheme())&&"script.google.com".equalsIgnoreCase(uri.getHost())&&uri.getUserInfo()==null&&uri.getPort()==-1&&uri.getQuery()==null&&uri.getFragment()==null&&uri.getPath().matches("/macros/s/[A-Za-z0-9_-]+/exec");}catch(Exception e){return false;}}
+ public static void installBundled(Context c){
+  android.content.SharedPreferences p=c.getSharedPreferences("diagnostics",0);
+  p.edit().putBoolean("auto",false).apply();
+  JobScheduler scheduler=c.getSystemService(JobScheduler.class);JobInfo pending=scheduler.getPendingJob(43);if(pending!=null&&!pending.getExtras().getBoolean("manual",false))scheduler.cancel(43);
+  if(p.getBoolean("bundled_config_v1",false))return;
+  try(InputStream in=c.getAssets().open("private-report-config.json")){JSONObject config=new JSONObject(read(in));String endpoint=config.optString("endpoint",""),token=config.optString("token","");if(!validEndpoint(endpoint)||token.length()<16)throw new IOException("Invalid bundled configuration");p.edit().putString("endpoint",endpoint).putString("token",token).putBoolean("auto",false).putBoolean("bundled_config_v1",true).apply();}catch(FileNotFoundException absent){}catch(Exception error){Diagnostics.failure("report.config",error);}
+ }
  public static boolean configured(Context c){android.content.SharedPreferences p=c.getSharedPreferences("diagnostics",0);return validEndpoint(p.getString("endpoint",""))&&!p.getString("token","").isEmpty();}
- public static void schedule(Context c,boolean manual){if(!configured(c))return;JobScheduler jobs=c.getSystemService(JobScheduler.class);if(manual)jobs.cancel(43);else if(jobs.getPendingJob(43)!=null)return;PersistableBundle extras=new PersistableBundle();extras.putBoolean("manual",manual);jobs.schedule(ReadSync.wifiJob(c,43,ReportJob.class).setExtras(extras).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());}
+ public static void schedule(Context c,boolean manual){if(!manual||!configured(c))return;JobScheduler jobs=c.getSystemService(JobScheduler.class);if(manual)jobs.cancel(43);else if(jobs.getPendingJob(43)!=null)return;PersistableBundle extras=new PersistableBundle();extras.putBoolean("manual",manual);jobs.schedule(ReadSync.wifiJob(c,43,ReportJob.class).setExtras(extras).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());}
  private static String read(InputStream input)throws Exception{try(InputStream in=input;ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1){if(out.size()+n>131072)throw new IOException("Response too large");out.write(b,0,n);}return out.toString("UTF-8");}}
  public static JSONObject upload(String endpoint,String token,JSONObject report)throws Exception{
   if(!validEndpoint(endpoint))throw new IOException("Endpoint invalid");
@@ -29,7 +36,7 @@ public final class ReportJob extends JobService {
  }
  public static boolean acknowledged(JSONObject response,String id){return response.optBoolean("ok",false)&&id.equals(response.optString("reportId"));}
  public boolean onStartJob(JobParameters params){
-  boolean manual=params.getExtras().getBoolean("manual",false);if(!configured(this)||(!manual&&Diagnostics.foreground))return false;stopped.set(false);
+  boolean manual=params.getExtras().getBoolean("manual",false);if(!manual||!configured(this))return false;stopped.set(false);
   new Thread(()->{boolean retry=false;String status="Đang chờ gửi báo cáo";
    try{android.content.SharedPreferences p=getSharedPreferences("diagnostics",0);if(!ReadSync.wifi(this)){retry=true;return;}
     if(!manual&&System.currentTimeMillis()-p.getLong("lastSent",0)<24*60*60*1000L)return;
@@ -44,3 +51,4 @@ public final class ReportJob extends JobService {
  }
  public boolean onStopJob(JobParameters params){stopped.set(true);return true;}
 }
+

@@ -187,8 +187,8 @@ public class MainActivity extends Activity {
 
   public void onCreate(Bundle state) {
     super.onCreate(state); java.util.TimeZone.setDefault(VN_TZ);
-    final long boot=Diagnostics.now();Diagnostics.start(this);
-    readyLibrary=LibraryState.restore(this);
+    final long boot=Diagnostics.now();Diagnostics.start(this);io.execute(()->ReportJob.installBundled(this));
+    readyLibrary=LibraryState.peek();
     store = Store.get(this);
     prefs = getSharedPreferences("settings", 0);
     if(!prefs.getBoolean("auto_wifi_v6",false))prefs.edit().putBoolean("charging",true).putBoolean("auto_wifi_v6",true).commit();
@@ -1533,8 +1533,8 @@ public class MainActivity extends Activity {
     box.addView(text("Nhập địa chỉ và mã kết nối từ dịch vụ Apps Script đã triển khai.",12));
     EditText url=new EditText(this);url.setHint("Địa chỉ Apps Script /exec");url.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);url.setText(p.getString("endpoint",""));box.addView(url);
     EditText token=new EditText(this);token.setHint("Mã kết nối");token.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);token.setText(p.getString("token",""));box.addView(token);
-    CheckBox auto=new CheckBox(this);auto.setText("Tự gửi khi app ở nền, qua Wi-Fi · tối đa mỗi ngày một lượt");auto.setChecked(p.getBoolean("auto",true));box.addView(auto);
-    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Thiết lập báo cáo").setView(box).setPositiveButton("Lưu",null).setNeutralButton("Nhập tệp",(d,w)->startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE),94)).setNegativeButton("Đóng",null).create();dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String endpoint=url.getText().toString().trim(),key=token.getText().toString().trim();if(!endpoint.isEmpty()&&(!ReportJob.validEndpoint(endpoint)||key.length()<16)){url.setError("Cần địa chỉ Apps Script /exec hợp lệ và mã kết nối ít nhất 16 ký tự");return;}p.edit().putString("endpoint",endpoint).putString("token",key).putBoolean("auto",auto.isChecked()).apply();if(endpoint.isEmpty()||!auto.isChecked())getSystemService(android.app.job.JobScheduler.class).cancel(43);dialog.dismiss();Toast.makeText(this,"Đã lưu thiết lập báo cáo",Toast.LENGTH_SHORT).show();}));dialog.show();
+    box.addView(text("Chỉ gửi khi bạn bấm Gửi ngay. App luôn lưu log trên máy.",12));
+    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Thiết lập báo cáo").setView(box).setPositiveButton("Lưu",null).setNeutralButton("Nhập tệp",(d,w)->startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE),94)).setNegativeButton("Đóng",null).create();dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String endpoint=url.getText().toString().trim(),key=token.getText().toString().trim();if(!endpoint.isEmpty()&&(!ReportJob.validEndpoint(endpoint)||key.length()<16)){url.setError("Cần địa chỉ Apps Script /exec hợp lệ và mã kết nối ít nhất 16 ký tự");return;}p.edit().putString("endpoint",endpoint).putString("token",key).putBoolean("auto",false).apply();if(endpoint.isEmpty())getSystemService(android.app.job.JobScheduler.class).cancel(43);dialog.dismiss();Toast.makeText(this,"Đã lưu thiết lập báo cáo",Toast.LENGTH_SHORT).show();}));dialog.show();
   }
 
   private void updateDetails(){
@@ -1666,7 +1666,7 @@ public class MainActivity extends Activity {
 
   protected void onActivityResult(int req, int result, Intent data) {
     super.onActivityResult(req, result, data);
-    if(req==94){if(result==RESULT_OK&&data!=null&&data.getData()!=null){final Uri source=data.getData();task("Đang nhập cấu hình báo cáo…",()->{StringBuilder text=new StringBuilder();try(InputStream in=getContentResolver().openInputStream(source)){if(in==null)throw new IOException("Không mở được tệp");ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] buffer=new byte[1024];int n;while((n=in.read(buffer))!=-1){if(bytes.size()+n>8192)throw new IOException("Tệp cấu hình quá lớn");bytes.write(buffer,0,n);}text.append(bytes.toString("UTF-8"));}JSONObject config=new JSONObject(text.toString());String endpoint=config.optString("endpoint","").trim(),token=config.optString("token","").trim();if(!ReportJob.validEndpoint(endpoint)||token.length()<16)throw new IOException("Cấu hình dịch vụ không hợp lệ");getSharedPreferences("diagnostics",0).edit().putString("endpoint",endpoint).putString("token",token).putBoolean("auto",config.optBoolean("auto",true)).apply();return null;},()->message("Đã nhập cấu hình. Bấm Báo cáo → Gửi ngay để thử gửi."));}return;}
+    if(req==94){if(result==RESULT_OK&&data!=null&&data.getData()!=null){final Uri source=data.getData();task("Đang nhập cấu hình báo cáo…",()->{StringBuilder text=new StringBuilder();try(InputStream in=getContentResolver().openInputStream(source)){if(in==null)throw new IOException("Không mở được tệp");ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] buffer=new byte[1024];int n;while((n=in.read(buffer))!=-1){if(bytes.size()+n>8192)throw new IOException("Tệp cấu hình quá lớn");bytes.write(buffer,0,n);}text.append(bytes.toString("UTF-8"));}JSONObject config=new JSONObject(text.toString());String endpoint=config.optString("endpoint","").trim(),token=config.optString("token","").trim();if(!ReportJob.validEndpoint(endpoint)||token.length()<16)throw new IOException("Cấu hình dịch vụ không hợp lệ");getSharedPreferences("diagnostics",0).edit().putString("endpoint",endpoint).putString("token",token).putBoolean("auto",false).apply();return null;},()->message("Đã nhập cấu hình. Bấm Báo cáo → Gửi ngay để thử gửi."));}return;}
     if(req==93){if(result==RESULT_OK&&data!=null&&data.getData()!=null){final Uri destination=data.getData();task("Đang lưu báo cáo…",()->{File file=Diagnostics.queue(this);try(InputStream in=new FileInputStream(file);OutputStream out=getContentResolver().openOutputStream(destination)){if(out==null)throw new IOException("Không mở được nơi lưu");byte[] bytes=new byte[4096];int n;while((n=in.read(bytes))!=-1)out.write(bytes,0,n);}return null;},()->message("Đã lưu báo cáo hoạt động."));}return;}
     if(req==92){reportExportPending=false;if(result==RESULT_OK&&data!=null&&data.getData()!=null){final Uri destination=data.getData();task("Đang lưu báo cáo…",()->{try(OutputStream out=getContentResolver().openOutputStream(destination)){if(out==null)throw new IOException("Không mở được nơi lưu");out.write(UpdateReport.text(this).getBytes("UTF-8"));}return null;},()->message("Đã lưu báo cáo cập nhật."));}return;}
     if(req==91){GeckoClient.authenticating=false;GeckoClient.release();Repository.cancel.set(false);if(result==RESULT_OK&&data!=null){
@@ -1977,3 +1977,4 @@ public class MainActivity extends Activity {
     return super.onKeyDown(key, event);
   }
 }
+

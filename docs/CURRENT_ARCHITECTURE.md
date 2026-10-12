@@ -36,3 +36,8 @@ Run backend mock/unit checks + existing JVM/JS policies first. Build debug only 
 Rollback by reverting this feature branch/caches; never delete SQLite, chapters or queued completion. Disable reporting/clear endpoint and remove Apps Script deployment independently. NativeReader.content compatibility remains for callers; normal app opening uses Prepared.
 
 Remaining: actual S4 CPU/RAM/p50/p95 must come from installed-device reports. Main StaticLayout and visible bitmap decode are still measured UI work; immutable display maps still incur pool copies on publication. Coordinator-wide web freshness coalescing is intentionally deferred until logs identify redundant sessions; proof-sensitive mark-read requests remain. Receiver activation needs the user's Google deployment/authorization and an actual email receipt; mocked email tests do not establish deliverability.
+
+
+## 0.7.24 manual reports and responsiveness
+Home reads only in-memory snapshot; cold disk restore runs on library worker. Manual report requests are the only jobs accepted. Background flush persists diagnostics but never queues/uploads mail. Optional private asset is injected locally after public CI, then aligned and signed using the existing key; it is never committed. Foreground-only 3s probe records at most three stacks when UI acknowledgment is delayed 6s; no upload is triggered. Snapshot restore, monitor and local asset installation leave database/cache/reading policy unchanged. Rollback to prior APK source removes this probe and restores synchronous startup snapshot; user data remains. Real S4 stall cause requires captured stack; monitored delays are not themselves proof of OS ANR.
+
