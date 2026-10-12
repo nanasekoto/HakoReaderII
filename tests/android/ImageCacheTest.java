@@ -26,7 +26,7 @@ public final class ImageCacheTest extends Instrumentation {
   public void onStart(){
     Bundle result=new Bundle();
     try{
-      Store store=Store.get(getTargetContext());
+      Diagnostics.start(getTargetContext());Store store=Store.get(getTargetContext());
       store.putBook(new HakoParser.Link("demo","Image cache fixture",""));
       List<HakoParser.Link> chapters=new ArrayList<>();
       for(int n=1;n<=3;n++)chapters.add(new HakoParser.Link("demo-"+n,"Chapter "+n,""));
@@ -43,7 +43,7 @@ public final class ImageCacheTest extends Instrumentation {
       File first=new File(store.dir("demo-1"),name);
       check(first.delete(),"Remove one fixture image");
       check(!store.readable("demo-1"),"Cached validation detects removed image");
-      long parses=Diagnostics.payload().getJSONObject("counts").optLong("cache.parse");for(int repeat=0;repeat<12;repeat++)store.readable("demo-1");check(Diagnostics.payload().getJSONObject("counts").optLong("cache.parse")==parses,"Unchanged invalid cache reuses negative result without repeated HTML parse");
+      long parses=Diagnostics.payload().getJSONObject("counts").optLong("cache.parse");for(int repeat=0;repeat<12;repeat++)store.readable("demo-1");check(parses>0&&Diagnostics.payload().getJSONObject("counts").optLong("cache.parse")==parses,"Unchanged invalid cache reuses negative result without repeated HTML parse");
 
       check(!store.autoIllustration(store.chapter("demo","demo-1")),"Legacy saved image markup is excluded from automatic retry");
       String cachedHtml=Store.read(store.html("demo-1"));long cachedTime=store.html("demo-1").lastModified();
