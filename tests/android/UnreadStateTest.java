@@ -34,13 +34,14 @@ public final class UnreadStateTest extends Instrumentation {
     StringBuilder text=new StringBuilder();for(int n=0;n<90;n++)text.append("<p>Đoạn ").append(n).append(" của chương mới nhất. Nội dung đủ dài để phải lật trang và kiểm tra thời điểm ghi nhận đã đọc.</p>");
     Store.write(s.html(book+"-4"),text.toString());s.state(book+"-4",true,"");s.position(book,book+"-4",0,0);
     prefs.edit().putStringSet("new_arrival_ids_"+book,new HashSet<>(Arrays.asList(book+"-1",book+"-4"))).commit();
+    s.readable(book+"-1");s.readable(book+"-3");
     UiLibrarySnapshot first=UiLibrarySnapshot.load(s,prefs);UiLibrarySnapshot.Summary before=first.summary(s.book(book));
-    check(before.unread==1,"First snapshot classifies image markup before counting unread text");
+    check(before.unread==1,"Snapshot uses known illustration metadata without opening files");
     check(before.unseenIllustrations==0,"Illustrations have no unread display counter");
     check(before.pendingReview==0,"Illustration candidates are excluded from reading progress");
     check(!before.currentRead&&before.remaining==0,"Latest chapter is in progress, with no future chapter count");
     check(before.newCount==1,"Confirmed illustration is excluded from new text badge");
-    check(first.readingRevision!=s.readingRevision(),"Snapshot detects classification changes while loading");
+    check(first.readingRevision==s.readingRevision(),"Metadata snapshot never changes classification while loading");
     UiLibrarySnapshot stable=UiLibrarySnapshot.load(s,prefs);
     check(stable.readingRevision==s.readingRevision(),"Prepared snapshot becomes stable after classification");
     s.selectChapter(book,book+"-2");
@@ -50,10 +51,12 @@ public final class UnreadStateTest extends Instrumentation {
     check(art.textUnread==0&&art.illustrationsUnseen==0,"Illustration volume never repeats unread text from another volume");
     MainActivity activity=(MainActivity)startActivitySync(new Intent().setClassName(ctx.getPackageName(),"vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
     call(activity,"openChapter",new Class<?>[]{String.class,String.class},book,book+"-4");
-    NativeReader reader=(NativeReader)field(activity,"nativeReader");
+    long readerLimit=SystemClock.elapsedRealtime()+8000;NativeReader reader=null;while(SystemClock.elapsedRealtime()<readerLimit){reader=(NativeReader)field(activity,"nativeReader");if(reader!=null&&reader.getPageCount()>1)break;SystemClock.sleep(25);waitForIdleSync();}
+    final NativeReader actualReader=reader;
     check(reader!=null&&reader.getPageCount()>1,"Actual reader has multiple pages");
     check(!s.wasRead(book+"-4"),"Opening the chapter does not fabricate reading its remaining pages");
-    long revision=s.readingRevision();runOnMainSync(()->reader.jump(true));waitForIdleSync();
+    long revision=s.readingRevision();runOnMainSync(()->actualReader.jump(true));waitForIdleSync();
+    long finishLimit=SystemClock.elapsedRealtime()+5000;while(!s.wasRead(book+"-4")&&SystemClock.elapsedRealtime()<finishLimit)SystemClock.sleep(25);
     check(s.wasRead(book+"-4")&&s.readingRevision()>revision,"Reaching the final page persists read status and invalidates old counts");
     UiLibrarySnapshot after=UiLibrarySnapshot.load(s,prefs);UiLibrarySnapshot.Summary done=after.summary(s.book(book));
     check(done.unread==0&&done.currentRead,"Latest completed text is no longer counted unread");

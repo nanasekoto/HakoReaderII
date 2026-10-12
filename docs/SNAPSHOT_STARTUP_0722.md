@@ -1,0 +1,15 @@
+# 0.7.22: saved display state and scoped updates
+
+The home, recent, favorites and shelf screens restore `files/library-state.json` plus its small `library-delta.json` journal before querying SQLite. The atomic JSON contains book metadata, progress summaries and independent recent/favorites/shelf indexes. It never contains chapter HTML. Progress writes only changed records to the journal, avoiding rewriting the whole library on each page. After more than 32 changed books or a full membership change, the state is compacted; generation IDs prevent an old journal from overriding a newly committed base after a process death. A missing/corrupt display file is rebuilt on a worker from metadata; this one-time migration does not validate chapter files or decode images.
+
+Store mutations enqueue the changed book only. Progress, completion, catalog, ready-state and membership changes refresh the durable display state in a batched background writer. Ordinary navigation reuses that state. No startup cleanup, whole-library HTML scan, missing-image scan or duplicate preload remains. Content integrity is still checked on the selected chapter and before download/cache reuse.
+
+Opening/resuming a chapter, reading its file, querying TOC data and persisting reading position run on workers. Reading callbacks never wait for the Store monitor on the main thread. TOC only reads the selected book's metadata; it no longer validates every chapter's HTML.
+
+Home update (`MODE_SYNC_PERSONAL`) checks recent/favorites directly, without importing the shelf. Shelf update (`MODE_SYNC_LIBRARY`) imports shelf metadata and handles eligible followed books; it does not include unrelated personal books. Personal-only pinned/history entries are checked for a new catalog without implicitly authorizing downloads. Existing automatic download eligibility/retention and read-watermark policies remain.
+
+Shelf fast stopping compares latest chapter identities with the pre-scan keys. An unchanged known row is a stop candidate regardless of unread count; missing keys, unsafe order or a changed following row prevent early stopping. Explicit full/audit commands remain available. Normal refresh no longer forces a daily full audit. Partial scans preserve unseen membership. A fixed 500 ms inter-page pause replaces 2 seconds.
+
+`download_resume` persists each selected book and its requested mode before processing. ChargeJob resumes retained unfinished books first when charging + Wi-Fi + enabled + not paused, reusing valid cache and requesting only missing content, then runs the normal shelf update. Reader resume requests never wrap to chapter one or backfill older missing chapters.
+
+Validation includes Android regression tests with a held Store monitor during home startup/shelf navigation/selected-chapter opening, a 250-chapter fixture, atomic state round-trip, metadata-only counters, scoped update selection, independent unread anchor stopping and retained offline download checkpoints. Existing sequential reading/image/cache/navigation tests remain required. Emulator checks do not replace validation on the user's physical S4 or real authenticated Hako shelf.

@@ -55,7 +55,7 @@ public final class SequentialReadTest extends Instrumentation {
     check(prefs.getBoolean("chapter_desc_"+book,false),"Actual sort dialog selects newest first");
     list=(ListView)field("currentList");check(list.getAdapter().getItem(0).toString().contains("Chương 3"),"Newest chapter moves to first display row");
     check(s.chapters(book).get(0).id.equals(book+"-1")&&s.book(book).current.equals(book+"-5"),"Visual sorting leaves canonical reading order and position unchanged");
-    final ListView sorted=list;runOnMainSync(()->sorted.performItemClick(sorted.getChildAt(0),0,0));waitForIdleSync();SystemClock.sleep(200);
+    final ListView sorted=list;runOnMainSync(()->sorted.performItemClick(sorted.getChildAt(0),0,0));waitForIdleSync();long openLimit=SystemClock.elapsedRealtime()+8000;while(!field("chapterId").equals(book+"-5")&&SystemClock.elapsedRealtime()<openLimit){SystemClock.sleep(25);waitForIdleSync();}
     check(field("chapterId").equals(book+"-5"),"Sorted first row opens its own actual chapter");
     call("adjacent",new Class<?>[]{int.class},1);check(field("chapterId").equals(book+"-5"),"Offline end-of-book stays at latest text rather than chapter 1");
     links.add(new HakoParser.Link(book+"-6","Tập 2 · Minh họa",base+"/c6"));s.catalog(book,links);prefs.edit().putBoolean("catalog_failed_"+book,false).commit();
@@ -63,8 +63,9 @@ public final class SequentialReadTest extends Instrumentation {
     links.add(new HakoParser.Link(book+"-7","Tập 2 · Chương 4",base+"/c7"));s.catalog(book,links);prefs.edit().putBoolean("catalog_failed_"+book,false).commit();
     check(s.unread(book)==1&&!s.canSubmitServer(book)&&s.queued(book),"Newer text blocks old queued completion and remains unread");
     StringBuilder body=new StringBuilder();for(int n=0;n<70;n++)body.append("<p>Đoạn mới ").append(n).append(" đủ dài để kiểm tra chuyển chương mới và đọc hết trang cuối mà không quay về chương đầu.</p>");Store.write(s.html(book+"-7"),body.toString());s.state(book+"-7",true,"");
-    call("adjacent",new Class<?>[]{int.class},1);check(field("chapterId").equals(book+"-7")&&s.unread(book)==1,"Next action skips illustration and opens newly arrived text, still in progress");
+    call("adjacent",new Class<?>[]{int.class},1);openLimit=SystemClock.elapsedRealtime()+8000;while(!field("chapterId").equals(book+"-7")&&SystemClock.elapsedRealtime()<openLimit){SystemClock.sleep(25);waitForIdleSync();}check(field("chapterId").equals(book+"-7")&&s.unread(book)==1,"Next action skips illustration and opens newly arrived text, still in progress");
     NativeReader reader=(NativeReader)field("nativeReader");runOnMainSync(()->reader.jump(true));waitForIdleSync();
+    long finishLimit=SystemClock.elapsedRealtime()+5000;while(s.unread(book)>0&&SystemClock.elapsedRealtime()<finishLimit)SystemClock.sleep(25);
     check(s.unread(book)==0&&s.completedTip(book).equals(book+"-7")&&s.canSubmitServer(book),"Finishing new latest text advances watermark and refreshes queued eligibility");
     result.putString("stream","PASS TOTAL "+checks+" sequential reading checks\n");finish(0,result);
   }catch(Throwable e){result.putString("stream","FAIL "+e+"\n");finish(1,result);}}
