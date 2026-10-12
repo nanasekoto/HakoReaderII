@@ -50,7 +50,7 @@ public final class Store extends SQLiteOpenHelper {
       d.setTransactionSuccessful();
     }finally{d.endTransaction();}
   }
-  public synchronized void queueIfAllRead(String id){if(!chapters(id).isEmpty()&&unread(id)==0&&unreadIllustrations(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
+  public synchronized void queueIfAllRead(String id){if(!chapters(id).isEmpty()&&unread(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
 
   public synchronized void establishReadBaseline(String id){
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
@@ -92,22 +92,32 @@ public final class Store extends SQLiteOpenHelper {
   public int compareShelf(Book a,Book b){int n=Integer.compare(a.shelfRank,b.shelfRank);return n!=0?n:a.id.compareTo(b.id);}
   public boolean completedOffline(Book b){if(!isCompleted(b.id))return false;android.content.SharedPreferences p=context.getSharedPreferences("settings",0);String current=p.getString("shelf_key_"+b.id,""),known=p.getString("catalog_shelf_key_"+b.id,"");if(p.getBoolean("shelf_changed_"+b.id,false)||(!current.isEmpty()&&!current.equals(known)))return false;List<Chapter> all=chapters(b.id);if(all.isEmpty())return false;for(Chapter ch:all)if(!illustration(ch.id)&&!ch.ready)return false;return true;}
   private Set<String> readIds(String book){Set<String> ids=new HashSet<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT c.id FROM chapters c JOIN read_chapters r ON r.id=c.id WHERE c.book=?",new String[]{book})){while(c.moveToNext())ids.add(c.getString(0));}return ids;}
-  public int unread(String id){Set<String> read=readIds(id);int count=0;for(Chapter ch:chapters(id))if(!illustration(ch.id)&&!read.contains(ch.id))count++;return count;}
+  public boolean ignoredForReading(Chapter ch){int kind=context.getSharedPreferences("settings",0).getInt("chapter_kind_"+ch.id,0);return kind==2||kind==3||(kind==0&&IllustrationPolicy.hint(ch.title));}
+  public boolean ignoredForReading(String id){Chapter ch=chapterById(id);return ch!=null&&ignoredForReading(ch);}
+  private Chapter chapterById(String id){try(Cursor c=getReadableDatabase().rawQuery("SELECT book FROM chapters WHERE id=?",new String[]{id})){return c.moveToFirst()?chapter(c.getString(0),id):null;}}
+  public String completedTip(String book){
+    String tip=context.getSharedPreferences("settings",0).getString("read_tip_"+book,"");
+    if(!tip.isEmpty())return tip;
+    try(Cursor c=getReadableDatabase().rawQuery("SELECT c.id FROM chapters c JOIN read_chapters r ON r.id=c.id WHERE c.book=? ORDER BY c.ord DESC",new String[]{book})){while(c.moveToNext()){String id=c.getString(0);if(!ignoredForReading(id))return id;}}
+    return "";
+  }
+  public synchronized void completeThrough(String book,String chapter){
+    Chapter ch=chapter(book,chapter);if(ch==null||!book.equals(ch.book)||ignoredForReading(ch))return;
+    Chapter old=chapter(book,completedTip(book));
+    if((old==null||ch.ord>=old.ord)&&!chapter.equals(context.getSharedPreferences("settings",0).getString("read_tip_"+book,""))){context.getSharedPreferences("settings",0).edit().putString("read_tip_"+book,chapter).commit();readingRevision.incrementAndGet();}
+    readChapter(chapter);queueIfAllRead(book);
+  }
+  public int unread(String id){List<Chapter> all=chapters(id);Chapter tip=chapter(id,completedTip(id));int end=tip==null?-1:tip.ord;Set<String> read=readIds(id);int count=0;for(Chapter ch:all)if(!ignoredForReading(ch)&&ch.ord>end&&!read.contains(ch.id))count++;return count;}
   public static final class ReadCounts {
     public int textUnread,illustrationsUnseen,pendingReview;
-    public String label(){return textUnread+" chương chữ chưa đọc"+(illustrationsUnseen>0?" · "+illustrationsUnseen+" minh họa chưa xem":"")+(pendingReview>0?" · "+pendingReview+" chương cần kiểm tra":"");}
+    public String label(){return textUnread+" chương chưa đọc";}
   }
   /** Display counts are separate from conservative remote read-all eligibility. */
   public ReadCounts readCounts(List<Chapter> chapters){
     ReadCounts counts=new ReadCounts();if(chapters.isEmpty())return counts;
-    Set<String> read=readIds(chapters.get(0).book);
-    android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
+    String book=chapters.get(0).book;Chapter tip=chapter(book,completedTip(book));int end=tip==null?-1:tip.ord;Set<String> read=readIds(book);
     for(Chapter ch:chapters){
-      if(read.contains(ch.id))continue;
-      int kind=prefs.getInt("chapter_kind_"+ch.id,IllustrationPolicy.UNKNOWN);
-      if(kind==IllustrationPolicy.ILLUSTRATION)counts.illustrationsUnseen++;
-      else if(kind==IllustrationPolicy.CANDIDATE||(kind==IllustrationPolicy.UNKNOWN&&IllustrationPolicy.hint(ch.title)))counts.pendingReview++;
-      else counts.textUnread++;
+      if(!ignoredForReading(ch)&&ch.ord>end&&!read.contains(ch.id))counts.textUnread++;
     }
     return counts;
   }
@@ -116,7 +126,7 @@ public final class Store extends SQLiteOpenHelper {
   private void rememberTitle(String id,String title){String previous=chapterTitles.put(id,title==null?"":title);if(!java.util.Objects.equals(previous,title))validatedFiles.remove(id);}
   public void classify(String id,String html){int kind=IllustrationPolicy.kind(chapterTitles.get(id),html);android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(p.getInt("chapter_kind_"+id,0)!=kind){p.edit().putInt("chapter_kind_"+id,kind).apply();readingRevision.incrementAndGet();}}
   public boolean cachedIllustration(String id){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);return illustration(id)&&html(id).isFile()&&fileStamp(html(id)).equals(p.getString("illustration_cached_"+id,""));}
-  public int unreadIllustrations(String book){Set<String> read=readIds(book);int n=0;for(Chapter ch:chapters(book))if(illustration(ch.id)&&!read.contains(ch.id))n++;return n;}
+  public int unreadIllustrations(String book){return 0;}
   public int missingImages(String id){
     try{String stamp=contentStamp(id,html(id));Integer cached=imageCounts.get(id);if(cached!=null&&stamp.equals(imageCountStamps.get(id)))return cached;int n=0;for(String src:HakoParser.offlineContent(read(html(id))).images){String name=HakoParser.offlineImageName(id,src);if(name.isEmpty()||!imageFileReadable(new File(dir(id),name)))n++;}if(stamp.equals(contentStamp(id,html(id)))){imageCounts.put(id,n);imageCountStamps.put(id,stamp);}return n;}catch(Exception e){return 0;}
   }
@@ -125,20 +135,24 @@ public final class Store extends SQLiteOpenHelper {
   public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
   public synchronized void queueCaughtUp(String id){queueCaughtUp(id,false);}
   public synchronized void queueCaughtUp(String id,boolean acceptIllustrations){
-    if(unreadIllustrations(id)>0&&!acceptIllustrations)throw new IllegalStateException("Còn minh họa chưa xem: cần xác nhận riêng");
-    Set<String> accepted=new HashSet<>();if(acceptIllustrations)for(Chapter ch:chapters(id))if(illustration(ch.id))accepted.add(ch.id);
-    context.getSharedPreferences("settings",0).edit().putStringSet("read_illustrations_"+id,accepted).commit();
     if(chapters(id).isEmpty()||unread(id)>0)throw new IllegalStateException("Chỉ đồng bộ đọc hết sau khi đã đọc hết các chương offline");
     context.getSharedPreferences("settings",0).edit().putBoolean("read_baseline_"+id,true).commit();
     org.json.JSONArray ids=new org.json.JSONArray();
     SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(Chapter c:chapters(id)){ids.put(c.id);}d.setTransactionSuccessful();}finally{d.endTransaction();}
     if(ids.length()==0)throw new IllegalStateException("Chưa có mục lục để xác nhận đã đọc");
+    String tip=completedTip(id);if(tip.isEmpty())throw new IllegalStateException("Chưa có mốc chương đã đọc hết");
+    context.getSharedPreferences("settings",0).edit().putString("read_queue_tip_"+id,tip).commit();
     if(!context.getSharedPreferences("read_queue",0).edit().putString(id,ids.toString()).commit())throw new IllegalStateException("Không lưu được hàng chờ");
   }
   public Set<String> queuedBooks(){return new HashSet<>(context.getSharedPreferences("read_queue",0).getAll().keySet());}
+  private String queuedTip(String book){
+    android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);String tip=prefs.getString("read_queue_tip_"+book,"");if(!tip.isEmpty())return tip;
+    try{org.json.JSONArray ids=new org.json.JSONArray(context.getSharedPreferences("read_queue",0).getString(book,"[]"));for(int i=0;i<ids.length();i++){Chapter ch=chapter(book,ids.getString(i));if(ch!=null&&!ignoredForReading(ch))tip=ch.id;}if(!tip.isEmpty())prefs.edit().putString("read_queue_tip_"+book,tip).commit();}catch(Exception ignored){}
+    return tip;
+  }
   public synchronized boolean canSubmit(String id){
     if(!queued(id)||chapters(id).isEmpty()||unread(id)>0)return false;
-    try{org.json.JSONArray a=new org.json.JSONArray(context.getSharedPreferences("read_queue",0).getString(id,"[]"));Set<String> snapshot=new HashSet<>();for(int i=0;i<a.length();i++)snapshot.add(a.getString(i));for(Chapter c:chapters(id))if(!snapshot.contains(c.id))return false;return true;}catch(Exception e){return false;}
+    return completedTip(id).equals(queuedTip(id));
   }
   public void extendQueueIfCaughtUp(String id){if(queued(id)&&!canSubmit(id)&&unread(id)==0)queueCaughtUp(id);}
   public void clearQueue(String id){context.getSharedPreferences("read_queue",0).edit().remove(id).commit();}
@@ -160,12 +174,13 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   private List<String> chapterIds(List<Chapter> chapters){List<String> ids=new ArrayList<>();for(Chapter ch:chapters)ids.add(ch.id);return ids;}
-  private Set<String> illustrationIds(List<Chapter> chapters){Set<String> ids=new HashSet<>();for(Chapter ch:chapters)if(illustration(ch.id))ids.add(ch.id);return ids;}
+  private Set<String> illustrationIds(List<Chapter> chapters){Set<String> ids=new HashSet<>();for(Chapter ch:chapters)if(ignoredForReading(ch))ids.add(ch.id);return ids;}
   public int resumeIndex(Book snapshot,List<Chapter> chapters){
     Book latest=book(snapshot.id);Book b=latest==null?snapshot:latest;
     String current=b.current;
     if(illustration(current))current=context.getSharedPreferences("settings",0).getString("reading_text_"+b.id,"");
-    return ReadingNavigation.resume(chapterIds(chapters),current,readIds(b.id),illustrationIds(chapters));
+    Set<String> read=new HashSet<>();for(Chapter ch:chapters)if(wasRead(ch.id))read.add(ch.id);
+    return ReadingNavigation.resume(chapterIds(chapters),current,read,illustrationIds(chapters));
   }
   public int adjacentIndex(List<Chapter> chapters,String current,int direction){
     List<String> ids=chapterIds(chapters);int index=ids.indexOf(current);
@@ -222,8 +237,12 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void selectChapter(String id,String chapter){Book b=book(id);if(b!=null&&!chapter.equals(b.current)){ContentValues v=new ContentValues();v.put("current",chapter);v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{id});readingRevision.incrementAndGet();}}
   public synchronized void visited(String id){getWritableDatabase().execSQL("UPDATE books SET visits=visits+1 WHERE id=?",new Object[]{id});}
   public synchronized void pin(String id,boolean value){getWritableDatabase().execSQL("UPDATE books SET pinned=? WHERE id=?",new Object[]{value?1:0,id});}
-  public synchronized void readChapter(String id){if(wasRead(id))return;ContentValues v=new ContentValues();v.put("id",id);v.put("stamp",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("read_chapters",null,v,SQLiteDatabase.CONFLICT_REPLACE);readingRevision.incrementAndGet();}
-  public boolean wasRead(String id){try(Cursor c=getReadableDatabase().rawQuery("SELECT id FROM read_chapters WHERE id=?",new String[]{id})){return c.moveToFirst();}}
+  public synchronized void readChapter(String id){if(ignoredForReading(id)||wasRead(id))return;ContentValues v=new ContentValues();v.put("id",id);v.put("stamp",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("read_chapters",null,v,SQLiteDatabase.CONFLICT_REPLACE);readingRevision.incrementAndGet();}
+  public boolean wasRead(String id){
+    Chapter ch=chapterById(id);if(ch==null||ignoredForReading(ch))return false;
+    Chapter tip=chapter(ch.book,completedTip(ch.book));if(tip!=null&&ch.ord<=tip.ord)return true;
+    try(Cursor c=getReadableDatabase().rawQuery("SELECT id FROM read_chapters WHERE id=?",new String[]{id})){return c.moveToFirst();}
+  }
   public synchronized void shelfInfo(String id,String info){ContentValues v=new ContentValues();v.put("shelf_info",info);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   public static class Book {
     public String id, title, url, current;
@@ -342,11 +361,9 @@ public final class Store extends SQLiteOpenHelper {
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
     try{
       org.json.JSONArray serverJson=new org.json.JSONArray(prefs.getString("server_catalog_"+book,"[]"));
-      org.json.JSONArray queuedJson=new org.json.JSONArray(context.getSharedPreferences("read_queue",0).getString(book,"[]"));
-      List<String> server=new ArrayList<>();Set<String> read=new HashSet<>(),snapshot=new HashSet<>();
-      for(int i=0;i<queuedJson.length();i++)snapshot.add(queuedJson.getString(i));
-      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);server.add(id);if(wasRead(id)||(illustration(id)&&prefs.getStringSet("read_illustrations_"+book,Collections.emptySet()).contains(id)))read.add(id);}
-      return ReadPolicy.canSubmit(server,read,snapshot,!prefs.getBoolean("catalog_failed_"+book,true)&&prefs.getStringSet("hidden_chapters_"+book,Collections.emptySet()).isEmpty());
+      List<String> server=new ArrayList<>();Set<String> seen=new HashSet<>();
+      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);if(id.isEmpty()||!seen.add(id))return false;Chapter ch=chapter(book,id);if(ch==null||!book.equals(ch.book))return false;if(!ignoredForReading(ch))server.add(id);}
+      return ReadPolicy.canSubmitAtTip(server,queuedTip(book),completedTip(book),!prefs.getBoolean("catalog_failed_"+book,true));
     }catch(Exception e){return false;}
   }
 
@@ -387,6 +404,7 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public synchronized void position(String book, String chapter, int pos, float fraction) {
+    if(ignoredForReading(chapter))return;
     Book previous=book(book);boolean changed=previous!=null&&!chapter.equals(previous.current);
     ContentValues v = new ContentValues();
     v.put("current", chapter);

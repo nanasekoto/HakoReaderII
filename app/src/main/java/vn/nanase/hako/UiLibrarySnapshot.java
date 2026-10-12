@@ -9,7 +9,7 @@ public final class UiLibrarySnapshot {
   public long updatedAt;
   public String currentTitle="";
   public int remaining=-1;
-  public String readLabel(){return unread+" chương chữ chưa đọc"+(unseenIllustrations>0?" · "+unseenIllustrations+" minh họa chưa xem":"")+(pendingReview>0?" · "+pendingReview+" chương cần kiểm tra":"");}
+  public String readLabel(){return unread+" chương chưa đọc";}
  }
  public final List<Store.Book> books;
  public final Map<String,Summary> summaries;
@@ -31,9 +31,9 @@ public final class UiLibrarySnapshot {
    Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);
    s.total=0;s.full=store.isKeepFull(b.id);boolean afterCurrent=false;
    for(Store.Chapter ch:chapters){
-    boolean readable=store.readable(ch.id);if(store.illustration(ch.id))s.illustrations++;else {s.total++;if(readable)s.stored++;}
+    boolean readable=store.readable(ch.id);if(store.ignoredForReading(ch))s.illustrations++;else {s.total++;if(readable)s.stored++;}
     s.missingImages+=store.missingImages(ch.id);
-    if(afterCurrent&&!store.illustration(ch.id)&&!store.wasRead(ch.id))s.remaining++;
+    if(afterCurrent&&!store.ignoredForReading(ch)&&!store.wasRead(ch.id))s.remaining++;
     if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.currentRead=store.wasRead(ch.id);s.remaining=0;afterCurrent=true;}
    }
    // readable() above also classifies legacy image markup; count only afterwards.

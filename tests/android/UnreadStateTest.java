@@ -36,8 +36,8 @@ public final class UnreadStateTest extends Instrumentation {
     prefs.edit().putStringSet("new_arrival_ids_"+book,new HashSet<>(Arrays.asList(book+"-1",book+"-4"))).commit();
     UiLibrarySnapshot first=UiLibrarySnapshot.load(s,prefs);UiLibrarySnapshot.Summary before=first.summary(s.book(book));
     check(before.unread==1,"First snapshot classifies image markup before counting unread text");
-    check(before.unseenIllustrations==1,"Unseen illustration has its own display counter");
-    check(before.pendingReview==1,"Caption candidate is separate from ordinary unread text");
+    check(before.unseenIllustrations==0,"Illustrations have no unread display counter");
+    check(before.pendingReview==0,"Illustration candidates are excluded from reading progress");
     check(!before.currentRead&&before.remaining==0,"Latest chapter is in progress, with no future chapter count");
     check(before.newCount==1,"Confirmed illustration is excluded from new text badge");
     check(first.readingRevision!=s.readingRevision(),"Snapshot detects classification changes while loading");
@@ -47,7 +47,7 @@ public final class UnreadStateTest extends Instrumentation {
     check(stable.readingRevision!=s.readingRevision(),"Explicit chapter selection also invalidates old current-chapter labels");
     s.selectChapter(book,book+"-4");
     Store.ReadCounts art=s.readCounts(Collections.singletonList(s.chapter(book,book+"-1")));
-    check(art.textUnread==0&&art.illustrationsUnseen==1,"Illustration volume never repeats unread text from another volume");
+    check(art.textUnread==0&&art.illustrationsUnseen==0,"Illustration volume never repeats unread text from another volume");
     MainActivity activity=(MainActivity)startActivitySync(new Intent().setClassName(ctx.getPackageName(),"vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
     call(activity,"openChapter",new Class<?>[]{String.class,String.class},book,book+"-4");
     NativeReader reader=(NativeReader)field(activity,"nativeReader");
@@ -58,8 +58,8 @@ public final class UnreadStateTest extends Instrumentation {
     UiLibrarySnapshot after=UiLibrarySnapshot.load(s,prefs);UiLibrarySnapshot.Summary done=after.summary(s.book(book));
     check(done.unread==0&&done.currentRead,"Latest completed text is no longer counted unread");
     check(done.newCount==0,"Read latest chapter disappears from new text badge");
-    check(done.unseenIllustrations==1&&done.pendingReview==1,"Reading text does not invent viewing illustrations or reading uncertain captions");
-    check(s.unread(book)==1,"Uncertain short text still blocks automatic remote read-all");
+    check(done.unseenIllustrations==0&&done.pendingReview==0,"Completing text does not create illustration read or unread counts");
+    check(s.unread(book)==0,"Illustration candidates do not block sequential completion");
     long limit=SystemClock.elapsedRealtime()+8000;UiLibrarySnapshot visible=null;
     while(SystemClock.elapsedRealtime()<limit){visible=(UiLibrarySnapshot)field(activity,"readyLibrary");if(visible!=null&&visible.summary(s.book(book)).currentRead&&visible.readingRevision==s.readingRevision())break;SystemClock.sleep(50);waitForIdleSync();}
     check(visible!=null&&visible.summary(s.book(book)).unread==0&&visible.summary(s.book(book)).currentRead,"Activity refreshes its prepared library immediately after final-page reading");
@@ -68,7 +68,7 @@ public final class UnreadStateTest extends Instrumentation {
     limit=SystemClock.elapsedRealtime()+5000;while(list==null&&SystemClock.elapsedRealtime()<limit){SystemClock.sleep(50);waitForIdleSync();list=(android.widget.ListView)field(activity,"currentList");}
     check(list!=null&&list.getCount()==3,"Actual TOC prepares three independent volume rows");
     Object group=list.getAdapter().getItem(0);
-    check(field(group,"readSummary").equals("0 chương chữ chưa đọc · 1 minh họa chưa xem"),"Actual illustration row uses only its own prepared unread summary");
+    check(field(group,"readSummary").equals("0 chương chưa đọc"),"Actual illustration row uses only its own prepared unread summary");
     check(s.book(book).current.equals(book+"-4"),"Unread counting and TOC preserve latest reading position");
     result.putString("stream","PASS TOTAL "+checks+" unread state checks\n");finish(0,result);
   }catch(Throwable e){result.putString("stream","FAIL "+e+"\n");finish(1,result);}}

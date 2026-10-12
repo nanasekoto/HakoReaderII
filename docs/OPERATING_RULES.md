@@ -95,3 +95,7 @@ Xem [quy tắc minh họa và hàng chờ](READING_ILLUSTRATIONS_0717.md). Truy�
 ## Bổ sung 0.7.20
 
 [Số chương chưa đọc](UNREAD_DISPLAY_0720.md): phân loại cache trước khi đếm, đếm từng tập độc lập, minh họa chưa xem và chương cần kiểm tra có số riêng. Tới trang cuối lưu đã đọc và làm mới thư viện ngay; dữ liệu hiển thị cũ không được ghi đè trạng thái mới. Không tự đánh dấu chương chữ chưa đọc khi gửi Đọc hết.
+
+## Quy tắc thay thế từ 0.7.21
+
+[Tiến độ theo mốc đọc](SEQUENTIAL_PROGRESS_0721.md) thay thế quy tắc đọc của các phiên bản trước: minh họa không tính; tới cuối chương chữ thì mọi chương chữ tới mốc đó mặc định đã đọc. Đọc hết phần mới nhất tự lưu hàng chờ Hako; chỉ gửi sau kiểm tra tủ sách/mục lục mới khi chưa có chương chữ mới hơn. Giữ tại chương hiện tại khi kiểm tra/tải chương tiếp theo. Mục lục có nút sắp xếp thật và không lấy liên kết Đọc tiếp làm chương.

@@ -34,6 +34,7 @@ public final class IconButton extends View {
   else if(kind==17){c.drawLine(4,12,10,18,p);c.drawLine(10,18,20,6,p);}
   else if(kind==18){c.drawLine(12,2,12,16,p);c.drawLine(6,10,12,16,p);c.drawLine(12,16,18,10,p);c.drawLine(3,19,3,22,p);c.drawLine(3,22,21,22,p);c.drawLine(21,22,21,19,p);}
   else if(kind==20){c.drawRect(5,4,9,20,p);c.drawRect(15,4,19,20,p);}
+  else if(kind==21){c.drawLine(6,3,6,21,p);c.drawLine(2,7,6,3,p);c.drawLine(6,3,10,7,p);c.drawLine(18,3,18,21,p);c.drawLine(14,17,18,21,p);c.drawLine(18,21,22,17,p);}
   else {for(int x=4;x<=20;x+=8)c.drawCircle(x,12,1.5f,p);}c.restore();
  }
 }

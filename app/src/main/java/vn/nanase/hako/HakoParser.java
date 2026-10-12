@@ -141,6 +141,7 @@ public final class HakoParser {
 
   public static List<Link> chapters(String html, String base) {
     Document d = Jsoup.parse(html, base);
+    for(Element a:new ArrayList<Element>(d.select("a[href]")))if(readingShortcutTitle(a.text()))a.remove();
     d.select("#series-comments,#chapter-comments,.comment-section,nav,.navbar").remove();
     Element scope = d.selectFirst("#chapters");
     if (scope == null) scope = d;
@@ -169,6 +170,11 @@ public final class HakoParser {
       }
     }
     return new ArrayList<>(out.values());
+  }
+
+  public static boolean readingShortcutTitle(String title){
+    String t=title==null?"":title.trim();int dot=t.lastIndexOf(" · ");if(dot>=0)t=t.substring(dot+3).trim();
+    return t.matches("(?iu)^(đọc tiếp|đọc từ đầu|bắt đầu đọc|tiếp tục đọc)$");
   }
 
   public static String title(String html, String base) {

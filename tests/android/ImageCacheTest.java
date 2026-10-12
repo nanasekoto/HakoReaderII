@@ -69,9 +69,9 @@ public final class ImageCacheTest extends Instrumentation {
       check(store.progress(store.book("demo")).percent==100,"Text and image chapters share one progress policy");
       store.readChapter("demo-4");
       boolean blocked=false;try{store.queueCaughtUp("demo");}catch(IllegalStateException expected){blocked=true;}
-      check(blocked,"Read-all requires explicit consent for unseen illustrations");
+      check(!blocked,"Ignored illustrations need no separate consent for read-all");
       store.queueCaughtUp("demo",true);
-      check(!store.wasRead("demo-1"),"Consent does not fabricate local illustration reading");
+      check(!store.wasRead("demo-1"),"Ignored illustrations keep no fabricated local reading");
       getTargetContext().getSharedPreferences("settings",0).edit().putBoolean("catalog_failed_demo",false).commit();
       check(store.canSubmitServer("demo"),"Fresh matching catalog permits explicitly accepted illustrations");
       chapters.add(new HakoParser.Link("demo-5","Unread text chapter",""));
