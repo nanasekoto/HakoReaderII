@@ -1518,15 +1518,25 @@ public class MainActivity extends Activity {
         clip.setPrimaryClip(ClipData.newPlainText("WebView & thiết bị",info));
       }).show();
   }
+  private final java.util.concurrent.ExecutorService reportIo=java.util.concurrent.Executors.newSingleThreadExecutor();
+  private boolean reportWorking;
+  private void saveReport(boolean send){
+    if(reportWorking){message("Báo cáo đang được xử lý. Bạn vẫn có thể đọc truyện.");return;}
+    reportWorking=true;Toast.makeText(this,"Đang lưu báo cáo trên máy…",Toast.LENGTH_SHORT).show();
+    reportIo.execute(()->{String result;boolean saved=false;try{
+      ReportJob.installBundled(this);File file=Diagnostics.queue(this);saved=true;
+      getSharedPreferences("diagnostics",0).edit().putString("manualReport",file.getName()).apply();
+      result=send?ReportJob.deliver(this):"Đã lưu báo cáo trên máy · Không gửi email";
+    }catch(Exception error){Diagnostics.failure("report.manual",error);result=(saved?"Đã lưu · Chưa gửi được":"Không lưu được báo cáo")+" ("+error.getClass().getSimpleName()+")";}
+    final String notice=result;getSharedPreferences("diagnostics",0).edit().putString("status",notice).apply();runOnUiThread(()->{reportWorking=false;if(!isFinishing()&&!isDestroyed())message(notice);});});
+  }
   private void reportDialog(){
     String status=getSharedPreferences("diagnostics",0).getString("status",ReportJob.configured(this)?"Sẵn sàng gửi qua Wi-Fi":"Chưa thiết lập dịch vụ email");
-    new AlertDialog.Builder(this).setTitle("Báo cáo hoạt động").setMessage(status).setPositiveButton("Gửi ngay",(d,w)->{
-      task("Đang lưu báo cáo…",()->{File file=Diagnostics.queue(this);getSharedPreferences("diagnostics",0).edit().putString("manualReport",file.getName()).apply();ReportJob.schedule(this,true);return null;},()->{if(!ReportJob.configured(this)){message("Đã lưu báo cáo trên máy. Chọn Thiết lập để kết nối dịch vụ email.");}else Toast.makeText(this,ReadSync.wifi(this)?"Đã xếp hàng gửi báo cáo":"Đã lưu · Đang chờ Wi-Fi",Toast.LENGTH_LONG).show();});
-    }).setNeutralButton("Tùy chọn",(d,w)->new AlertDialog.Builder(this).setItems(new String[]{"Xem số đo","Lưu báo cáo ra tệp","Thiết lập gửi email"},(a,n)->{
-      if(n==0){final String[] text={""};task("Đang mở báo cáo…",()->{text[0]=Diagnostics.summary(this);return null;},()->message(text[0]));}
-      if(n==1){Intent save=new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE,"Hako-report.json");startActivityForResult(save,93);}
-      if(n==2)reportSettings();
-    }).show()).setNegativeButton("Đóng",null).show();
+    new AlertDialog.Builder(this).setTitle("Báo cáo hoạt động").setMessage(status).setPositiveButton("Gửi ngay",(d,w)->saveReport(true))
+      .setNeutralButton("Lưu trên máy",(d,w)->saveReport(false)).setNegativeButton("Tùy chọn",(d,w)->new AlertDialog.Builder(this).setItems(new String[]{"Xem số đo","Thiết lập gửi email","Đóng"},(a,n)->{
+      if(n==0)reportIo.execute(()->{try{String summary=Diagnostics.summary(this);runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())message(summary);});}catch(Exception error){runOnUiThread(()->message("Không mở được số đo"));}});
+      if(n==1)reportSettings();
+    }).show()).show();
   }
   private void reportSettings(){
     android.content.SharedPreferences p=getSharedPreferences("diagnostics",0);LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(12),dp(8),dp(12),0);

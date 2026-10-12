@@ -35,19 +35,23 @@ public final class ReportJob extends JobService {
   }throw new IOException("Redirect limit");
  }
  public static boolean acknowledged(JSONObject response,String id){return response.optBoolean("ok",false)&&id.equals(response.optString("reportId"));}
+ public static synchronized String deliver(Context c)throws Exception{
+  android.content.SharedPreferences p=c.getSharedPreferences("diagnostics",0);
+  if(!configured(c))return "Đã lưu trên máy · Chưa có cấu hình email";
+  if(!ReadSync.wifi(c)){schedule(c,true);return "Đã lưu trên máy · Chờ Wi-Fi để gửi theo yêu cầu";}
+  File dir=new File(c.getFilesDir(),"report-outbox");File[] files=dir.listFiles((d,n)->n.endsWith(".json"));if(files==null||files.length==0)return "Không có báo cáo đã lưu";
+  String preferred=p.getString("manualReport","");Arrays.sort(files,(a,b)->{int n=Integer.compare(a.getName().equals(preferred)?0:1,b.getName().equals(preferred)?0:1);return n!=0?n:Long.compare(a.lastModified(),b.lastModified());});
+  File target=files[0];JSONObject report=new JSONObject(read(new FileInputStream(target)));JSONObject response=upload(p.getString("endpoint",""),p.getString("token",""),report);
+  if(!acknowledged(response,report.getString("reportId")))return rejection(response.optString("error","unknown"));
+  if(!target.delete())return "Email đã gửi · Chưa xóa được bản lưu trên máy";
+  Diagnostics.acknowledged(c,report);p.edit().putLong("lastSent",System.currentTimeMillis()).remove("manualReport").apply();c.getSystemService(JobScheduler.class).cancel(43);return "Đã gửi báo cáo đến email của bạn";
+ }
+ public static String rejection(String reason){
+  switch(reason){case "unauthorized":return "Đã lưu · Mã kết nối không khớp dịch vụ";case "configure_destination":return "Đã lưu · Dịch vụ chưa đặt email nhận";case "daily_limit":return "Đã lưu · Google đã hết hạn mức email hôm nay";case "invalid_size":return "Đã lưu · Báo cáo vượt giới hạn dịch vụ";case "invalid_report":return "Đã lưu · Dịch vụ không nhận dạng được báo cáo";case "busy":return "Đã lưu · Dịch vụ đang bận, hãy gửi lại";default:return "Đã lưu · Dịch vụ chưa xác nhận, hãy kiểm tra triển khai Apps Script";}
+ }
  public boolean onStartJob(JobParameters params){
-  boolean manual=params.getExtras().getBoolean("manual",false);if(!manual||!configured(this))return false;stopped.set(false);
-  new Thread(()->{boolean retry=false;String status="Đang chờ gửi báo cáo";
-   try{android.content.SharedPreferences p=getSharedPreferences("diagnostics",0);if(!ReadSync.wifi(this)){retry=true;return;}
-    if(!manual&&System.currentTimeMillis()-p.getLong("lastSent",0)<24*60*60*1000L)return;
-    File dir=new File(getFilesDir(),"report-outbox");File[] files=dir.listFiles((d,n)->n.endsWith(".json"));if(files==null||files.length==0)return;
-    String preferred=p.getString("manualReport","");Arrays.sort(files,(a,b)->{int n=Integer.compare(a.getName().equals(preferred)?0:1,b.getName().equals(preferred)?0:1);return n!=0?n:Long.compare(a.lastModified(),b.lastModified());});
-    File target=files[0];JSONObject report=new JSONObject(read(new FileInputStream(target)));JSONObject response=upload(p.getString("endpoint",""),p.getString("token",""),report);
-    if(acknowledged(response,report.getString("reportId"))){target.delete();Diagnostics.acknowledged(this,report);android.content.SharedPreferences.Editor saved=p.edit().putLong("lastSent",System.currentTimeMillis());if(target.getName().equals(p.getString("manualReport","")))saved.remove("manualReport");saved.apply();status="Đã gửi báo cáo qua dịch vụ email";}
-    else{status="Dịch vụ chưa xác nhận gửi báo cáo";retry=response.optBoolean("retryable",true);}
-   }catch(Exception error){Diagnostics.failure("report.upload",error);retry=true;status="Chưa gửi được · Báo cáo được giữ để thử lại";}
-   finally{getSharedPreferences("diagnostics",0).edit().putString("status",status).apply();if(manual)sendBroadcast(new Intent(Repository.EVENT).setPackage(getPackageName()).putExtra("diagnostic_status",status));jobFinished(params,retry&&!stopped.get());}
-  },"Hako report upload").start();return true;
+  if(!params.getExtras().getBoolean("manual",false)||!configured(this))return false;stopped.set(false);
+  new Thread(()->{String status;boolean retry=false;try{status=deliver(this);}catch(Exception error){Diagnostics.failure("report.upload",error);status="Đã lưu · Không kết nối được dịch vụ ("+error.getClass().getSimpleName()+")";retry=true;}getSharedPreferences("diagnostics",0).edit().putString("status",status).apply();sendBroadcast(new Intent(Repository.EVENT).setPackage(getPackageName()).putExtra("diagnostic_status",status));jobFinished(params,retry&&!stopped.get());},"Hako report upload").start();return true;
  }
  public boolean onStopJob(JobParameters params){stopped.set(true);return true;}
 }

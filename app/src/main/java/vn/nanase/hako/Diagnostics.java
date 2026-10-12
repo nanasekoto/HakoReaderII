@@ -54,20 +54,20 @@ public final class Diagnostics {
   probeAt=now();probePending=true;mainHandler.post(()->probePending=false);
  }
  private static void flushLater(){if(app!=null&&flushQueued.compareAndSet(false,true))disk.schedule(()->{flushQueued.set(false);try{flush();}catch(Exception ignored){}},2000,TimeUnit.MILLISECONDS);}
- public static synchronized JSONObject payload()throws Exception{
+ public static JSONObject payload()throws Exception{
   JSONObject root=new JSONObject().put("schema",1).put("session",session).put("generatedAt",System.currentTimeMillis()).put("uptimeMs",Math.max(0,now()-started)).put("commit",commit);
   if(app!=null){android.content.pm.PackageInfo info=app.getPackageManager().getPackageInfo(app.getPackageName(),0);root.put("version",info.versionName).put("versionCode",Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode);}
   root.put("android",Build.VERSION.RELEASE).put("model",Build.MODEL).put("mainProcessCpuMs",Math.max(0,android.os.Process.getElapsedCpuTime()-cpuStarted));
   Runtime r=Runtime.getRuntime();root.put("heapUsed",r.totalMemory()-r.freeMemory()).put("heapMax",r.maxMemory());
-  JSONObject times=new JSONObject();for(Map.Entry<String,long[]> e:timings.entrySet()){long[] s=e.getValue();times.put(e.getKey(),new JSONObject().put("count",s[0]).put("totalMs",s[1]).put("minMs",s[2]).put("maxMs",s[3]).put("recentMs",new JSONArray(samples.getOrDefault(e.getKey(),new ArrayDeque<>()))));}root.put("timings",times);
+  synchronized(Diagnostics.class){JSONObject times=new JSONObject();for(Map.Entry<String,long[]> e:timings.entrySet()){long[] s=e.getValue();times.put(e.getKey(),new JSONObject().put("count",s[0]).put("totalMs",s[1]).put("minMs",s[2]).put("maxMs",s[3]).put("recentMs",new JSONArray(samples.getOrDefault(e.getKey(),new ArrayDeque<>()))));}root.put("timings",times);
   JSONObject counts=new JSONObject();for(Map.Entry<String,AtomicLong> e:counters.entrySet())counts.put(e.getKey(),e.getValue().get());root.put("counts",counts);
-  JSONArray issues=new JSONArray();for(String error:errors)issues.put(error);return root.put("issues",issues);
+  JSONArray issues=new JSONArray();for(String error:errors)issues.put(error);root.put("issues",issues);}return root;
  }
  public static void flush()throws Exception{if(app!=null)write(new AtomicFile(new File(app.getFilesDir(),"diagnostics-last.json")),payload());}
  private static void write(AtomicFile target,JSONObject json)throws Exception{FileOutputStream stream=null;try{stream=target.startWrite();stream.write(json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));target.finishWrite(stream);}catch(Exception e){if(stream!=null)target.failWrite(stream);throw e;}}
  public static File queue(Context c)throws Exception{
   JSONObject report=payload();report.put("reportId",UUID.randomUUID().toString());
-  report.put("mainPssKb",Debug.getPss());synchronized(Diagnostics.class){if(previousSession!=null)report.put("previousSession",previousSession);}
+  try{report.put("mainPssKb",Debug.getPss());}catch(Exception ignored){}synchronized(Diagnostics.class){if(previousSession!=null)report.put("previousSession",previousSession);}
   for(String name:new String[]{"diagnostics-last.json","diagnostics-crash.json"})try{JSONObject old=new JSONObject(new String(new AtomicFile(new File(c.getFilesDir(),name)).readFully(),java.nio.charset.StandardCharsets.UTF_8));if(!session.equals(old.optString("session")))report.put(name.startsWith("diagnostics-crash")?"previousCrash":"previousSession",old);}catch(Exception ignored){}
   try{report.put("uiStall",new JSONObject(new String(new AtomicFile(new File(c.getFilesDir(),"diagnostics-stall.json")).readFully(),java.nio.charset.StandardCharsets.UTF_8)));}catch(Exception ignored){}
   File dir=new File(c.getFilesDir(),"report-outbox");dir.mkdirs();File[] old=dir.listFiles((d,n)->n.endsWith(".json"));if(old!=null&&old.length>=8){Arrays.sort(old,Comparator.comparingLong(File::lastModified));for(int i=0;i<=old.length-8;i++)old[i].delete();}
