@@ -528,14 +528,15 @@ public final class Store extends SQLiteOpenHelper {
     android.graphics.BitmapFactory.decodeFile(file.getPath(),options);
     return options.outWidth>0&&options.outHeight>0;
   }
+  private synchronized void reconcileReady(String id,boolean ready){Chapter known=cachedId(id);if(known!=null&&known.ready!=ready)state(id,ready,ready?"":known.error);}
   public boolean readable(String cid){
     Diagnostics.count("cache.check");long begun=Diagnostics.now();
     try{
       restoreValidation();File f=html(cid);
-      if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);validatedImages.remove(cid);return false;}
+      if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);validatedImages.remove(cid);reconcileReady(cid,false);return false;}
       String fingerprint=contentStamp(cid,f);
-      String known=validatedFiles.get(cid);if(fingerprint.equals(known)){Diagnostics.count("cache.hit");return true;}
-      if(("invalid:"+fingerprint).equals(known)){Diagnostics.count("cache.negative_hit");return false;}
+      String known=validatedFiles.get(cid);if(fingerprint.equals(known)){Diagnostics.count("cache.hit");reconcileReady(cid,true);return true;}
+      if(("invalid:"+fingerprint).equals(known)){Diagnostics.count("cache.negative_hit");reconcileReady(cid,false);return false;}
       Diagnostics.count("cache.parse");String body=read(f);classify(cid,body);
       if(IllustrationPolicy.skipCachedIllustration(context.getSharedPreferences("settings",0).getInt("chapter_kind_"+cid,0),HakoParser.validContent(body),false))context.getSharedPreferences("settings",0).edit().putString("illustration_cached_"+cid,fileStamp(f)).apply();
       HakoParser.OfflineContent content=HakoParser.offlineContent(body);
@@ -545,9 +546,9 @@ public final class Store extends SQLiteOpenHelper {
       fingerprint=contentStamp(cid,f);
       boolean ok=content.readable(src->{String name=HakoParser.offlineImageName(cid,src);return !name.isEmpty()&&imageFileReadable(new File(dir(cid),name));});
       ok=ok&&fingerprint.equals(contentStamp(cid,f));
-      validatedFiles.put(cid,ok?fingerprint:"invalid:"+fingerprint);persistValidation();
+      validatedFiles.put(cid,ok?fingerprint:"invalid:"+fingerprint);persistValidation();reconcileReady(cid,ok);
       return ok;
-    }catch(Exception e){validatedFiles.remove(cid);validatedImages.remove(cid);return false;}finally{Diagnostics.elapsed("cache.validation",begun);}
+    }catch(Exception e){validatedFiles.remove(cid);validatedImages.remove(cid);reconcileReady(cid,false);return false;}finally{Diagnostics.elapsed("cache.validation",begun);}
   }
   public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
   public void cleanStartup(){
