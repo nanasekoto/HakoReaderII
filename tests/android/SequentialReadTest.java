@@ -47,7 +47,12 @@ public final class SequentialReadTest extends Instrumentation {
     AccessibilityNodeInfo root=null;List<AccessibilityNodeInfo> options=Collections.emptyList();
     long dialogLimit=SystemClock.elapsedRealtime()+5000;
     while(SystemClock.elapsedRealtime()<dialogLimit){root=getUiAutomation().getRootInActiveWindow();if(root!=null){options=root.findAccessibilityNodeInfosByText("Chương mới nhất trước");if(!options.isEmpty())break;}SystemClock.sleep(100);waitForIdleSync();}
-    check(!options.isEmpty()&&options.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK),"Actual sort dialog selects newest first");waitForIdleSync();SystemClock.sleep(200);waitForIdleSync();
+    if(options.isEmpty())throw new AssertionError("Sort option not visible");
+    android.graphics.Rect bounds=new android.graphics.Rect();options.get(0).getBoundsInScreen(bounds);
+    long now=SystemClock.uptimeMillis();MotionEvent down=MotionEvent.obtain(now,now,MotionEvent.ACTION_DOWN,bounds.centerX(),bounds.centerY(),0),up=MotionEvent.obtain(now,now+50,MotionEvent.ACTION_UP,bounds.centerX(),bounds.centerY(),0);
+    down.setSource(InputDevice.SOURCE_TOUCHSCREEN);up.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+    getUiAutomation().injectInputEvent(down,true);getUiAutomation().injectInputEvent(up,true);down.recycle();up.recycle();waitForIdleSync();SystemClock.sleep(200);waitForIdleSync();
+    check(prefs.getBoolean("chapter_desc_"+book,false),"Actual sort dialog selects newest first");
     list=(ListView)field("currentList");check(list.getAdapter().getItem(0).toString().contains("Chương 3"),"Newest chapter moves to first display row");
     check(s.chapters(book).get(0).id.equals(book+"-1")&&s.book(book).current.equals(book+"-5"),"Visual sorting leaves canonical reading order and position unchanged");
     final ListView sorted=list;runOnMainSync(()->sorted.performItemClick(sorted.getChildAt(0),0,0));waitForIdleSync();SystemClock.sleep(200);
