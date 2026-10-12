@@ -455,11 +455,11 @@ public final class Repository {
         List<Store.Chapter> needDownload = new ArrayList<>();
         // Priority: current reading chapter to end of book
         for (Store.Chapter ch : chapters) {
-          if (ch.ord >= current && ch.ord <= scopeEnd && !s.isHidden(b.id,ch.id) && !s.readable(ch.id) && s.autoIllustration(ch)) needDownload.add(ch);
+          if (ch.ord >= current && ch.ord <= scopeEnd && !s.isHidden(b.id,ch.id) && s.autoIllustration(ch) && !s.readable(ch.id)) needDownload.add(ch);
         }
         // If full mode: also earlier chapters
         for (Store.Chapter ch : chapters) {
-          if (isFullMode && !readerOnly && ch.ord < current && !s.isHidden(b.id,ch.id) && !s.readable(ch.id) && s.autoIllustration(ch)) needDownload.add(ch);
+          if (isFullMode && !readerOnly && ch.ord < current && !s.isHidden(b.id,ch.id) && s.autoIllustration(ch) && !s.readable(ch.id)) needDownload.add(ch);
         }
 
         needDownload.sort((a,z)->Boolean.compare(s.illustrationHint(a),s.illustrationHint(z)));

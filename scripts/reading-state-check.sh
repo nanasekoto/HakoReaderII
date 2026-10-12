@@ -24,7 +24,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r build/test-android/tests.apk
 adb shell svc wifi disable
 adb shell svc data disable
-for test in ImageCacheTest ReadingStateTest UnreadStateTest SequentialReadTest LibraryStateTest WorkflowDiagnosticsTest; do
+for test in ImageCacheTest ReadingStateTest UnreadStateTest SequentialReadTest LibraryStateTest TocWorkflowTest WorkflowDiagnosticsTest; do
   adb shell am force-stop vn.nanase.hako
   adb shell pm clear vn.nanase.hako
   timeout 180 adb shell am instrument -w "vn.nanase.hako.tests/vn.nanase.hako.tests.$test" | tee "build/evidence/$test.txt"
@@ -32,3 +32,4 @@ for test in ImageCacheTest ReadingStateTest UnreadStateTest SequentialReadTest L
 done
 adb shell run-as vn.nanase.hako cat files/main-page.png > build/evidence/main-page.png
 adb logcat -d -s AndroidRuntime > build/evidence/crashes.txt
+

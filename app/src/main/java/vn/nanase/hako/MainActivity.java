@@ -214,7 +214,7 @@ public class MainActivity extends Activity {
         };
     registerReceiver(updates, new IntentFilter(Repository.EVENT));
     ChargeJob.schedule(this, prefs.getBoolean("charging", true));
-    ReadSync.schedule(this);
+    io.execute(()->ReadSync.schedule(this));
     powerReceiver=new BroadcastReceiver(){public void onReceive(Context c,Intent i){ChargeJob.kick(c);}};
     registerReceiver(powerReceiver,new IntentFilter(Intent.ACTION_POWER_CONNECTED));
     networkCallback=new android.net.ConnectivityManager.NetworkCallback(){public void onAvailable(android.net.Network n){ReadSync.schedule(MainActivity.this);if(ChargeJob.isCharging(MainActivity.this))ChargeJob.kick(MainActivity.this);}};
@@ -973,16 +973,12 @@ public class MainActivity extends Activity {
     return index<0?0:index; // An all-image book remains manually accessible from its TOC.
   }
 
-  private void openBookContents(Store.Book b){
-    if(b==null)return;
-    task("Đang mở mục lục…",()->{if(store.chapters(b.id).isEmpty())Repository.catalog(this,b);return null;},()->contents(b));
-  }
-
+  private void openBookContents(Store.Book b){if(b==null)return;contents(b);}
   private void chapterHeader(Store.Book b,Store.Chapter target,String section,String count){
     TextView name=text(b.title,17);name.setTypeface(UI_MEDIUM);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);name.setPadding(dp(8),dp(3),dp(8),dp(3));root.addView(name);
     LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
     header.addView(new IconButton(this,4,"Quay lại",this::goBack),new LinearLayout.LayoutParams(dp(48),dp(44)));
-    Button resume=button(b.current.isEmpty()?"Bắt đầu":"Đọc tiếp",()->openChapter(b.id,target.id));resume.setTextSize(12);resume.setPadding(dp(3),0,dp(3),0);
+    Button resume=button(b.current.isEmpty()?"Bắt đầu":"Đọc tiếp",()->openChapter(b.id,""));resume.setTextSize(12);resume.setPadding(dp(3),0,dp(3),0);
     header.addView(resume,new LinearLayout.LayoutParams(0,dp(44),1));
     header.addView(new IconButton(this,b.pinned?19:9,b.pinned?"Bỏ ghim":"Ghim để dễ tìm",()->task("Đang lưu ghim…",()->{Store.Book latest=store.book(b.id);if(latest!=null)store.pin(b.id,!latest.pinned);return null;},()->contents(b))),new LinearLayout.LayoutParams(dp(48),dp(44)));
     header.addView(new IconButton(this,18,"Tải toàn bộ",()->startDownloads(b.id,Repository.MODE_BOOK_ALL)),new LinearLayout.LayoutParams(dp(48),dp(44)));
@@ -990,7 +986,7 @@ public class MainActivity extends Activity {
       new AlertDialog.Builder(this).setTitle("Sắp xếp chương").setSingleChoiceItems(new String[]{"Chương cũ nhất trước","Chương mới nhất trước"},prefs.getBoolean("chapter_desc_"+b.id,false)?1:0,(dialog,which)->{
         prefs.edit().putBoolean("chapter_desc_"+b.id,which==1).apply();dialog.dismiss();
         final List<VolumeGroup> groups=new ArrayList<>();
-        task("Đang sắp xếp…",()->{groups.addAll(groupChapters(store.chapters(b.id)));return null;},()->{if(!section.equals("Chọn tập"))for(VolumeGroup group:groups)if(group.name.equals(section)){volumeChapters(b,group);return;}contents(b);});
+        task("Đang sắp xếp…",()->{TocState.Entry entry=TocState.peek(b.id);if(entry==null)entry=TocState.refresh(this,b.id);groups.addAll(preparedGroups(entry));return null;},()->{if(!section.equals("Chọn tập"))for(VolumeGroup group:groups)if(group.name.equals(section)){volumeChapters(b,group);return;}contents(b);});
       }).setNegativeButton("Đóng",null).show();
     }),new LinearLayout.LayoutParams(dp(48),dp(44)));
     header.addView(new IconButton(this,15,"Menu truyện",()->bookMenu(b)),new LinearLayout.LayoutParams(dp(48),dp(44)));
@@ -1078,14 +1074,17 @@ public class MainActivity extends Activity {
     return list;
   }
 
+  private TocState.Entry tocEntry;private List<VolumeGroup> tocGroups;private String tocSection="";
+  private List<VolumeGroup> preparedGroups(TocState.Entry entry){List<VolumeGroup> groups=groupChapters(entry.chapters);for(VolumeGroup group:groups)group.readSummary=groupLabel(entry,group);return groups;}
+  private String groupLabel(TocState.Entry entry,VolumeGroup group){int unread=0;for(Store.Chapter ch:group.chapters)if(!store.ignoredForReading(ch)&&!entry.read.contains(ch.id))unread++;return unread+" chương chưa đọc";}
   private void contents(Store.Book b) {
-    if(b==null)return;
-    final List<Store.Chapter> chapters=new ArrayList<>();final List<VolumeGroup> groups=new ArrayList<>();final Store.Book[] latest={b};
-    task("Đang mở mục lục…",()->{
-      Store.Book saved=store.book(b.id);if(saved!=null)latest[0]=saved;
-      chapters.addAll(store.chapters(b.id));groups.addAll(groupChapters(chapters));
-      for(VolumeGroup group:groups)group.readSummary=store.readCounts(group.chapters).label();return null;
-    },()->renderContents(latest[0],chapters,groups));
+    if(b==null)return;TocState.Entry warm=TocState.peek(b.id);
+    if(warm!=null&&warm==tocEntry&&tocGroups!=null){Diagnostics.count("toc.ui_hit");tocSection="";renderContents(warm.book,warm.chapters,tocGroups);return;}
+    final TocState.Entry[] entry={null};final List<VolumeGroup> groups=new ArrayList<>();final boolean[] restored={false};
+    task("Đang mở mục lục…",()->{entry[0]=TocState.load(this,b.id);restored[0]=entry[0]!=null&&warm==null;if(entry[0]==null)entry[0]=TocState.refresh(this,b.id);if(entry[0]!=null&&entry[0].chapters.isEmpty()){Repository.catalog(this,b);entry[0]=TocState.refresh(this,b.id);}if(entry[0]!=null)groups.addAll(preparedGroups(entry[0]));return null;},()->{
+      if(entry[0]==null)return;tocEntry=entry[0];tocGroups=groups;tocSection="";renderContents(entry[0].book,entry[0].chapters,groups);
+      if(restored[0])io.execute(()->{try{TocState.Entry fresh=TocState.refresh(this,b.id);List<VolumeGroup> updated=preparedGroups(fresh);runOnUiThread(()->{if(isDestroyed()||!b.id.equals(bookId)||!chapterId.isEmpty()||tocEntry!=entry[0])return;int position=currentList==null?0:currentList.getFirstVisiblePosition();String section=tocSection;tocEntry=fresh;tocGroups=updated;if(section.isEmpty())renderContents(fresh.book,fresh.chapters,updated);else for(VolumeGroup group:updated)if(group.name.equals(section)){renderVolumeChapters(fresh.book,group,fresh.chapters,fresh.read,group.readSummary);break;}if(currentList!=null)currentList.setSelection(position);});}catch(Exception error){Diagnostics.failure("toc.reconcile",error);}});
+    });
   }
 
   private void renderContents(Store.Book b,List<Store.Chapter> chs,List<VolumeGroup> groups) {
@@ -1177,8 +1176,9 @@ public class MainActivity extends Activity {
   }
 
   private void volumeChapters(Store.Book b, VolumeGroup vg) {
-    final List<Store.Chapter> all=new ArrayList<>();final Set<String> read=new HashSet<>();final Store.Book[] saved={b};final String[] label={""};
-    task("Đang mở tập…",()->{Store.Book latest=store.book(b.id);if(latest!=null)saved[0]=latest;all.addAll(store.chapters(b.id));read.addAll(store.readingIds(b.id,all));label[0]=store.readCounts(vg.chapters).label();return null;},()->renderVolumeChapters(saved[0],vg,all,read,label[0]));
+    TocState.Entry warm=TocState.peek(b.id);if(warm!=null&&warm==tocEntry){Diagnostics.count("toc.volume_hit");tocSection=vg.name;renderVolumeChapters(warm.book,vg,warm.chapters,warm.read,groupLabel(warm,vg));return;}
+    final TocState.Entry[] entry={null};final List<VolumeGroup> groups=new ArrayList<>();
+    task("Đang mở tập…",()->{entry[0]=TocState.refresh(this,b.id);if(entry[0]!=null)groups.addAll(preparedGroups(entry[0]));return null;},()->{if(entry[0]==null)return;tocEntry=entry[0];tocGroups=groups;for(VolumeGroup group:groups)if(group.name.equals(vg.name)){tocSection=group.name;renderVolumeChapters(entry[0].book,group,entry[0].chapters,entry[0].read,group.readSummary);return;}contents(entry[0].book);});
   }
   private void renderVolumeChapters(Store.Book b,VolumeGroup vg,List<Store.Chapter> allChs,Set<String> read,String label){
     if(allChs.isEmpty())return;

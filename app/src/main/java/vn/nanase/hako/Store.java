@@ -14,12 +14,18 @@ public final class Store extends SQLiteOpenHelper {
     return instance;
   }
 
+  private final Map<String,Chapter> chapterLookup=new HashMap<>();
+  private final LinkedHashMap<String,List<Chapter>> chapterCache=new LinkedHashMap<>(8,.75f,true);
+  private void cacheChapters(String book,List<Chapter> chapters){List<Chapter> replaced=chapterCache.put(book,Collections.unmodifiableList(chapters));if(replaced!=null)for(Chapter ch:replaced)chapterLookup.remove(ch.id);for(Chapter ch:chapters)chapterLookup.put(ch.id,ch);int total=0;for(List<Chapter> list:chapterCache.values())total+=list.size();while(chapterCache.size()>4||(total>16000&&chapterCache.size()>1)){String first=chapterCache.keySet().iterator().next();List<Chapter> removed=chapterCache.remove(first);total-=removed.size();for(Chapter ch:removed)chapterLookup.remove(ch.id);}}
+  private Chapter cachedId(String id){return chapterLookup.get(id);}
+  private Chapter copyChapter(Chapter ch){if(ch==null)return null;Chapter out=new Chapter();out.id=ch.id;out.book=ch.book;out.title=ch.title;out.url=ch.url;out.ord=ch.ord;out.ready=ch.ready;out.error=ch.error;return out;}
+  private void updateCachedState(Chapter owner,boolean ready,String error){if(owner==null)return;List<Chapter> prior=chapterCache.get(owner.book);if(prior==null)return;List<Chapter> next=new ArrayList<>(prior);for(int i=0;i<next.size();i++)if(next.get(i).id.equals(owner.id)){Chapter changed=copyChapter(next.get(i));changed.ready=ready;changed.error=error;next.set(i,changed);break;}cacheChapters(owner.book,next);}
   public final File cache;
   private final Context context;
   private final java.util.concurrent.ConcurrentHashMap<String,String> chapterTitles=new java.util.concurrent.ConcurrentHashMap<>();
   private final java.util.concurrent.atomic.AtomicLong readingRevision=new java.util.concurrent.atomic.AtomicLong();
   public long readingRevision(){return readingRevision.get();}
-  private void displayChanged(String id,boolean recount){LibraryState.changed(context,id,recount);}
+  private void displayChanged(String id,boolean recount){LibraryState.changed(context,id,recount);TocState.changed(context,id);}
 
   private Store(Context c) {
     super(c, "hako.db", null, 3);
@@ -101,11 +107,11 @@ public final class Store extends SQLiteOpenHelper {
   public Set<String> readingIds(String book,List<Chapter> chapters){Set<String> ids=readIds(book);String tip=completedTip(book);int end=-1;for(Chapter ch:chapters)if(ch.id.equals(tip))end=ch.ord;for(Chapter ch:chapters)if(ch.ord<=end&&!ignoredForReading(ch))ids.add(ch.id);return ids;}
   public boolean ignoredForReading(Chapter ch){int kind=context.getSharedPreferences("settings",0).getInt("chapter_kind_"+ch.id,0);return kind==2||kind==3||(kind==0&&IllustrationPolicy.hint(ch.title));}
   public boolean ignoredForReading(String id){Chapter ch=chapterById(id);return ch!=null&&ignoredForReading(ch);}
-  private Chapter chapterById(String id){try(Cursor c=query("SELECT book FROM chapters WHERE id=?",new String[]{id})){return c.moveToFirst()?chapter(c.getString(0),id):null;}}
+  private synchronized Chapter chapterById(String id){Chapter known=cachedId(id);if(known!=null){Diagnostics.count("db.chapter_memory_hit");return copyChapter(known);}try(Cursor c=query("SELECT book FROM chapters WHERE id=?",new String[]{id})){return c.moveToFirst()?chapter(c.getString(0),id):null;}}
   public String completedTip(String book){
     String tip=context.getSharedPreferences("settings",0).getString("read_tip_"+book,"");
     if(!tip.isEmpty())return tip;
-    try(Cursor c=query("SELECT c.id FROM chapters c JOIN read_chapters r ON r.id=c.id WHERE c.book=? ORDER BY c.ord DESC",new String[]{book})){while(c.moveToNext()){String id=c.getString(0);if(!ignoredForReading(id))return id;}}
+    Set<String> read=readIds(book);List<Chapter> all=chapters(book);for(int i=all.size()-1;i>=0;i--){Chapter ch=all.get(i);if(read.contains(ch.id)&&!ignoredForReading(ch))return ch.id;}
     return "";
   }
   public synchronized void completeThrough(String book,String chapter){displayChanged(book,true);
@@ -324,10 +330,10 @@ public final class Store extends SQLiteOpenHelper {
     return null;
   }
 
-  public synchronized void catalog(String book,List<HakoParser.Link> links){displayChanged(book,true);
+  public synchronized void catalog(String book,List<HakoParser.Link> links){
     List<Chapter> previous=chapters(book);
     List<String> oldIds=new ArrayList<>(),webIds=new ArrayList<>();
-    Map<String,HakoParser.Link> web=new HashMap<>();
+    Map<String,HakoParser.Link> web=new HashMap<>();Map<String,Chapter> prior=new HashMap<>();for(Chapter ch:previous)prior.put(ch.id,ch);
     for(Chapter ch:previous)oldIds.add(ch.id);
     for(HakoParser.Link link:links){
       if(!book.equals("demo")&&(!book.equals(HakoParser.storyId(HakoParser.storyUrl(link.url)))||!link.id.equals(HakoParser.chapterId(link.url))))throw new IllegalArgumentException("Mục lục sai truyện");
@@ -336,12 +342,12 @@ public final class Store extends SQLiteOpenHelper {
     List<String> order=CatalogPolicy.merge(oldIds,webIds);
     Set<String> old=new HashSet<>(oldIds),hidden=new HashSet<>(oldIds);
     hidden.removeAll(webIds);
-    SQLiteDatabase d=getWritableDatabase();
+    int rowsChanged=0;SQLiteDatabase d=getWritableDatabase();
     d.beginTransaction();
     try{
       for(int ord=0;ord<order.size();ord++){
         String id=order.get(ord);
-        HakoParser.Link link=web.get(id);
+        HakoParser.Link link=web.get(id);Chapter before=prior.get(id);if(before!=null&&before.ord==ord&&(link==null||(Objects.equals(before.title,link.title)&&Objects.equals(before.url,link.url))))continue;rowsChanged++;Diagnostics.count("db.catalog_row_write");
         ContentValues v=new ContentValues();v.put("ord",ord);
         if(link!=null){
           v.put("id",id);v.put("book",book);v.put("title",link.title);v.put("url",link.url);
@@ -352,13 +358,14 @@ public final class Store extends SQLiteOpenHelper {
       }
       d.setTransactionSuccessful();
     }finally{d.endTransaction();}
-    org.json.JSONArray server=new org.json.JSONArray(webIds);
+    if(rowsChanged>0){List<Chapter> removed=chapterCache.remove(book);if(removed!=null)for(Chapter ch:removed)chapterLookup.remove(ch.id);}
+    org.json.JSONArray server=new org.json.JSONArray(webIds);boolean catalogChanged=rowsChanged>0||!server.toString().equals(context.getSharedPreferences("settings",0).getString("server_catalog_"+book,""));
     android.content.SharedPreferences.Editor edit=context.getSharedPreferences("settings",0).edit()
       .putStringSet("hidden_chapters_"+book,hidden).putString("server_catalog_"+book,server.toString());
     int added=0;for(String id:webIds)if(!old.contains(id))added++;
     if(!previous.isEmpty()){Set<String> arrivals=new HashSet<>(webIds);arrivals.removeAll(old);edit.putInt("new_arrivals_"+book,added).putStringSet("new_arrival_ids_"+book,arrivals);}
     edit.commit();
-    if(!oldIds.equals(webIds))readingRevision.incrementAndGet();
+    if(catalogChanged){readingRevision.incrementAndGet();displayChanged(book,true);}
     if(!hidden.isEmpty())UpdateReport.checkpoint(context,"Mục lục "+book+": giữ "+hidden.size()+" chương cũ không còn xuất hiện trên web; không xóa cache hoặc tiến độ");
   }
   public boolean isHidden(String book,String chapter){
@@ -368,13 +375,14 @@ public final class Store extends SQLiteOpenHelper {
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
     try{
       org.json.JSONArray serverJson=new org.json.JSONArray(prefs.getString("server_catalog_"+book,"[]"));
-      List<String> server=new ArrayList<>();Set<String> seen=new HashSet<>();
-      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);if(id.isEmpty()||!seen.add(id))return false;Chapter ch=chapter(book,id);if(ch==null||!book.equals(ch.book))return false;if(!ignoredForReading(ch))server.add(id);}
+      List<String> server=new ArrayList<>();Set<String> seen=new HashSet<>();Map<String,Chapter> known=new HashMap<>();for(Chapter ch:chapters(book))known.put(ch.id,ch);
+      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);if(id.isEmpty()||!seen.add(id))return false;Chapter ch=known.get(id);if(ch==null||!book.equals(ch.book))return false;if(!ignoredForReading(ch))server.add(id);}
       return ReadPolicy.canSubmitAtTip(server,queuedTip(book),completedTip(book),!prefs.getBoolean("catalog_failed_"+book,true));
     }catch(Exception e){return false;}
   }
 
   public synchronized List<Chapter> chapters(String book) {
+    List<Chapter> known=chapterCache.get(book);if(known!=null){Diagnostics.count("db.catalog_memory_hit");return new ArrayList<>(known);}
     List<Chapter> a = new ArrayList<>();
     try (Cursor c =
         query(
@@ -387,21 +395,22 @@ public final class Store extends SQLiteOpenHelper {
         x.title = c.getString(2);rememberTitle(x.id,x.title);
         x.url = c.getString(3);
         x.ord = c.getInt(4);
-        x.ready = cachedChapter(x.id,c.getInt(5)==1);
+        x.ready = c.getInt(5)==1;
         x.error = c.getString(6);
         a.add(x);
       }
     }
-    return a;
+    cacheChapters(book,a);return new ArrayList<>(a);
   }
 
   public synchronized Chapter chapter(String book, String id) {
+    Chapter known=cachedId(id);if(known!=null){Diagnostics.count("db.chapter_memory_hit");return copyChapter(known);}
     try (Cursor c = query("SELECT id,book,title,url,ord,ready,error FROM chapters WHERE id=?", new String[]{id})) {
       if (c.moveToNext()) {
         Chapter x = new Chapter();
         x.id = c.getString(0); x.book = c.getString(1); x.title = c.getString(2);rememberTitle(x.id,x.title);
         x.url = c.getString(3); x.ord = c.getInt(4);
-        x.ready = cachedChapter(x.id,c.getInt(5)==1);
+        x.ready = c.getInt(5)==1;
         x.error = c.getString(6);
         return x;
       }
@@ -439,7 +448,7 @@ public final class Store extends SQLiteOpenHelper {
     ContentValues v = new ContentValues();
     v.put("ready", ready ? 1 : 0);
     v.put("error", error);
-    getWritableDatabase().update("chapters", v, "id=?", new String[] {id});
+    getWritableDatabase().update("chapters", v, "id=?", new String[] {id});updateCachedState(owner,ready,error);
   }
 
   public File dir(String id) {
@@ -492,8 +501,19 @@ public final class Store extends SQLiteOpenHelper {
   private boolean cachedChapter(String id,boolean markedReady){File f=html(id);if(!f.isFile()||f.length()==0)return false;String known=validatedFiles.get(id);return contentStamp(id,f).equals(known)||(known==null&&markedReady);}
   private final java.util.concurrent.ConcurrentHashMap<String,Integer> imageCounts=new java.util.concurrent.ConcurrentHashMap<>();
   private final java.util.concurrent.ConcurrentHashMap<String,String> imageCountStamps=new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.util.concurrent.atomic.AtomicBoolean validationSaved=new java.util.concurrent.atomic.AtomicBoolean();
+  private boolean validationLoaded;private final Object validationLock=new Object();
+  private final java.util.concurrent.ScheduledExecutorService validationWriter=java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
   private final java.util.concurrent.ConcurrentHashMap<String,String> validatedFiles=new java.util.concurrent.ConcurrentHashMap<>();
   private final java.util.concurrent.ConcurrentHashMap<String,List<String>> validatedImages=new java.util.concurrent.ConcurrentHashMap<>();
+  private void restoreValidation(){synchronized(validationLock){if(validationLoaded)return;validationLoaded=true;try{
+    org.json.JSONArray rows=new org.json.JSONArray(new String(new android.util.AtomicFile(new File(context.getFilesDir(),"validation-index.json")).readFully(),java.nio.charset.StandardCharsets.UTF_8));
+    for(int i=0;i<Math.min(rows.length(),4096);i++){org.json.JSONObject row=rows.getJSONObject(i);String id=row.getString("id");if(!id.matches("[a-z0-9-]+"))continue;String title=chapterTitles.get(id);if(title!=null&&!title.equals(row.optString("title","")))continue;List<String> names=new ArrayList<>();org.json.JSONArray images=row.getJSONArray("images");for(int n=0;n<images.length();n++){String name=images.getString(n);if(name.matches("image-[a-f0-9]{24}\\.bin"))names.add(name);}validatedImages.put(id,names);validatedFiles.put(id,row.getString("stamp"));}Diagnostics.count("cache.index_restore");
+  }catch(Exception ignored){}}}
+  private void persistValidation(){if(!validationSaved.compareAndSet(false,true))return;validationWriter.schedule(()->{validationSaved.set(false);try{
+    org.json.JSONArray rows=new org.json.JSONArray();for(Map.Entry<String,String> entry:validatedFiles.entrySet()){if(rows.length()>=4096)break;rows.put(new org.json.JSONObject().put("id",entry.getKey()).put("title",chapterTitles.getOrDefault(entry.getKey(),"")).put("stamp",entry.getValue()).put("images",new org.json.JSONArray(validatedImages.getOrDefault(entry.getKey(),Collections.emptyList()))));}
+    android.util.AtomicFile file=new android.util.AtomicFile(new File(context.getFilesDir(),"validation-index.json"));FileOutputStream stream=null;try{stream=file.startWrite();stream.write(rows.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));file.finishWrite(stream);}catch(Exception error){if(stream!=null)file.failWrite(stream);throw error;}Diagnostics.count("cache.index_write");
+  }catch(Exception ignored){}},2,java.util.concurrent.TimeUnit.SECONDS);}
   private String contentStamp(String id,File file){
     StringBuilder stamp=new StringBuilder(fileStamp(file));
     List<String> names=validatedImages.get(id);
@@ -511,7 +531,7 @@ public final class Store extends SQLiteOpenHelper {
   public boolean readable(String cid){
     Diagnostics.count("cache.check");long begun=Diagnostics.now();
     try{
-      File f=html(cid);
+      restoreValidation();File f=html(cid);
       if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);validatedImages.remove(cid);return false;}
       String fingerprint=contentStamp(cid,f);
       String known=validatedFiles.get(cid);if(fingerprint.equals(known)){Diagnostics.count("cache.hit");return true;}
@@ -525,7 +545,7 @@ public final class Store extends SQLiteOpenHelper {
       fingerprint=contentStamp(cid,f);
       boolean ok=content.readable(src->{String name=HakoParser.offlineImageName(cid,src);return !name.isEmpty()&&imageFileReadable(new File(dir(cid),name));});
       ok=ok&&fingerprint.equals(contentStamp(cid,f));
-      validatedFiles.put(cid,ok?fingerprint:"invalid:"+fingerprint);
+      validatedFiles.put(cid,ok?fingerprint:"invalid:"+fingerprint);persistValidation();
       return ok;
     }catch(Exception e){validatedFiles.remove(cid);validatedImages.remove(cid);return false;}finally{Diagnostics.elapsed("cache.validation",begun);}
   }
@@ -549,7 +569,7 @@ public final class Store extends SQLiteOpenHelper {
             // Writers use the same monitor. A newer atomic file replacement wins.
             if(!invalid.get(id).equals(fileStamp(html(id))))continue;
             ContentValues v=new ContentValues();v.put("ready",0);
-            d.update("chapters",v,"id=?",new String[]{id});
+            d.update("chapters",v,"id=?",new String[]{id});chapterCache.clear();chapterLookup.clear();
           }
           d.setTransactionSuccessful();
         }finally{d.endTransaction();}
@@ -559,7 +579,7 @@ public final class Store extends SQLiteOpenHelper {
   private String fileStamp(File f){return f.isFile()?f.length()+":"+f.lastModified():"missing";}
 
 
-  public synchronized void rebase(String origin){displayChanged("*",false);for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}}
+  public synchronized void rebase(String origin){displayChanged("*",false);for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}chapterCache.clear();chapterLookup.clear();}
   public static void delete(File f) {
     File[] kids = f.listFiles();
     if (kids != null) for (File x : kids) delete(x);
