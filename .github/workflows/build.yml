@@ -1,7 +1,7 @@
 name: Build Hako Pocket
 on:
   push:
-    branches: [ main, fix/reading-state-0719 ]
+    branches: [ main, fix/unread-display-0720 ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -52,9 +52,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Hako-0.7.19-validation
+          name: Hako-0.7.20-validation
           path: build/evidence/
       - uses: actions/upload-artifact@v4
         with:
-          name: Hako-Pocket-0.7.19-ARM32-tested
+          name: Hako-Pocket-0.7.20-ARM32-tested
           path: build/deliver/

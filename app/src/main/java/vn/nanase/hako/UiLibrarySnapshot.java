@@ -4,18 +4,20 @@ import java.util.*;
 /** Prepared only on a worker. Adapters read this snapshot, never SQLite or chapter files. */
 public final class UiLibrarySnapshot {
  public static final class Summary {
-  public int total,stored,unread,newCount,illustrations,missingImages;
-  public boolean updated,completedOffline,full;
+  public int total,stored,unread,newCount,illustrations,missingImages,unseenIllustrations,pendingReview;
+  public boolean updated,completedOffline,full,currentRead;
   public long updatedAt;
   public String currentTitle="";
   public int remaining=-1;
+  public String readLabel(){return unread+" chương chữ chưa đọc"+(unseenIllustrations>0?" · "+unseenIllustrations+" minh họa chưa xem":"")+(pendingReview>0?" · "+pendingReview+" chương cần kiểm tra":"");}
  }
  public final List<Store.Book> books;
  public final Map<String,Summary> summaries;
- public final long loadedAt,loadMillis,lastShelfSync;
- private UiLibrarySnapshot(List<Store.Book>b,Map<String,Summary>s,long ms,long stamp){
+ public final long loadedAt,loadMillis,lastShelfSync,readingRevision;
+ private UiLibrarySnapshot(List<Store.Book>b,Map<String,Summary>s,long ms,long stamp,long revision){
   books=Collections.unmodifiableList(b);summaries=Collections.unmodifiableMap(s);
   loadedAt=System.currentTimeMillis();loadMillis=ms;lastShelfSync=stamp;
+  readingRevision=revision;
  }
  public Summary summary(Store.Book b){Summary s=summaries.get(b.id);return s==null?new Summary():s;}
  public int compareShelf(Store.Book a,Store.Book b){
@@ -23,15 +25,20 @@ public final class UiLibrarySnapshot {
  }
  public static UiLibrarySnapshot load(Store store,SharedPreferences prefs){
   long started=android.os.SystemClock.elapsedRealtime();
+  long revision=store.readingRevision();
   List<Store.Book> books=store.books();Map<String,Summary> out=new HashMap<>();
   for(Store.Book b:books){
    Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);
-   s.total=0;s.unread=store.unread(b.id);s.full=store.isKeepFull(b.id);
+   s.total=0;s.full=store.isKeepFull(b.id);boolean afterCurrent=false;
    for(Store.Chapter ch:chapters){
     boolean readable=store.readable(ch.id);if(store.illustration(ch.id))s.illustrations++;else {s.total++;if(readable)s.stored++;}
     s.missingImages+=store.missingImages(ch.id);
-    if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.remaining=Math.max(0,s.total-ch.ord-1);}
+    if(afterCurrent&&!store.illustration(ch.id)&&!store.wasRead(ch.id))s.remaining++;
+    if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.currentRead=store.wasRead(ch.id);s.remaining=0;afterCurrent=true;}
    }
+   // readable() above also classifies legacy image markup; count only afterwards.
+   Store.ReadCounts counts=store.readCounts(chapters);
+   s.unread=counts.textUnread;s.unseenIllustrations=counts.illustrationsUnseen;s.pendingReview=counts.pendingReview;
    s.newCount=s.total>0?store.newArrivals(b.id):shelfCount(b.shelfInfo);
    String now=prefs.getString("shelf_key_"+b.id,""),known=prefs.getString("catalog_shelf_key_"+b.id,"");
    boolean changed=prefs.getBoolean("shelf_changed_"+b.id,false)||(!now.isEmpty()&&!now.equals(known));
@@ -40,7 +47,7 @@ public final class UiLibrarySnapshot {
    s.completedOffline=store.isCompleted(b.id)&&s.total>0&&s.stored==s.total&&!changed;
    out.put(b.id,s);
   }
-  return new UiLibrarySnapshot(books,out,android.os.SystemClock.elapsedRealtime()-started,prefs.getLong("lastShelfSync",0));
+  return new UiLibrarySnapshot(books,out,android.os.SystemClock.elapsedRealtime()-started,prefs.getLong("lastShelfSync",0),revision);
  }
  private static int shelfCount(String s){try{return Math.max(0,Integer.parseInt(s.trim().split("\\s+")[0]));}catch(Exception e){return 0;}}
 }
