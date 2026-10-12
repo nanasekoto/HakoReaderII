@@ -21,7 +21,8 @@ public final class ReadingStateTest extends Instrumentation {
   public void onCreate(Bundle args){super.onCreate(args);start();}
   public void onStart(){Bundle result=new Bundle();try{
     Context ctx=getTargetContext();Store s=Store.get(ctx);
-    ctx.getSharedPreferences("settings",0).edit().putBoolean("charging",false).putBoolean("sync_paused",true).putBoolean("sync_verified",false).commit();
+    ctx.getSharedPreferences("settings",0).edit().putString("origin","https://invalid.example").putBoolean("charging",false).putBoolean("sync_paused",true).putBoolean("sync_verified",false).commit();
+    HakoParser.ORIGIN="https://invalid.example";
     String book="truyen-999001";
     s.putBook(new HakoParser.Link(book,"Reading fixture","https://invalid.example/truyen/999001-fixture"));s.visited(book);s.setKeepFull(book,true);
     List<HakoParser.Link> links=new ArrayList<>();
