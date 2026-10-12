@@ -97,7 +97,7 @@ public final class Repository {
     long newest=0;boolean partial=false;
     int scanMode=requestedShelfScan.getAndSet(0);boolean audit=scanMode==2,full=scanMode!=0;
     boolean anchorKnown=prefs.getBoolean("shelf_anchor_ready",false)&&HakoParser.ORIGIN.equals(prefs.getString("shelf_anchor_origin",""));
-    boolean canUseAnchor=anchorKnown;
+    boolean canUseAnchor=anchorKnown&&!prefs.getBoolean("shelf_snapshot_fast_disabled",false);
     String anchor=prefs.getString("shelf_anchor_id","");
     UiLibrarySnapshot saved=LibraryState.refresh(ctx);
     Map<String,Store.Book> previousBooks=new HashMap<>();Map<String,String> previousKeys=new HashMap<>();
@@ -146,7 +146,7 @@ public final class Repository {
       List<String> following=HakoParser.shelfPages(html,next);
       boolean orderSafe=true;
       for(Element option:Jsoup.parse(html).select("select option[selected]")){String v=(option.text()+" "+option.attr("value")).toLowerCase(Locale.ROOT);if(v.matches(".*(a-z|z-a|title|tên truyện|cũ nhất|_asc).*"))orderSafe=false;}
-      boolean stop=!following.isEmpty()&&ShelfAnchor.canStopAtUnchanged(anchorRows,previousKeys,anchorKnown&&orderSafe);
+      boolean stop=!following.isEmpty()&&ShelfAnchor.canStopAtUnchanged(anchorRows,previousKeys,anchorKnown&&orderSafe&&(audit||canUseAnchor));
       if(stop&&quickObserved==null){quickObserved=new HashSet<>(shelfKeys.keySet());UpdateReport.log(ctx,"Gặp chương mới nhất không đổi: "+anchorTitle+" · trang "+done.size());}
       if(stop&&!full){partial=true;UpdateReport.log(ctx,"Dừng quét nhanh ở trang "+done.size()+"; giữ các trang phía sau trong bộ nhớ");break;}
       urls.addAll(following);
@@ -159,8 +159,8 @@ public final class Repository {
       int missed=0;
       if(quickObserved==null)UpdateReport.log(ctx,"Không gặp mốc dừng: quét nhanh cũng cần kiểm tra toàn bộ");
       else for(HakoParser.Link row:collected)if(!quickObserved.contains(row.id)&&(!ShelfPolicy.unchanged(row.latestKey,previousKeys.get(row.id)))){missed++;UpdateReport.log(ctx,"Quét nhanh có thể bỏ sót: "+row.title+" (chương mới hoặc thông tin chưa rõ)");}
-      if(missed>0){prefs.edit().putBoolean("shelf_fast_disabled",true).putBoolean("shelf_anchor_verified",false).commit();UpdateReport.log(ctx,"Đã tắt dừng sớm do đối chiếu không khớp. Những lần sau quét đầy đủ.");}
-      else if(quickObserved!=null){prefs.edit().putBoolean("shelf_anchor_verified",true).putBoolean("shelf_fast_disabled",false).commit();UpdateReport.log(ctx,"Đối chiếu điểm dừng: không phát hiện cập nhật bị bỏ sót");}
+      if(missed>0){prefs.edit().putBoolean("shelf_snapshot_fast_disabled",true).putBoolean("shelf_anchor_verified",false).commit();UpdateReport.log(ctx,"Đã tắt dừng sớm do đối chiếu không khớp. Những lần sau quét đầy đủ.");}
+      else if(quickObserved!=null){prefs.edit().putBoolean("shelf_anchor_verified",true).putBoolean("shelf_snapshot_fast_disabled",false).commit();UpdateReport.log(ctx,"Đối chiếu điểm dừng: không phát hiện cập nhật bị bỏ sót");}
       else prefs.edit().putBoolean("shelf_anchor_verified",false).commit();
     }
     if(!partial)s.replaceShelf(collected);
@@ -569,7 +569,9 @@ public final class Repository {
       if(syncPaused||!ChargeJob.isCharging(c)||!ReadSync.wifi(c))return;
       Store.Book b=Store.get(c).book(entry.getKey());if(b==null||b.dropped){c.getSharedPreferences("download_resume",0).edit().remove(entry.getKey()).commit();continue;}
       int mode=((Number)entry.getValue()).intValue();
-      run(c,b.id,mode==MODE_BOOK_ALL?MODE_BOOK_ALL:MODE_READER_NEXT,true);
+      if((mode==MODE_SYNC_LIBRARY||mode==MODE_SYNC_PERSONAL)&&!Store.get(c).syncTarget(b)&&!b.id.equals(activeBook)){c.getSharedPreferences("download_resume",0).edit().remove(b.id).commit();continue;}
+      int resumeMode=mode==MODE_BOOK_ALL||mode==MODE_READER_NEXT||mode==MODE_BOOK_NEXT?mode:MODE_BOOK_NEXT;
+      run(c,b.id,resumeMode,true);
     }
   }
 

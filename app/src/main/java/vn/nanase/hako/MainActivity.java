@@ -50,6 +50,7 @@ public class MainActivity extends Activity {
 
 
   private static volatile UiLibrarySnapshot readyLibrary;
+  private int chapterOpenRequest;
   private final ExecutorService libraryIo=Executors.newSingleThreadExecutor();
   private final Handler libraryHandler=new Handler(Looper.getMainLooper());
   private boolean libraryLoading=false,libraryReloadAgain=false;
@@ -65,8 +66,8 @@ public class MainActivity extends Activity {
     if(libraryLoading||Repository.busy.get()||Repository.pendingAll)libraryHandler.postDelayed(this,1000);
   }};
   private void reloadLibrary(boolean force,Runnable after){
-    if(after!=null)libraryLoaded=after;
     if(!force&&readyLibrary!=null){if(after!=null)after.run();return;}
+    if(after!=null)libraryLoaded=after;
     if(libraryLoading){if(force)libraryReloadAgain=true;return;}
     libraryLoading=true;libraryLoadStarted=SystemClock.elapsedRealtime();
     libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);
@@ -94,6 +95,7 @@ public class MainActivity extends Activity {
          mode==4?b.stamp>0:!b.id.equals("demo")&&(mode==3?readyLibrary.summary(b).completedOffline:store.favorite(b)))result.add(b);
     }
     if(mode==1)result.sort(readyLibrary::compareShelf);
+    if(mode==4)result.sort((a,b)->{int n=Long.compare(b.stamp,a.stamp);return n!=0?n:a.id.compareTo(b.id);});
     if(mode==2||mode==3)result.sort((a,b)->{int n=Integer.compare(b.visits,a.visits);if(n!=0)return n;n=Long.compare(b.stamp,a.stamp);return n!=0?n:a.title.compareToIgnoreCase(b.title);});
     return result;
   }
@@ -1242,6 +1244,7 @@ public class MainActivity extends Activity {
     status();
   }
   private void openChapter(String bid, String cid) {
+    final int request=++chapterOpenRequest;
     if(!Repository.activeBook.equals(bid)){leaveReader();Repository.activeBook=bid;}
     Repository.cancel.set(false);
     final Store.Chapter[] selected={null};final boolean[] cached={false};
@@ -1249,9 +1252,10 @@ public class MainActivity extends Activity {
       selected[0]=store.chapter(bid,cid);if(selected[0]==null)throw new IOException("Không tìm thấy chương trong mục lục.");
       if(!store.ignoredForReading(selected[0]))store.selectChapter(bid,cid);
       cached[0]=store.readable(cid);return null;
-    },()->openPreparedChapter(bid,cid,selected[0],cached[0]));
+    },()->{if(request==chapterOpenRequest)openPreparedChapter(bid,cid,selected[0],cached[0]);});
   }
   private void openPreparedChapter(String bid,String cid,Store.Chapter c,boolean cached){
+    final int request=chapterOpenRequest;
     if(cached){showReader(bid,cid);}else {
       if (boundaryPrompt != null) {
         boundaryPrompt.removeAllViews();
@@ -1279,6 +1283,7 @@ public class MainActivity extends Activity {
             return null;
           },
           () -> {
+            if(request!=chapterOpenRequest)return;
             hideBoundaryPrompt();
             showReader(bid, cid);
           });
@@ -1286,6 +1291,7 @@ public class MainActivity extends Activity {
   }
 
   private void showReader(String bid,String cid){
+    final int request=chapterOpenRequest;
     final Store.Book[] books={null};final Store.Chapter[] chapters={null};final String[] html={""};
     final boolean visit=!visitSession.equals(bid);
     task("Đang chuẩn bị chương đã chọn…",()->{
@@ -1293,7 +1299,7 @@ public class MainActivity extends Activity {
       if(books[0]==null||chapters[0]==null)throw new IOException("Không tìm thấy chương.");
       if(!store.readable(cid))throw new IOException("Nội dung chưa lưu thành công. Hãy thử tải lại hoặc mở HAKO.");
       if(visit)store.visited(bid);html[0]=Store.read(store.html(cid));return null;
-    },()->showPreparedReader(bid,cid,books[0],chapters[0],html[0]));
+    },()->{if(request==chapterOpenRequest)showPreparedReader(bid,cid,books[0],chapters[0],html[0]);});
   }
   private void showPreparedReader(String bid,String cid,Store.Book b,Store.Chapter c,String html){
     int pos=b.current.equals(cid)?b.pos:0;float fraction=b.current.equals(cid)?b.fraction:0;

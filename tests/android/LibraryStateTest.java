@@ -48,9 +48,19 @@ public final class LibraryStateTest extends Instrumentation {
   }finally{release.countDown();blocker.join(1000);}
   long limit=SystemClock.elapsedRealtime()+8000;while(field("nativeReader")==null&&SystemClock.elapsedRealtime()<limit){SystemClock.sleep(50);waitForIdleSync();}
   check(field("nativeReader")!=null&&id.concat("-3").equals(field("chapterId")),"After worker is available reader resumes chosen chapter 3");
-  s.position(id,id+"-3",4,.3f);LibraryState.refresh(ctx);
+  NativeReader reader=(NativeReader)field("nativeReader");
+  java.io.File baseFile=new java.io.File(ctx.getFilesDir(),"library-state.json");long baseStamp=baseFile.lastModified();
+  runOnMainSync(()->reader.jump(true));waitForIdleSync();
+  limit=SystemClock.elapsedRealtime()+5000;while(!s.wasRead(id+"-3")&&SystemClock.elapsedRealtime()<limit)SystemClock.sleep(25);
+  LibraryState.refresh(ctx);
   restored=LibraryState.readSaved(ctx);
-  check(restored.books.get(0).pos==4&&restored.books.get(0).fraction>.29f,"Reading position updates durable state without a full library scan");
+  check(restored.books.get(0).pos>0&&restored.books.get(0).pos==s.book(id).pos,"Actual reader position updates durable state without a full library scan");
+  java.io.File deltaFile=new java.io.File(ctx.getFilesDir(),"library-delta.json");String journal=Store.read(deltaFile);
+  check(baseFile.lastModified()==baseStamp&&new org.json.JSONObject(journal).getJSONArray("records").length()==1,"Turning a page writes only changed book journal rather than rewriting the whole library");
+  Store.write(deltaFile,new org.json.JSONObject(journal).put("generation","old-generation").toString());
+  check(LibraryState.readSaved(ctx).books.get(0).pos==LibraryState.decode(Store.read(baseFile)).books.get(0).pos,"Old journal generation cannot override a newly committed base");
+  Store.write(deltaFile,"broken journal");check(LibraryState.readSaved(ctx).books.size()==1,"Corrupt journal keeps valid base immediately without database rebuild");
+  Store.write(deltaFile,journal);
   Map<String,String> keys=new HashMap<>();keys.put("a","a3");
   check(ShelfAnchor.canStopAtUnchanged(Arrays.asList(new ShelfAnchor.Row("new1","n5",2),new ShelfAnchor.Row("new2","m6",1),new ShelfAnchor.Row("a","a3",3)),keys,true),"Two updated books before unchanged unread A stop subsequent shelf pages");
   check(ShelfAnchor.canStopAtUnchanged(Arrays.asList(new ShelfAnchor.Row("a","a3",0)),keys,true),"Shelf stopping is independent of read and unread counts");
