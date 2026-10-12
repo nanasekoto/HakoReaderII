@@ -4,7 +4,7 @@ import java.util.*;
 /** Prepared only on a worker. Adapters read this snapshot, never SQLite or chapter files. */
 public final class UiLibrarySnapshot {
  public static final class Summary {
-  public int total,stored,unread,newCount,illustrations,missingImages,unseenIllustrations,pendingReview;
+  public int total,stored,unread,newCount,illustrations,missingImages,unseenIllustrations,pendingReview,scopeTotal,scopeStored;
   public boolean updated,completedOffline,full,currentRead;
   public long updatedAt;
   public String currentTitle="",latestKey="";
@@ -36,9 +36,14 @@ public final class UiLibrarySnapshot {
    Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);
    s.total=0;s.full=store.isKeepFull(b.id);boolean afterCurrent=false;
    Set<String> read=store.readingIds(b.id,chapters);
+   List<String> ids=new ArrayList<>();Set<String> images=new HashSet<>();for(Store.Chapter ch:chapters){ids.add(ch.id);if(store.ignoredForReading(ch))images.add(ch.id);}
+   String current=images.contains(b.current)?prefs.getString("reading_text_"+b.id,""):b.current;
+   int selected=ReadingNavigation.resume(ids,current,read,images),start=selected<0?0:chapters.get(selected).ord;
+   boolean retained=s.full||store.isCompleted(b.id),toEnd=FetchPolicy.toEnd(b.followed,store.favorite(b),b.visits>0,retained);
    for(Store.Chapter ch:chapters){
     // Lists use metadata only. Content and images are validated when opened/downloaded.
     if(store.ignoredForReading(ch))s.illustrations++;else {s.total++;if(ch.ready)s.stored++;}
+    if(!store.ignoredForReading(ch)&&FetchPolicy.inDownloadRange(ch.ord,start,toEnd,retained)){s.scopeTotal++;if(ch.ready)s.scopeStored++;}
     if(afterCurrent&&!store.ignoredForReading(ch)&&!read.contains(ch.id))s.remaining++;
     if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.currentRead=read.contains(ch.id);s.remaining=0;afterCurrent=true;}
    }

@@ -547,7 +547,7 @@ public final class Repository {
         notify(ctx, "Chưa hoàn tất: còn " + remaining + " chương chưa tải");
       }
     } catch(Exception error){UpdateReport.checkpoint(ctx,"Đã dừng tác vụ: "+error.getMessage());throw error;} finally {
-      try{UiLibrarySnapshot display=LibraryState.refresh(ctx);int total=0,stored=0;for(Store.Book item:display.books){UiLibrarySnapshot.Summary info=display.summary(item);total+=info.total;stored+=info.stored;}syncPct=total==0?0:Math.round(stored*100f/total);ctx.getSharedPreferences("settings",0).edit().putInt("last_offline_percent",syncPct).apply();}catch(Exception snapshotError){UpdateReport.log(ctx,"Giữ bản thông tin cũ: "+snapshotError.getMessage());}
+      try{UiLibrarySnapshot display=LibraryState.refresh(ctx);int total=0,stored=0;for(Store.Book item:display.books){if(!Store.get(ctx).syncTarget(item))continue;UiLibrarySnapshot.Summary info=display.summary(item);total+=info.scopeTotal;stored+=info.scopeStored;}syncPct=total==0?0:Math.round(stored*100f/total);ctx.getSharedPreferences("settings",0).edit().putInt("last_offline_percent",syncPct).apply();}catch(Exception snapshotError){UpdateReport.log(ctx,"Giữ bản thông tin cũ: "+snapshotError.getMessage());}
       GeckoClient.release();busy.set(false);
       ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}

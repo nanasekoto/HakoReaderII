@@ -540,7 +540,7 @@ public final class Store extends SQLiteOpenHelper {
   private String fileStamp(File f){return f.isFile()?f.length()+":"+f.lastModified():"missing";}
 
 
-  public synchronized void rebase(String origin){for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}}
+  public synchronized void rebase(String origin){displayChanged("*",false);for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}}
   public static void delete(File f) {
     File[] kids = f.listFiles();
     if (kids != null) for (File x : kids) delete(x);

@@ -1,6 +1,6 @@
 # 0.7.22: saved display state and scoped updates
 
-The home, recent, favorites and shelf screens restore `files/library-state.json` before querying SQLite. The atomic JSON contains book metadata, progress summaries and independent recent/favorites/shelf indexes. It never contains chapter HTML. A missing/corrupt display file is rebuilt on a worker from metadata; this one-time migration does not validate chapter files or decode images.
+The home, recent, favorites and shelf screens restore `files/library-state.json` plus its small `library-delta.json` journal before querying SQLite. The atomic JSON contains book metadata, progress summaries and independent recent/favorites/shelf indexes. It never contains chapter HTML. Progress writes only changed records to the journal, avoiding rewriting the whole library on each page. After more than 32 changed books or a full membership change, the state is compacted; generation IDs prevent an old journal from overriding a newly committed base after a process death. A missing/corrupt display file is rebuilt on a worker from metadata; this one-time migration does not validate chapter files or decode images.
 
 Store mutations enqueue the changed book only. Progress, completion, catalog, ready-state and membership changes refresh the durable display state in a batched background writer. Ordinary navigation reuses that state. No startup cleanup, whole-library HTML scan, missing-image scan or duplicate preload remains. Content integrity is still checked on the selected chapter and before download/cache reuse.
 

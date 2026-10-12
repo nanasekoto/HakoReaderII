@@ -20,14 +20,14 @@ public final class LibraryStateTest extends Instrumentation {
   prefs.edit().putBoolean("charging",false).putBoolean("sync_paused",true).putString("origin","https://invalid.example").commit();
   String id="truyen-999004",base="https://invalid.example/truyen/999004-fixture";
   s.putBook(new HakoParser.Link(id,"Saved state fixture",base));s.visited(id);s.pin(id,true);s.followed(id,true,0);
-  List<HakoParser.Link> links=new ArrayList<>();for(int i=1;i<=250;i++)links.add(new HakoParser.Link(id+"-"+i,"Tập 1 · Chương "+i,base+"/c"+i));s.catalog(id,links);
+  List<HakoParser.Link> links=new ArrayList<>();for(int i=1;i<=250;i++)links.add(new HakoParser.Link(id+"-"+i,"Tập 1 · Chương "+i,base+"/c"+i+"-fixture"));s.catalog(id,links);
   StringBuilder body=new StringBuilder();for(int i=0;i<80;i++)body.append("<p>Đoạn văn kiểm tra tiếp tục đọc mà không đợi kiểm tra cả thư viện.</p>");
   Store.write(s.html(id+"-3"),body.toString());s.state(id+"-3",true,"");s.position(id,id+"-3",0,0);s.completeThrough(id,id+"-2");
   long revision=s.readingRevision();UiLibrarySnapshot first=UiLibrarySnapshot.load(s,prefs);
   check(first.readingRevision==revision&&s.readingRevision()==revision,"Preparing 250 chapter metadata never parses or classifies chapter files");
   check(first.summary(s.book(id)).stored==1,"Display uses saved ready metadata without opening cached HTML");
   UiLibrarySnapshot persisted=LibraryState.refresh(ctx);
-  String json=Store.read(new java.io.File(ctx.getFilesDir(),"library-state.json"));org.json.JSONObject root=new org.json.JSONObject(json);
+  String json=LibraryState.encode(LibraryState.readSaved(ctx));org.json.JSONObject root=new org.json.JSONObject(json);
   check(root.getJSONArray("recent").length()==1&&root.getJSONArray("favorites").length()==1&&root.getJSONArray("shelf").length()==1,"Separate recent favorite and shelf indexes share one progress record");
   check(!json.contains("<p>")&&json.contains("Saved state fixture"),"Durable display file contains information rather than chapter content");
   UiLibrarySnapshot restored=LibraryState.decode(json);check(restored.books.get(0).current.equals(id+"-3")&&restored.summary(restored.books.get(0)).unread==248,"Saved state round-trip retains chapter identity and sequential unread watermark");
@@ -48,7 +48,7 @@ public final class LibraryStateTest extends Instrumentation {
   long limit=SystemClock.elapsedRealtime()+8000;while(field("nativeReader")==null&&SystemClock.elapsedRealtime()<limit){SystemClock.sleep(50);waitForIdleSync();}
   check(field("nativeReader")!=null&&id.concat("-3").equals(field("chapterId")),"After worker is available reader resumes chosen chapter 3");
   s.position(id,id+"-3",4,.3f);LibraryState.refresh(ctx);
-  restored=LibraryState.decode(Store.read(new java.io.File(ctx.getFilesDir(),"library-state.json")));
+  restored=LibraryState.readSaved(ctx);
   check(restored.books.get(0).pos==4&&restored.books.get(0).fraction>.29f,"Reading position updates durable state without a full library scan");
   Map<String,String> keys=new HashMap<>();keys.put("a","a3");
   check(ShelfAnchor.canStopAtUnchanged(Arrays.asList(new ShelfAnchor.Row("new1","n5",2),new ShelfAnchor.Row("new2","m6",1),new ShelfAnchor.Row("a","a3",3)),keys,true),"Two updated books before unchanged unread A stop subsequent shelf pages");
