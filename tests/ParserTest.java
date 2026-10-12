@@ -106,6 +106,10 @@ public class ParserTest {
     check(!HakoParser.offlineContent("<p>[Ảnh chưa tải được — thử tải lại khi có mạng]</p>").readable(src->true),"Missing-image message is not content");
     check(!HakoParser.offlineContent("<p style='display:none'>hidden</p><img src='missing'>").readable(src->false),"Hidden text cannot complete image chapter");
     check(!HakoParser.offlineContent("<h1>503 Service Unavailable</h1>").readable(src->true),"Never accept error page as offline content");
+    String shortcut="<section><a href='/truyen/123-fixture/c2-real'>Đọc tiếp</a></section><section class='volume-list'><header>Tập 1</header><a href='/truyen/123-fixture/c1-old'>Chương 1</a><a href='/truyen/123-fixture/c2-real'>Chương 2</a></section>";
+    List<HakoParser.Link> filtered=HakoParser.chapters(shortcut,HakoParser.ORIGIN+"/truyen/123-fixture");
+    check(filtered.size()==2&&filtered.get(1).title.equals("Tập 1 · Chương 2"),"Resume shortcut cannot steal actual chapter identity or create Other volume");
+    check(HakoParser.readingShortcutTitle("Tập khác · Đọc tiếp"),"Recognize cached resume shortcut");
     System.out.println("PASS " + passed + " parser assertions");
   }
 }

@@ -7,6 +7,7 @@ import android.os.*;
 
 /** Durable mark-all queue. Never applies an old offline request to new unread chapters. */
 public final class ReadSync extends JobService {
+  public static boolean connected(Context c){ConnectivityManager cm=c.getSystemService(ConnectivityManager.class);NetworkCapabilities caps=cm.getNetworkCapabilities(cm.getActiveNetwork());return caps!=null&&caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)&&caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);}
   public static boolean wifi(Context c){
     ConnectivityManager cm=c.getSystemService(ConnectivityManager.class);
     NetworkCapabilities caps=cm.getNetworkCapabilities(cm.getActiveNetwork());
@@ -23,16 +24,25 @@ public final class ReadSync extends JobService {
     // Scheduling can be called from the UI/network callback: eligibility is checked in process().
     if(Store.get(c).queuedBooks().isEmpty())return;
     JobScheduler s=c.getSystemService(JobScheduler.class);
-    if(s.getPendingJob(42)==null)s.schedule(wifiJob(c,42,ReadSync.class).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());
+    if(s.getPendingJob(42)==null)s.schedule(new JobInfo.Builder(42,new ComponentName(c,ReadSync.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());
   }
   private static final Object mutex=new Object();
   public static boolean process(Context c){
     synchronized(mutex){
       Repository.init(c);
       if(Repository.syncPaused)return false;
-      if(!wifi(c))return false;
+      if(!connected(c))return true;
       if(!Repository.busy.compareAndSet(false,true))return true;
       try{
+      Repository.importShelf(c);
+      return processQueued(c);
+      }catch(Exception e){Repository.notify(c,"Đang chờ gửi đã đọc HAKO · "+e.getMessage());return true;
+      }finally{GeckoClient.release();Repository.busy.set(false);synchronized(Repository.busy){Repository.busy.notifyAll();}Repository.resumePending(c);}
+    }
+  }
+  /** Called by the web owner after a successful shelf check; does not acquire busy twice. */
+  public static boolean processQueued(Context c){
+      if(!connected(c))return !Store.get(c).queuedBooks().isEmpty();
       Store s=Store.get(c);boolean retry=false;
       for(String id:s.queuedBooks()){
         Store.Book b=s.book(id);if(b==null||id.equals("demo"))continue;if(!s.canSubmit(id)){Repository.notify(c,"Đọc hết còn chờ: "+b.title+" · Còn chương chữ chưa đọc hoặc mục lục đã đổi");continue;}
@@ -51,11 +61,8 @@ public final class ReadSync extends JobService {
         }catch(Exception e){retry=true;android.util.Log.w("HakoSync","Read queue retained: "+e.getClass().getSimpleName());}
       }
       return retry;
-      }finally{GeckoClient.release();Repository.busy.set(false);synchronized(Repository.busy){Repository.busy.notifyAll();}Repository.resumePending(c);}
-    }
   }
   public boolean onStartJob(JobParameters p){
-    if(!wifi(this))return false;
     new Thread(()->{boolean retry=process(this);jobFinished(p,retry);},"Hako read queue").start();return true;
   }
   public boolean onStopJob(JobParameters p){return true;}

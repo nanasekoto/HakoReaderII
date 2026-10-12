@@ -200,6 +200,12 @@ public final class Repository {
     return s.book(id);
   }
 
+  public static void refreshForReading(Context c,Store.Book b)throws Exception{
+    while(true){awaitIdle();if(busy.compareAndSet(false,true))break;}
+    try{init(c);allowed(c);catalog(c,b,true);}
+    finally{GeckoClient.release();busy.set(false);synchronized(busy){busy.notifyAll();}resumePending(c);}
+  }
+
   private static int shelfCount(String value){try{return Integer.parseInt(value.trim().split("\\s+")[0]);}catch(Exception e){return -1;}}
 
   public static boolean unchangedShelf(Context c,Store.Book b){
@@ -360,7 +366,7 @@ public final class Repository {
     try {
       allowed(ctx);
       Store s = Store.get(ctx);
-      if(mode==MODE_SYNC_LIBRARY)importShelf(ctx);
+      if(mode==MODE_SYNC_LIBRARY){importShelf(ctx);ReadSync.processQueued(ctx);}
       ArrayList<Store.Book> todo = new ArrayList<>();
       Map<String,Integer> requestModes=new HashMap<>();
 
@@ -389,7 +395,7 @@ public final class Repository {
         if (pendingAll) {
           pendingAll = false;librarySync=true;currentMode=MODE_SYNC_LIBRARY;
           // A refresh request preempts the bulk queue after the current chapter.
-          importShelf(ctx);refreshedCatalogs.clear();todo.clear();requestModes.clear();ledger.clear();syncTotal=0;syncDone=0;
+          importShelf(ctx);ReadSync.processQueued(ctx);refreshedCatalogs.clear();todo.clear();requestModes.clear();ledger.clear();syncTotal=0;syncDone=0;
           for(Store.Book candidate:s.books()){
             if(candidate.id.equals("demo")||candidate.dropped)continue;
             if(s.syncTarget(candidate)||candidate.id.equals(activeBook))todo.add(candidate);

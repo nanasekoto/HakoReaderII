@@ -40,9 +40,9 @@ public final class ReadingStateTest extends Instrumentation {
     check(s.readingStart(stale,s.chapters(book))==3,"Download range uses same latest reading anchor");
     check(!s.needsReadingDownload(book),"Opening latest cached chapter does not backfill missing old full chapters");
     check(s.adjacentIndex(s.chapters(book),"truyen-999001-4",1)==-1,"End of book has no wrapped next chapter");
-    check(s.adjacentIndex(s.chapters(book),"truyen-999001-2",1)==2,"Candidate short text is not silently skipped");
+    check(s.adjacentIndex(s.chapters(book),"truyen-999001-2",1)==3,"Illustration candidate is omitted from automatic text navigation");
     s.position(book,"truyen-999001-3",0,0);
-    check(s.resumeIndex(stale,s.chapters(book))==2,"Saved candidate chapter can be resumed");
+    check(s.resumeIndex(stale,s.chapters(book))==3,"Illustration opening does not replace saved text position");
     s.position(book,"truyen-999001-4",0,0);
     activity=(MainActivity)startActivitySync(new Intent().setClassName(ctx.getPackageName(),"vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
     call("openBookDirect",new Class<?>[]{Store.Book.class},stale);
