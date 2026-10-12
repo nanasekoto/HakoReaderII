@@ -1,7 +1,8 @@
 name: Build Hako Pocket
 on:
   push:
-    branches: [ main, fix/snapshot-startup-0722 ]
+    branches: [ main, fix/workflow-diagnostics-0723 ]
+    paths: [ 'app/**', 'backend/**', 'tests/**', 'scripts/**', '*.gradle', '*.properties', '*.sh', '.github/workflows/build.yml' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -23,14 +24,33 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '9.3.1'
+      - name: Unit and static gates
+        run: |
+          bash test.sh
+          node tests/report-relay-test.cjs
+          node -e "require('fs').writeFileSync('app/src/main/assets/build-info.json', JSON.stringify({commit:process.env.GITHUB_SHA,builtAt:new Date().toISOString()}))"
       - name: Android SDK
         run: |
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           timeout 180 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'platforms;android-36' 'build-tools;35.0.0' 'emulator' 'system-images;android-30;default;x86_64'
-      - name: Test and build ARM32
-        run: timeout 600 bash build.sh --stacktrace
-      - name: Verify APK
+      - name: Compile debug for targeted Android tests
+        run: |
+          gradle assembleDebug -Pabi=x86_64 --no-daemon
+          jar cf build/classes.jar -C app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes .
+          bash test-android.sh
+      - name: Android workflow and diagnostics gate
+        run: |
+          sudo chmod a+rw /dev/kvm
+          bash scripts/reading-state-check.sh
+      - name: Release ARM32 after gates pass
+        run: |
+          timeout 600 gradle --no-daemon assembleRelease -Pabi=armeabi-v7a --stacktrace
+          version=$(sed -n 's/^VERSION_NAME=//p' version.properties | tr -d '\r')
+          mkdir -p build/deliver
+          cp app/build/outputs/apk/release/app-release.apk "build/deliver/Hako-Pocket-${version}.apk"
+          cp -r backend/apps-script build/deliver/reporting-service
+      - name: Verify final APK
         run: |
           python3 scripts/verify-apk.py build/deliver/*.apk
           version=$(sed -n 's/^VERSION_NAME=//p' version.properties | tr -d '\r')
@@ -40,21 +60,12 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
           sha256sum build/deliver/*.apk > build/deliver/SHA256.txt
           cp version.properties gecko-version.txt build/deliver/
-      - name: Build Android regression tests
-        run: |
-          gradle assembleDebug -Pabi=x86_64 --no-daemon
-          jar cf build/classes.jar -C app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes .
-          bash test-android.sh
-      - name: Verify reading and image cache on Android 11
-        run: |
-          sudo chmod a+rw /dev/kvm
-          bash scripts/reading-state-check.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Hako-0.7.22-validation
+          name: Hako-0.7.23-validation
           path: build/evidence/
       - uses: actions/upload-artifact@v4
         with:
-          name: Hako-Pocket-0.7.22-ARM32-tested
+          name: Hako-Pocket-0.7.23-ARM32-tested
           path: build/deliver/

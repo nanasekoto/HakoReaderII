@@ -141,7 +141,7 @@ public final class Repository {
       android.content.SharedPreferences.Editor pageEdit=prefs.edit();
       for(HakoParser.Link row:links){pageEdit.putString("shelf_key_"+row.id,row.latestKey);pageEdit.putLong("shelf_updated_at_"+row.id,row.updatedAt);}
       pageEdit.putLong("lastShelfPartial",System.currentTimeMillis()).commit();
-      for(HakoParser.Link row:links)LibraryState.changed(ctx,row.id,false);
+      for(HakoParser.Link row:links){Store.Book old=previousBooks.get(row.id);if(old==null||!Objects.equals(row.latestKey,previousKeys.get(row.id))||row.updatedAt!=saved.summary(old).updatedAt)LibraryState.changed(ctx,row.id,false);}
       notify(ctx,"Đã nhận trang "+done.size()+" · "+count+" truyện · đang kiểm tra phần còn lại");
       ctx.sendBroadcast(new Intent(EVENT).setPackage(ctx.getPackageName()).putExtra("shelf_changed",true).putExtra("text",status));
       List<String> following=HakoParser.shelfPages(html,next);
@@ -177,7 +177,7 @@ public final class Repository {
     }
     edit.commit();
     ctx.getSharedPreferences("settings",0).edit().putLong("lastShelfSync",System.currentTimeMillis()).commit();
-    for(HakoParser.Link row:collected)LibraryState.changed(ctx,row.id,false);
+    for(HakoParser.Link row:collected)if(changedShelfBooks.contains(row.id)||!Objects.equals(row.latestKey,previousKeys.get(row.id)))LibraryState.changed(ctx,row.id,false);
     shelfUpdating=false;
     UpdateReport.checkpoint(ctx,"Hoàn tất cập nhật tủ sách");
     notify(ctx, "Đã cập nhật tủ sách: " + count + " mục · Chuẩn bị tải theo ưu tiên");

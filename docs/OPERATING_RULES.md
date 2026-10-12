@@ -102,3 +102,6 @@ Xem [quy tắc minh họa và hàng chờ](READING_ILLUSTRATIONS_0717.md). Truy�
 
 ## 0.7.22 — Khởi động từ bản trạng thái
 Quy trình mới được chốt tại docs/SNAPSHOT_STARTUP_0722.md: mở các danh sách từ thông tin lưu riêng; cập nhật màn hình chính chỉ kiểm tra Vừa đọc/Yêu thích; cập nhật Tủ sách chỉ kiểm tra kệ. Dừng trang kệ dựa vào chương mới nhất không đổi, không dựa vào chưa đọc. Không quét HTML và ảnh để dựng danh sách. Nội dung được kiểm tra khi chọn đọc hoặc tải.
+
+## Bổ sung 0.7.23
+Xem CURRENT_ARCHITECTURE.md: một worker chuẩn bị chương được chọn; danh sách dùng index có cập nhật theo thay đổi; nhập kệ chỉ ghi hàng/rank thay đổi. Mở chương chưa lưu sẽ tự mở sau khi tải xong theo yêu cầu, giảm một lần chọn lại. Nút Báo cáo ở cạnh Hako Pocket; tự gửi chỉ khi đã cấu hình dịch vụ, ở nền và có Wi-Fi. Không thay phạm vi tải, mốc đọc hoặc bằng chứng gửi đọc hết Hako.

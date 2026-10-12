@@ -19,6 +19,24 @@ public final class UiLibrarySnapshot {
   loadedAt=System.currentTimeMillis();loadMillis=ms;lastShelfSync=stamp;
   readingRevision=revision;
  }
+ private volatile Map<Integer,List<Store.Book>> indices;
+ public List<Store.Book> index(int mode){Map<Integer,List<Store.Book>> cache=indices;return cache==null?null:cache.get(mode);}
+ private boolean member(Store.Book b,int mode){return mode==1?b.followed:mode==6?b.followed&&shelfCount(b.shelfInfo)>0:mode==4?b.stamp>0:!b.id.equals("demo")&&(mode==2?(b.pinned||b.visits>=3):summary(b).completedOffline);}
+ private Comparator<Store.Book> ordering(int mode){return (a,b)->{int n;if(mode==1||mode==6)return compareShelf(a,b);if(mode==4){n=Long.compare(b.stamp,a.stamp);return n!=0?n:a.id.compareTo(b.id);}n=Integer.compare(b.visits,a.visits);if(n==0)n=Long.compare(b.stamp,a.stamp);if(n==0)n=a.title.compareToIgnoreCase(b.title);return n!=0?n:a.id.compareTo(b.id);};}
+ public void prepareIndices(){prepareIndices(null,null);}
+ public void prepareIndices(UiLibrarySnapshot previous,Set<String> changed){
+  if(indices!=null)return;long begun=Diagnostics.now();Map<Integer,List<Store.Book>> result=new HashMap<>();
+  Map<String,Store.Book> fresh=new HashMap<>(),old=new HashMap<>();for(Store.Book b:books)fresh.put(b.id,b);if(previous!=null)for(Store.Book b:previous.books)old.put(b.id,b);
+  for(int mode:new int[]{1,2,3,4,6}){
+   Comparator<Store.Book> comparator=ordering(mode);List<Store.Book> prior=previous==null?null:previous.index(mode);
+   if(prior!=null&&changed!=null&&changed.isEmpty()){result.put(mode,prior);continue;}
+   List<Store.Book> list=new ArrayList<>();
+   if(prior!=null&&changed!=null&&changed.size()<=Math.max(1,Math.min(32,books.size()/8))){list.addAll(prior);for(String id:changed){Store.Book before=old.get(id);if(before!=null){int at=Collections.binarySearch(list,before,comparator);if(at>=0)list.remove(at);}Store.Book after=fresh.get(id);if(after!=null&&member(after,mode)){int at=Collections.binarySearch(list,after,comparator);list.add(at<0?-at-1:at,after);}}Diagnostics.count("index.incremental");}
+   else{for(Store.Book b:books)if(member(b,mode))list.add(b);list.sort(comparator);Diagnostics.count("index.rebuild");}
+   result.put(mode,Collections.unmodifiableList(list));
+  }
+  indices=Collections.unmodifiableMap(result);Diagnostics.elapsed("library.indices",begun);
+ }
  public Summary summary(Store.Book b){Summary s=summaries.get(b.id);return s==null?new Summary():s;}
  public int compareShelf(Store.Book a,Store.Book b){
   int n=Integer.compare(a.shelfRank,b.shelfRank);return n==0?a.id.compareTo(b.id):n;
@@ -48,9 +66,11 @@ public final class UiLibrarySnapshot {
     if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.currentRead=read.contains(ch.id);s.remaining=0;afterCurrent=true;}
    }
    // Classification is retained from actual content opening/downloading, never inferred by scanning files here.
-   Store.ReadCounts counts=store.readCounts(chapters);
-   s.unread=counts.textUnread;s.unseenIllustrations=counts.illustrationsUnseen;s.pendingReview=counts.pendingReview;
-   s.newCount=s.total>0?store.newArrivals(b.id):shelfCount(b.shelfInfo);
+   Set<String> known=new HashSet<>(ids);
+   for(Store.Chapter ch:chapters)if(!images.contains(ch.id)&&!read.contains(ch.id))s.unread++;
+   if(s.total==0)s.newCount=shelfCount(b.shelfInfo);
+   else if(prefs.contains("new_arrival_ids_"+b.id)){for(String id:prefs.getStringSet("new_arrival_ids_"+b.id,Collections.emptySet()))if(known.contains(id)&&!images.contains(id)&&!read.contains(id))s.newCount++;}
+   else s.newCount=prefs.getInt("new_arrivals_"+b.id,0);
    String now=prefs.getString("shelf_key_"+b.id,""),known=prefs.getString("catalog_shelf_key_"+b.id,"");
    s.latestKey=now;
    boolean changed=prefs.getBoolean("shelf_changed_"+b.id,false)||(!now.isEmpty()&&!now.equals(known));

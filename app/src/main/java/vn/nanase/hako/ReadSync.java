@@ -31,6 +31,7 @@ public final class ReadSync extends JobService {
     synchronized(mutex){
       Repository.init(c);
       if(Repository.syncPaused)return false;
+      boolean eligible=false;Store store=Store.get(c);for(String id:store.queuedBooks())if(store.canSubmit(id)){eligible=true;break;}if(!eligible)return false;
       if(!connected(c))return true;
       if(!Repository.busy.compareAndSet(false,true))return true;
       try{

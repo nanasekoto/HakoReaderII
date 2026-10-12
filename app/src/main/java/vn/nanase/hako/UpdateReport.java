@@ -12,7 +12,8 @@ public final class UpdateReport {
   public static synchronized void begin(Context c){
     app=c.getApplicationContext();shelf.clear();download.clear();
     pages=checked=skipped=selected=buffered=0;started=System.currentTimeMillis();
-    log(c,"Bắt đầu cập nhật · 0.7.15-Gecko · "+Build.MODEL+" · Android "+Build.VERSION.RELEASE);flush();
+    String version="unknown";try{version=c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName;}catch(Exception ignored){}
+    log(c,"Bắt đầu cập nhật · "+version+" · "+Build.MODEL+" · Android "+Build.VERSION.RELEASE);flush();
   }
   public static synchronized void log(Context c,String text){
     app=c.getApplicationContext();

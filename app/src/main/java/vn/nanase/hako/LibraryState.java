@@ -58,7 +58,8 @@ public final class LibraryState {
   restore(c);Store store=Store.get(c);SharedPreferences prefs=c.getSharedPreferences("settings",0);
   Map<String,Boolean> changes=new HashMap<>();
   for(Map.Entry<String,Boolean> e:dirty.entrySet())if(dirty.remove(e.getKey(),e.getValue()))changes.put(e.getKey(),e.getValue());
-  boolean full=current==null||changes.containsKey("*")||baseGeneration.isEmpty();
+  UiLibrarySnapshot previous=current;boolean wildcard=changes.containsKey("*");Set<String> changedIds=new HashSet<>(changes.keySet());
+  boolean full=current==null||wildcard||baseGeneration.isEmpty();
   if(current==null){current=UiLibrarySnapshot.load(store,prefs);}
   else if(!changes.isEmpty()){
    Map<String,Store.Book> books=new LinkedHashMap<>();for(Store.Book b:current.books)books.put(b.id,b);
@@ -87,6 +88,8 @@ public final class LibraryState {
    current=new UiLibrarySnapshot(new ArrayList<>(books.values()),summaries,0,prefs.getLong("lastShelfSync",0),store.readingRevision());
   }else if(current.lastShelfSync!=prefs.getLong("lastShelfSync",0))current=new UiLibrarySnapshot(new ArrayList<>(current.books),new HashMap<>(current.summaries),0,prefs.getLong("lastShelfSync",0),store.readingRevision());
   else return current;
+  if(wildcard){changedIds.clear();for(Store.Book book:current.books)changedIds.add(book.id);if(previous!=null)for(Store.Book book:previous.books)changedIds.add(book.id);}
+  current.prepareIndices(previous,changedIds);Diagnostics.count("snapshot.publish");
   if(!full){
    for(Store.Book b:current.books)if(changes.containsKey(b.id))deltaRecords.put(b.id,new JSONObject().put("book",writeObject(b)).put("summary",writeObject(current.summary(b))));
    if(deltaRecords.size()>32)full=true;
