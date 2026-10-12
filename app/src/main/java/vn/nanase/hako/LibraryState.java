@@ -55,6 +55,7 @@ public final class LibraryState {
      summary.currentTitle=chapter==null?"":chapter.title;summary.currentRead=chapter!=null&&store.wasRead(chapter.id);
      summary.updatedAt=prefs.getLong("shelf_updated_at_"+b.id,0);
      String now=prefs.getString("shelf_key_"+b.id,""),known=prefs.getString("catalog_shelf_key_"+b.id,"");
+     summary.latestKey=now;
      boolean changed=prefs.getBoolean("shelf_changed_"+b.id,false)||(!now.isEmpty()&&!now.equals(known));
      summary.updated=(b.followed&&changed)||(summary.newCount>0&&summary.stored<summary.total);
      summary.completedOffline=store.isCompleted(b.id)&&summary.total>0&&summary.stored==summary.total&&!changed;

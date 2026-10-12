@@ -7,7 +7,7 @@ public final class UiLibrarySnapshot {
   public int total,stored,unread,newCount,illustrations,missingImages,unseenIllustrations,pendingReview;
   public boolean updated,completedOffline,full,currentRead;
   public long updatedAt;
-  public String currentTitle="";
+  public String currentTitle="",latestKey="";
   public int remaining=-1;
   public String readLabel(){return unread+" chương chưa đọc";}
  }
@@ -42,11 +42,12 @@ public final class UiLibrarySnapshot {
     if(afterCurrent&&!store.ignoredForReading(ch)&&!read.contains(ch.id))s.remaining++;
     if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.currentRead=read.contains(ch.id);s.remaining=0;afterCurrent=true;}
    }
-   // readable() above also classifies legacy image markup; count only afterwards.
+   // Classification is retained from actual content opening/downloading, never inferred by scanning files here.
    Store.ReadCounts counts=store.readCounts(chapters);
    s.unread=counts.textUnread;s.unseenIllustrations=counts.illustrationsUnseen;s.pendingReview=counts.pendingReview;
    s.newCount=s.total>0?store.newArrivals(b.id):shelfCount(b.shelfInfo);
    String now=prefs.getString("shelf_key_"+b.id,""),known=prefs.getString("catalog_shelf_key_"+b.id,"");
+   s.latestKey=now;
    boolean changed=prefs.getBoolean("shelf_changed_"+b.id,false)||(!now.isEmpty()&&!now.equals(known));
    s.updated=(b.followed&&changed)||(s.newCount>0&&s.stored<s.total)||(b.followed&&s.total==0&&shelfCount(b.shelfInfo)>0);
    s.updatedAt=prefs.getLong("shelf_updated_at_"+b.id,0);

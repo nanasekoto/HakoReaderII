@@ -99,7 +99,9 @@ public final class Repository {
     boolean anchorKnown=prefs.getBoolean("shelf_anchor_ready",false)&&HakoParser.ORIGIN.equals(prefs.getString("shelf_anchor_origin",""));
     boolean canUseAnchor=anchorKnown;
     String anchor=prefs.getString("shelf_anchor_id","");
-    Map<String,String> previousKeys=new HashMap<>();for(Store.Book old:s.books())if(old.followed)previousKeys.put(old.id,prefs.getString("shelf_key_"+old.id,""));
+    UiLibrarySnapshot saved=LibraryState.refresh(ctx);
+    Map<String,Store.Book> previousBooks=new HashMap<>();Map<String,String> previousKeys=new HashMap<>();
+    for(Store.Book old:saved.books)if(old.followed){previousBooks.put(old.id,old);previousKeys.put(old.id,saved.summary(old).latestKey);}
     Set<String> quickObserved=null;String anchorTitle="";
     UpdateReport.log(ctx,full?(audit?"Đối chiếu quét nhanh với toàn bộ tủ sách":"Kiểm tra toàn bộ tủ sách"):"Quét nhanh tủ sách; không có mốc hợp lệ sẽ quét đầy đủ");
     java.util.Map<String,String> shelfKeys=new java.util.HashMap<>();java.util.Map<String,Long> shelfTimes=new java.util.HashMap<>();Set<String> changedShelfBooks=new HashSet<>();
@@ -126,7 +128,7 @@ public final class Repository {
       for (HakoParser.Link l : links) {
         anchorRows.add(new ShelfAnchor.Row(l.id,l.latestKey,shelfCount(l.info)));
         if(l.id.equals(anchor))anchorTitle=l.title;
-        Store.Book previous=s.book(l.id);
+        Store.Book previous=previousBooks.get(l.id);
         int before=previous==null?-1:shelfCount(previous.shelfInfo),after=shelfCount(l.info);
         if(l.latestKey.isEmpty()&&after>=0&&((before>=0&&after>before)||(previous==null&&after>0)))changedShelfBooks.add(l.id);
         collected.add(l);
@@ -376,7 +378,7 @@ public final class Repository {
           requestModes.put(b.id,mode);
         }
       } else { // MODE_SYNC_LIBRARY
-        for (Store.Book b : s.books()) {
+        for (Store.Book b : LibraryState.refresh(ctx).books) {
           if (b.id.equals("demo") || b.dropped) continue;
           if (inScope(s,b,mode)&&(mode==MODE_SYNC_PERSONAL||s.syncTarget(b) || b.id.equals(activeBook))) {
             todo.add(b);requestModes.put(b.id,mode);
@@ -395,7 +397,7 @@ public final class Repository {
           if(pendingAll)pendingAll=false;else pendingPersonal=false;librarySync=true;currentMode=requested;
           // A refresh request preempts the bulk queue after the current chapter.
           if(requested==MODE_SYNC_LIBRARY){importShelf(ctx);ReadSync.processQueued(ctx);}refreshedCatalogs.clear();todo.clear();requestModes.clear();ledger.clear();syncTotal=0;syncDone=0;
-          for(Store.Book candidate:s.books()){
+          for(Store.Book candidate:LibraryState.refresh(ctx).books){
             if(candidate.id.equals("demo")||candidate.dropped)continue;
             if(inScope(s,candidate,requested)&&(requested==MODE_SYNC_PERSONAL||s.syncTarget(candidate)||candidate.id.equals(activeBook))){todo.add(candidate);requestModes.put(candidate.id,requested);}
           }
