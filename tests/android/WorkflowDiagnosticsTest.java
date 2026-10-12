@@ -21,8 +21,8 @@ public final class WorkflowDiagnosticsTest extends Instrumentation {
   String id="truyen-999006",base="https://invalid.example/truyen/999006-fixture";
   s.putBook(new HakoParser.Link(id,"Workflow fixture",base));s.visited(id);
   s.catalog(id,Arrays.asList(new HakoParser.Link(id+"-1","Tập 1 · Minh họa",base+"/c1-art"),new HakoParser.Link(id+"-2","Tập 1 · Chương mới nhất",base+"/c2-last")));
-  String imageName=HakoParser.offlineImageName(id+"-2","https://i.docln.net/fixture.png");File imageFile=new File(s.dir(id+"-2"),imageName);imageFile.getParentFile().mkdirs();android.graphics.Bitmap image=android.graphics.Bitmap.createBitmap(32,32,android.graphics.Bitmap.Config.RGB_565);try(FileOutputStream out=new FileOutputStream(imageFile)){image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);}image.recycle();
-  StringBuilder html=new StringBuilder();for(int i=0;i<100;i++)html.append("<p>Đoạn văn dài kiểm tra chuẩn bị ngoài giao diện và đọc tiếp đúng chương mới nhất.</p>");html.append("<img src='").append(imageName).append("'><details><summary>Ghi chú</summary>Nội dung chú thích riêng.</details>");Store.write(s.html(id+"-2"),html.toString());s.state(id+"-2",true,"");s.position(id,id+"-2",0,0);LibraryState.refresh(ctx);
+  String imageName="image-0123456789abcdef01234567.bin";String imageSrc="https://offline.hako.invalid/"+id+"-2/"+imageName;File imageFile=new File(s.dir(id+"-2"),imageName);imageFile.getParentFile().mkdirs();android.graphics.Bitmap image=android.graphics.Bitmap.createBitmap(32,32,android.graphics.Bitmap.Config.RGB_565);try(FileOutputStream out=new FileOutputStream(imageFile)){image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);}image.recycle();
+  StringBuilder html=new StringBuilder();for(int i=0;i<100;i++)html.append("<p>Đoạn văn dài kiểm tra chuẩn bị ngoài giao diện và đọc tiếp đúng chương mới nhất.</p>");html.append("<img src='").append(imageSrc).append("'><details><summary>Ghi chú</summary>Nội dung chú thích riêng.</details>");Store.write(s.html(id+"-2"),html.toString());s.state(id+"-2",true,"");s.position(id,id+"-2",0,0);LibraryState.refresh(ctx);
   activity=(MainActivity)startActivitySync(new Intent().setClassName(ctx.getPackageName(),"vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
   View report=find(activity.getWindow().getDecorView(),"Gửi báo cáo"),heading=find(activity.getWindow().getDecorView(),"HAKO POCKET");
   check(report!=null&&heading!=null&&report.getParent()==heading.getParent(),"Report button sits beside Hako Pocket in same header row");
@@ -50,3 +50,4 @@ public final class WorkflowDiagnosticsTest extends Instrumentation {
   result.putString("stream","PASS TOTAL "+checks+" workflow diagnostics checks\n");finish(0,result);
  }catch(Throwable e){result.putString("stream","FAIL "+e+"\n");finish(1,result);}}
 }
+
