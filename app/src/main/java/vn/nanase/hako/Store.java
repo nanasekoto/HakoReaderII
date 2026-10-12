@@ -122,7 +122,7 @@ public final class Store extends SQLiteOpenHelper {
   }
   public void extendQueueIfCaughtUp(String id){if(queued(id)&&!canSubmit(id)&&unread(id)==0)queueCaughtUp(id);}
   public void clearQueue(String id){context.getSharedPreferences("read_queue",0).edit().remove(id).commit();}
-  public int totalOfflinePercent(){int total=0,done=0;boolean unknown=false;for(Book b:books())if(syncTarget(b)){BookProgress p=progress(b);if(p.totalChs==0)unknown=true;total+=p.newChsTotal;done+=p.newChsDownloaded;}return unknown?0:total==0?100:Math.min(done==total&&context.getSharedPreferences("settings",0).getBoolean("sync_verified",false)?100:99,Math.round(done*100f/total));}
+  public int totalOfflinePercent(){int total=0,done=0;boolean unknown=false;for(Book b:books())if(syncTarget(b)){BookProgress p=progress(b);if(p.totalChs==0)unknown=true;total+=p.newChsTotal;done+=p.newChsDownloaded;}return unknown?0:total==0?100:Math.min(done==total?100:99,Math.round(done*100f/total));}
   public static class BookProgress {
     public final int totalChs;
     public final int oldChs;
@@ -139,7 +139,28 @@ public final class Store extends SQLiteOpenHelper {
     }
   }
 
-  public int readingStart(Book b,List<Chapter> chapters){if(b.current!=null&&!b.current.isEmpty())for(Chapter ch:chapters)if(ch.id.equals(b.current))return ch.ord;int last=0;for(Chapter ch:chapters)if(wasRead(ch.id))last=Math.max(last,ch.ord);return last;}
+  private List<String> chapterIds(List<Chapter> chapters){List<String> ids=new ArrayList<>();for(Chapter ch:chapters)ids.add(ch.id);return ids;}
+  private Set<String> illustrationIds(List<Chapter> chapters){Set<String> ids=new HashSet<>();for(Chapter ch:chapters)if(illustration(ch.id))ids.add(ch.id);return ids;}
+  public int resumeIndex(Book snapshot,List<Chapter> chapters){
+    Book latest=book(snapshot.id);Book b=latest==null?snapshot:latest;
+    String current=b.current;
+    if(illustration(current))current=context.getSharedPreferences("settings",0).getString("reading_text_"+b.id,"");
+    return ReadingNavigation.resume(chapterIds(chapters),current,readIds(b.id),illustrationIds(chapters));
+  }
+  public int adjacentIndex(List<Chapter> chapters,String current,int direction){
+    List<String> ids=chapterIds(chapters);int index=ids.indexOf(current);
+    return index<0?-1:ReadingNavigation.adjacent(ids,index,direction,illustrationIds(chapters));
+  }
+  public int readingStart(Book b,List<Chapter> chapters){int index=resumeIndex(b,chapters);return index<0?0:chapters.get(index).ord;}
+  /** A reader opening never backfills old chapters, even for a retained-full book. */
+  public boolean needsReadingDownload(String book){
+    Book b=book(book);if(b==null||b.dropped)return false;
+    List<Chapter> chapters=chapters(book);int current=readingStart(b,chapters);
+    boolean toEnd=FetchPolicy.toEnd(b.followed,favorite(b),b.visits>0,isKeepFull(book)||isCompleted(book));
+    int end=toEnd?Integer.MAX_VALUE:current+FetchPolicy.AHEAD;
+    for(Chapter ch:chapters)if(ch.ord>=current&&ch.ord<=end&&!isHidden(book,ch.id)&&!readable(ch.id)&&autoIllustration(ch))return true;
+    return false;
+  }
   public BookProgress progress(Book b) {
     List<Chapter> chs = chapters(b.id);
     int total = chs.size();
@@ -351,6 +372,7 @@ public final class Store extends SQLiteOpenHelper {
     v.put("fraction", Math.max(0, Math.min(.999999f, fraction)));
     v.put("stamp", System.currentTimeMillis());
     getWritableDatabase().update("books", v, "id=?", new String[] {book});
+    if(!illustration(chapter))context.getSharedPreferences("settings",0).edit().putString("reading_text_"+book,chapter).apply();
   }
 
   public synchronized void state(String id, boolean ready, String error) {

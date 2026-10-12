@@ -87,3 +87,7 @@ Xem [quy tắc minh họa và hàng chờ](READING_ILLUSTRATIONS_0717.md). Truy�
 ## Bổ sung 0.7.18
 
 [Nhận diện minh họa và kiểm tra cache](ILLUSTRATION_CACHE_0718.md) thay thế cách nhận diện chỉ từ đầu tựa chương. Ứng viên minh họa không được tự coi là đã đọc. Khung minh họa hợp lệ đã lưu không tự tải lại; ảnh thiếu vẫn phải báo riêng.
+
+## Bổ sung 0.7.19
+
+[Vị trí đọc và tải ngoài ý muốn](READING_STATE_0719.md): đọc tiếp lấy vị trí mới nhất, chỉ bỏ qua minh họa đã xác nhận. Mở đọc chỉ xét tải từ chương hiện tại về sau, không tự tải bù phần cũ dù đang giữ full; Cập nhật/Tải full vẫn dùng phạm vi đầy đủ đã chọn. Tạm dừng không bị mở đọc ghi đè. Phần trăm chữ offline không phụ thuộc việc xác minh thư viện trên web.
