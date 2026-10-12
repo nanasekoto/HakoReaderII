@@ -22,7 +22,7 @@ adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r build/test-android/tests.apk
-for test in ImageCacheTest ReadingStateTest; do
+for test in ImageCacheTest ReadingStateTest UnreadStateTest; do
   adb shell am force-stop vn.nanase.hako
   adb shell pm clear vn.nanase.hako
   timeout 180 adb shell am instrument -w "vn.nanase.hako.tests/vn.nanase.hako.tests.$test" | tee "build/evidence/$test.txt"

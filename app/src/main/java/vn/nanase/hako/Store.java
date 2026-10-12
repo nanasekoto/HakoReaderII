@@ -17,6 +17,8 @@ public final class Store extends SQLiteOpenHelper {
   public final File cache;
   private final Context context;
   private final java.util.concurrent.ConcurrentHashMap<String,String> chapterTitles=new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.util.concurrent.atomic.AtomicLong readingRevision=new java.util.concurrent.atomic.AtomicLong();
+  public long readingRevision(){return readingRevision.get();}
 
   private Store(Context c) {
     super(c, "hako.db", null, 3);
@@ -91,10 +93,28 @@ public final class Store extends SQLiteOpenHelper {
   public boolean completedOffline(Book b){if(!isCompleted(b.id))return false;android.content.SharedPreferences p=context.getSharedPreferences("settings",0);String current=p.getString("shelf_key_"+b.id,""),known=p.getString("catalog_shelf_key_"+b.id,"");if(p.getBoolean("shelf_changed_"+b.id,false)||(!current.isEmpty()&&!current.equals(known)))return false;List<Chapter> all=chapters(b.id);if(all.isEmpty())return false;for(Chapter ch:all)if(!illustration(ch.id)&&!ch.ready)return false;return true;}
   private Set<String> readIds(String book){Set<String> ids=new HashSet<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT c.id FROM chapters c JOIN read_chapters r ON r.id=c.id WHERE c.book=?",new String[]{book})){while(c.moveToNext())ids.add(c.getString(0));}return ids;}
   public int unread(String id){Set<String> read=readIds(id);int count=0;for(Chapter ch:chapters(id))if(!illustration(ch.id)&&!read.contains(ch.id))count++;return count;}
+  public static final class ReadCounts {
+    public int textUnread,illustrationsUnseen,pendingReview;
+    public String label(){return textUnread+" chương chữ chưa đọc"+(illustrationsUnseen>0?" · "+illustrationsUnseen+" minh họa chưa xem":"")+(pendingReview>0?" · "+pendingReview+" chương cần kiểm tra":"");}
+  }
+  /** Display counts are separate from conservative remote read-all eligibility. */
+  public ReadCounts readCounts(List<Chapter> chapters){
+    ReadCounts counts=new ReadCounts();if(chapters.isEmpty())return counts;
+    Set<String> read=readIds(chapters.get(0).book);
+    android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
+    for(Chapter ch:chapters){
+      if(read.contains(ch.id))continue;
+      int kind=prefs.getInt("chapter_kind_"+ch.id,IllustrationPolicy.UNKNOWN);
+      if(kind==IllustrationPolicy.ILLUSTRATION)counts.illustrationsUnseen++;
+      else if(kind==IllustrationPolicy.CANDIDATE||(kind==IllustrationPolicy.UNKNOWN&&IllustrationPolicy.hint(ch.title)))counts.pendingReview++;
+      else counts.textUnread++;
+    }
+    return counts;
+  }
   public boolean illustration(String id){return context.getSharedPreferences("settings",0).getInt("chapter_kind_"+id,0)==2;}
   public boolean illustrationHint(Chapter ch){int kind=context.getSharedPreferences("settings",0).getInt("chapter_kind_"+ch.id,0);return kind==2||kind==3||(kind==0&&IllustrationPolicy.hint(ch.title));}
   private void rememberTitle(String id,String title){String previous=chapterTitles.put(id,title==null?"":title);if(!java.util.Objects.equals(previous,title))validatedFiles.remove(id);}
-  public void classify(String id,String html){int kind=IllustrationPolicy.kind(chapterTitles.get(id),html);android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(p.getInt("chapter_kind_"+id,0)!=kind)p.edit().putInt("chapter_kind_"+id,kind).apply();}
+  public void classify(String id,String html){int kind=IllustrationPolicy.kind(chapterTitles.get(id),html);android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(p.getInt("chapter_kind_"+id,0)!=kind){p.edit().putInt("chapter_kind_"+id,kind).apply();readingRevision.incrementAndGet();}}
   public boolean cachedIllustration(String id){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);return illustration(id)&&html(id).isFile()&&fileStamp(html(id)).equals(p.getString("illustration_cached_"+id,""));}
   public int unreadIllustrations(String book){Set<String> read=readIds(book);int n=0;for(Chapter ch:chapters(book))if(illustration(ch.id)&&!read.contains(ch.id))n++;return n;}
   public int missingImages(String id){
@@ -198,11 +218,11 @@ public final class Store extends SQLiteOpenHelper {
 
   private void upgrade3(SQLiteDatabase d){d.execSQL("ALTER TABLE books ADD COLUMN visits INTEGER DEFAULT 0");d.execSQL("ALTER TABLE books ADD COLUMN pinned INTEGER DEFAULT 0");d.execSQL("ALTER TABLE books ADD COLUMN shelf_info TEXT DEFAULT ''");d.execSQL("CREATE TABLE read_chapters(id TEXT PRIMARY KEY,stamp INTEGER)");}
   public synchronized void replaceShelf(List<HakoParser.Link> links){SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{d.execSQL("UPDATE books SET followed=0,shelf_rank=999999");int rank=0;for(HakoParser.Link l:links){putBook(l);followed(l.id,true,rank++);shelfInfo(l.id,l.info);}d.setTransactionSuccessful();}finally{d.endTransaction();}}
-  public synchronized void importHistory(String id,String chapter,long stamp){Book b=book(id);if(b==null||stamp<=b.stamp)return;ContentValues v=new ContentValues();v.put("current",chapter);v.put("stamp",stamp);v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
-  public synchronized void selectChapter(String id,String chapter){Book b=book(id);if(b!=null&&!chapter.equals(b.current)){ContentValues v=new ContentValues();v.put("current",chapter);v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}}
+  public synchronized void importHistory(String id,String chapter,long stamp){Book b=book(id);if(b==null||stamp<=b.stamp)return;ContentValues v=new ContentValues();v.put("current",chapter);v.put("stamp",stamp);v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{id});readingRevision.incrementAndGet();}
+  public synchronized void selectChapter(String id,String chapter){Book b=book(id);if(b!=null&&!chapter.equals(b.current)){ContentValues v=new ContentValues();v.put("current",chapter);v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{id});readingRevision.incrementAndGet();}}
   public synchronized void visited(String id){getWritableDatabase().execSQL("UPDATE books SET visits=visits+1 WHERE id=?",new Object[]{id});}
   public synchronized void pin(String id,boolean value){getWritableDatabase().execSQL("UPDATE books SET pinned=? WHERE id=?",new Object[]{value?1:0,id});}
-  public synchronized void readChapter(String id){if(wasRead(id))return;ContentValues v=new ContentValues();v.put("id",id);v.put("stamp",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("read_chapters",null,v,SQLiteDatabase.CONFLICT_REPLACE);}
+  public synchronized void readChapter(String id){if(wasRead(id))return;ContentValues v=new ContentValues();v.put("id",id);v.put("stamp",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("read_chapters",null,v,SQLiteDatabase.CONFLICT_REPLACE);readingRevision.incrementAndGet();}
   public boolean wasRead(String id){try(Cursor c=getReadableDatabase().rawQuery("SELECT id FROM read_chapters WHERE id=?",new String[]{id})){return c.moveToFirst();}}
   public synchronized void shelfInfo(String id,String info){ContentValues v=new ContentValues();v.put("shelf_info",info);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
   public static class Book {
@@ -312,6 +332,7 @@ public final class Store extends SQLiteOpenHelper {
     int added=0;for(String id:webIds)if(!old.contains(id))added++;
     if(!previous.isEmpty()){Set<String> arrivals=new HashSet<>(webIds);arrivals.removeAll(old);edit.putInt("new_arrivals_"+book,added).putStringSet("new_arrival_ids_"+book,arrivals);}
     edit.commit();
+    if(!oldIds.equals(webIds))readingRevision.incrementAndGet();
     if(!hidden.isEmpty())UpdateReport.checkpoint(context,"Mục lục "+book+": giữ "+hidden.size()+" chương cũ không còn xuất hiện trên web; không xóa cache hoặc tiến độ");
   }
   public boolean isHidden(String book,String chapter){
@@ -366,6 +387,7 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public synchronized void position(String book, String chapter, int pos, float fraction) {
+    Book previous=book(book);boolean changed=previous!=null&&!chapter.equals(previous.current);
     ContentValues v = new ContentValues();
     v.put("current", chapter);
     v.put("pos", Math.max(0, pos));
@@ -373,6 +395,7 @@ public final class Store extends SQLiteOpenHelper {
     v.put("stamp", System.currentTimeMillis());
     getWritableDatabase().update("books", v, "id=?", new String[] {book});
     if(!illustration(chapter))context.getSharedPreferences("settings",0).edit().putString("reading_text_"+book,chapter).apply();
+    if(changed)readingRevision.incrementAndGet();
   }
 
   public synchronized void state(String id, boolean ready, String error) {

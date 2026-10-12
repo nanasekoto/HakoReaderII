@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
   }};
   private void reloadLibrary(boolean force,Runnable after){
     if(after!=null)libraryLoaded=after;
-    if(libraryLoading){if(force)libraryReloadAgain=true;return;}
+    if(libraryLoading){libraryReloadAgain=true;return;}
     libraryLoading=true;libraryLoadStarted=SystemClock.elapsedRealtime();
     libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);
     libraryIo.execute(()->{
@@ -76,6 +76,9 @@ public class MainActivity extends Activity {
       runOnUiThread(()->{
         if(isFinishing()||isDestroyed())return;
         libraryLoading=false;
+        if(loaded!=null&&loaded.readingRevision!=store.readingRevision()){
+          libraryReloadAgain=false;reloadLibrary(true,null);return;
+        }
         if(loaded!=null){readyLibrary=loaded;refreshLibraryView();}
         Runnable done=libraryLoaded;libraryLoaded=null;
         if(done!=null&&loaded!=null)done.run();
@@ -649,7 +652,7 @@ public class MainActivity extends Activity {
 
         StringBuilder sub = new StringBuilder();
         if (b.stamp > 0 && !summary.currentTitle.isEmpty()) {
-          sub.append("Đang đọc: ").append(summary.currentTitle);
+          sub.append(summary.currentRead?"Đã đọc tới: ":"Đang đọc: ").append(summary.currentTitle);
           if (unread > 0) sub.append(" · còn ").append(unread).append(" ch");
           sub.append(" · ").append(formatVnDate(b.stamp, "dd/MM"));
         } else if (summary.total>0) {
@@ -670,7 +673,7 @@ public class MainActivity extends Activity {
         subView.setMaxLines(1);
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
-        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+subView.getText()+" · "+summary.unread+" chưa đọc");
+        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+subView.getText()+" · "+summary.readLabel());
         if(shelf)card.addView(subView);
         else {
           LinearLayout controls=new LinearLayout(MainActivity.this);controls.setGravity(Gravity.CENTER_VERTICAL);
@@ -823,7 +826,7 @@ public class MainActivity extends Activity {
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
         int storedAll=summary.stored;
-        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+"Chữ "+storedAll+"/"+totalChs+" · "+summary.unread+" chưa đọc"+(summary.newCount>0?" · "+summary.newCount+" mới":""));
+        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+"Chữ "+storedAll+"/"+totalChs+" · "+summary.readLabel()+(summary.newCount>0?" · "+summary.newCount+" mới":""));
         int wholePct=totalChs==0?0:Math.min(storedAll==totalChs?100:99,Math.round(storedAll*100f/totalChs));badge.setText("CHỮ "+wholePct+"%");
         LinearLayout meta=new LinearLayout(MainActivity.this);meta.setGravity(Gravity.CENTER_VERTICAL);meta.addView(subView,new LinearLayout.LayoutParams(0,-2,1));meta.addView(badge);card.addView(meta);
 
@@ -865,7 +868,7 @@ public class MainActivity extends Activity {
 
   private void submitCaughtUp(Store.Book b){
     if(caughtUpUpdating)return;
-    if(store.unread(b.id)>0){message("Còn chương chữ chưa đọc · Chưa gửi Đọc hết lên HAKO");return;}
+    if(store.unread(b.id)>0){message("Chưa gửi Đọc hết lên HAKO · "+store.readCounts(store.chapters(b.id)).label());return;}
     if(store.unreadIllustrations(b.id)>0){EinkDialog.show(this,"Còn minh họa chưa xem","Bạn đã đọc hết chương chữ. HAKO đánh dấu cả truyện, bao gồm "+store.unreadIllustrations(b.id)+" chương minh họa chưa xem. Xác nhận gửi sau khi kiểm tra mục lục mới?","Xác nhận",()->submitCaughtUpConfirmed(b,true),"Để sau",null);return;}
     submitCaughtUpConfirmed(b,false);
   }
@@ -1045,6 +1048,7 @@ public class MainActivity extends Activity {
 
   private static class VolumeGroup {
     String name;
+    String readSummary="";
     List<Store.Chapter> chapters = new ArrayList<>();
     List<String> cleanTitles = new ArrayList<>();
   }
@@ -1118,12 +1122,21 @@ public class MainActivity extends Activity {
 
   private void contents(Store.Book b) {
     if(b==null)return;
-    List<Store.Chapter> chs = store.chapters(b.id);
+    final List<Store.Chapter> chapters=store.chapters(b.id);
+    if(chapters.isEmpty()){message("Chưa có mục lục. Kết nối mạng và chọn Tải lại mục lục.");return;}
+    final List<VolumeGroup> groups=groupChapters(chapters);
+    task("Đang chuẩn bị trạng thái đọc…",()->{
+      for(Store.Chapter ch:chapters)store.readable(ch.id);
+      for(VolumeGroup group:groups)group.readSummary=store.readCounts(group.chapters).label();
+      return null;
+    },()->renderContents(b,chapters,groups));
+  }
+
+  private void renderContents(Store.Book b,List<Store.Chapter> chs,List<VolumeGroup> groups) {
     if (chs.isEmpty()) {
       message("Chưa có mục lục. Kết nối mạng và chọn Tải lại mục lục.");
       return;
     }
-    List<VolumeGroup> groups = groupChapters(chs);
     if (groups.size() == 1) {
       volumeChapters(b, groups.get(0));
       return;
@@ -1191,7 +1204,7 @@ public class MainActivity extends Activity {
         subView.setSingleLine(true);subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setTextColor(MUTED);
         subView.setPadding(0, dp(4), 0, 0);
-        subView.setText(subView.getText()+" · "+store.unread(b.id)+" chưa đọc");
+        subView.setText(subView.getText()+" · "+vg.readSummary);
         card.addView(subView);
 
         return card;
@@ -1213,14 +1226,15 @@ public class MainActivity extends Activity {
     int targetIdx = resolveTargetIndex(b, allChs);
     Store.Chapter targetCh = allChs.get(targetIdx);
 
-    chapterHeader(b,targetCh,vg.name,vg.chapters.size()+" chương");
+    chapterHeader(b,targetCh,vg.name,vg.chapters.size()+" chương · "+store.readCounts(vg.chapters).label());
 
     List<String> labels = new ArrayList<>();
     for (int n = 0; n < vg.chapters.size(); n++) {
       Store.Chapter c = vg.chapters.get(n);
       boolean isTarget = c.id.equals(targetCh.id);
       boolean wasRead = store.wasRead(c.id);
-      String prefix = isTarget ? "▶ [Đang đọc] " : wasRead ? "✓ " : "• ";
+      String prefix = store.illustration(c.id)?(wasRead?"✓ [Minh họa đã xem] ":"[Minh họa chưa xem] "):
+          isTarget?(wasRead?"✓ [Đã đọc tới] ":"▶ [Đang đọc] "):wasRead?"✓ ":"• ";
       String statusIcon = c.ready ? "↓✓" : store.html(c.id).isFile() ? "◐" : "↓";
       String chTitle = (n < vg.cleanTitles.size()) ? vg.cleanTitles.get(n) : c.title;
       labels.add(prefix + chTitle + " (" + statusIcon + ")");
@@ -1355,7 +1369,10 @@ public class MainActivity extends Activity {
     nativeReader=new NativeReader(this,store.dir(cid),new NativeReader.Listener(){
       public void position(int p,float f,int page,int count){
         if(isFinishing()||isDestroyed()||!bid.equals(bookId)||!cid.equals(chapterId))return;
-        lastPos=p;lastFraction=f;if(!store.illustration(c.id))store.position(bid,cid,p,f);if(page==count-1){store.readChapter(cid);store.queueIfAllRead(bid);ReadSync.schedule(MainActivity.this);}
+        lastPos=p;lastFraction=f;if(!store.illustration(c.id))store.position(bid,cid,p,f);if(page==count-1){
+          boolean newlyRead=!store.wasRead(cid);store.readChapter(cid);store.queueIfAllRead(bid);ReadSync.schedule(MainActivity.this);
+          if(newlyRead)reloadLibrary(true,null);
+        }
         if(title!=null)title.setText(c.title+" · "+(page+1)+"/"+count);
         if(!readerReady){readerReady=true;io.execute(()->{
           store.prune(store.book(bid));

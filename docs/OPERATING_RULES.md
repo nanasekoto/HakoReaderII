@@ -91,3 +91,7 @@ Xem [quy tắc minh họa và hàng chờ](READING_ILLUSTRATIONS_0717.md). Truy�
 ## Bổ sung 0.7.19
 
 [Vị trí đọc và tải ngoài ý muốn](READING_STATE_0719.md): đọc tiếp lấy vị trí mới nhất, chỉ bỏ qua minh họa đã xác nhận. Mở đọc chỉ xét tải từ chương hiện tại về sau, không tự tải bù phần cũ dù đang giữ full; Cập nhật/Tải full vẫn dùng phạm vi đầy đủ đã chọn. Tạm dừng không bị mở đọc ghi đè. Phần trăm chữ offline không phụ thuộc việc xác minh thư viện trên web.
+
+## Bổ sung 0.7.20
+
+[Số chương chưa đọc](UNREAD_DISPLAY_0720.md): phân loại cache trước khi đếm, đếm từng tập độc lập, minh họa chưa xem và chương cần kiểm tra có số riêng. Tới trang cuối lưu đã đọc và làm mới thư viện ngay; dữ liệu hiển thị cũ không được ghi đè trạng thái mới. Không tự đánh dấu chương chữ chưa đọc khi gửi Đọc hết.
