@@ -887,7 +887,7 @@ public class MainActivity extends Activity {
   }
 
   private void startDownloads(String id, int mode) {
-    if(prefs.getBoolean("sync_paused",false)){if(mode==Repository.MODE_BOOK_NEXT)return;Repository.setSyncPaused(this,false);}
+    if(prefs.getBoolean("sync_paused",false)){if(mode==Repository.MODE_BOOK_NEXT||mode==Repository.MODE_READER_NEXT)return;Repository.setSyncPaused(this,false);}
     if(mode==Repository.MODE_BOOK_ALL && !id.isEmpty()) {
       store.setKeepFull(id,true);
 
@@ -977,22 +977,9 @@ public class MainActivity extends Activity {
   }
 
   private int resolveTargetIndex(Store.Book b, List<Store.Chapter> chs) {
-    if (chs.isEmpty()) return 0;
-    if (!b.current.isEmpty()) {
-      for (int i = 0; i < chs.size(); i++) {
-        if (chs.get(i).id.equals(b.current)&&!store.illustrationHint(chs.get(i))) return i;
-      }
-    }
-    int lastRead = -1;
-    for (int i = 0; i < chs.size(); i++) {
-      if (store.wasRead(chs.get(i).id)) lastRead = i;
-    }
-    if (lastRead >= 0) {
-      for(int n=lastRead+1;n<chs.size();n++)if(!store.illustrationHint(chs.get(n)))return n;
-      for(int n=lastRead;n>=0;n--)if(!store.illustrationHint(chs.get(n)))return n;
-    }
-    for(int n=0;n<chs.size();n++)if(!store.illustrationHint(chs.get(n)))return n;
-    return 0;
+    // List rows and Back callbacks may still carry the position from before reading.
+    int index=store.resumeIndex(b,chs);
+    return index<0?0:index; // An all-image book remains manually accessible from its TOC.
   }
 
   private void openBookContents(Store.Book b){
@@ -1288,8 +1275,8 @@ public class MainActivity extends Activity {
     }
     if(!Repository.activeBook.equals(bid)){leaveReader();Repository.activeBook=bid;}
     Repository.cancel.set(false);
-    Repository.pendingBook=bid;
-    Repository.priorityChapterId=cid;
+    // Persist the explicit choice before any worker can plan its download range.
+    if(!store.illustration(cid))store.selectChapter(bid,cid);
     if (store.readable(cid)) {
       showReader(bid, cid);
     } else {
@@ -1370,7 +1357,12 @@ public class MainActivity extends Activity {
         if(isFinishing()||isDestroyed()||!bid.equals(bookId)||!cid.equals(chapterId))return;
         lastPos=p;lastFraction=f;if(!store.illustration(c.id))store.position(bid,cid,p,f);if(page==count-1){store.readChapter(cid);store.queueIfAllRead(bid);ReadSync.schedule(MainActivity.this);}
         if(title!=null)title.setText(c.title+" · "+(page+1)+"/"+count);
-        if(!readerReady){readerReady=true;io.execute(()->store.prune(store.book(bid)));if(!bid.equals("demo"))startDownloads(bid,Repository.MODE_BOOK_NEXT);}
+        if(!readerReady){readerReady=true;io.execute(()->{
+          store.prune(store.book(bid));
+          if(!bid.equals("demo")&&store.needsReadingDownload(bid))runOnUiThread(()->{
+            if(bid.equals(bookId)&&cid.equals(chapterId)&&nativeReader!=null)startDownloads(bid,Repository.MODE_READER_NEXT);
+          });
+        });}
       }
       public void boundary(int dir){
         if(!readerReady)return;
@@ -1379,7 +1371,8 @@ public class MainActivity extends Activity {
           return;
         }
         List<Store.Chapter> allChs=store.chapters(bid);
-        boolean isLastChapter=true;boolean found=false;for(Store.Chapter ch:allChs){if(ch.id.equals(cid)){found=true;continue;}if(found&&!store.illustrationHint(ch)){isLastChapter=false;break;}}isLastChapter=isLastChapter&&found;
+        boolean found=false;for(Store.Chapter ch:allChs)if(ch.id.equals(cid)){found=true;break;}
+        boolean isLastChapter=found&&store.adjacentIndex(allChs,cid,1)<0;
         if(dir>0&&isLastChapter){
           markCaughtUp(store.book(bid));
           return;
@@ -1444,20 +1437,9 @@ public class MainActivity extends Activity {
 
   private void adjacent(int delta) {
     List<Store.Chapter> chs = store.chapters(bookId);
-    for (int n = 0; n < chs.size(); n++)
-      if (chs.get(n).id.equals(chapterId)) {
-        int target = n + delta;
-        while(target>=0&&target<chs.size()&&store.illustrationHint(chs.get(target)))target+=delta;
-        if (target >= 0 && target < chs.size()) {
-          if (delta < 0) pendingOpenAtEnd = true;
-          openChapter(bookId, chs.get(target).id);
-        }
-        else
-          Toast.makeText(
-                  this, delta > 0 ? "Đã đến cuối mục lục" : "Đây là chương đầu", Toast.LENGTH_SHORT)
-              .show();
-        return;
-      }
+    int target=store.adjacentIndex(chs,chapterId,delta);
+    if(target>=0){if(delta<0)pendingOpenAtEnd=true;saveThen(()->openChapter(bookId,chs.get(target).id));}
+    else Toast.makeText(this,delta>0?"Đã đến cuối mục lục":"Đây là chương đầu",Toast.LENGTH_SHORT).show();
   }
 
   private void bookmarks() {

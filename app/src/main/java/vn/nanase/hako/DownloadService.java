@@ -64,7 +64,7 @@ public class DownloadService extends Service {
     final int finalMode = mode;
     if (worker != null && worker.isAlive()) {
       if (finalMode == Repository.MODE_SYNC_LIBRARY) Repository.pendingAll = true;
-      else if (book != null) {if(finalMode==Repository.MODE_BOOK_ALL)Store.get(this).setKeepFull(book,true);Repository.pendingBook = book;}
+      else if (book != null) {if(finalMode==Repository.MODE_BOOK_ALL)Store.get(this).setKeepFull(book,true);Repository.queueBook(book,finalMode);}
       if(finalMode==Repository.MODE_BOOK_ALL || finalMode==Repository.MODE_SYNC_LIBRARY)Repository.manualOverride=true;
       return START_NOT_STICKY;
     }
@@ -77,9 +77,9 @@ public class DownloadService extends Service {
                 Repository.awaitIdle();
                 while(!Repository.syncPaused&&!Repository.cancel.get()&&(Repository.pendingAll||!Repository.pendingBook.isEmpty())){
                   boolean shelf=Repository.pendingAll;
-                  String queued=Repository.pendingBook;
-                  if(shelf)Repository.pendingAll=false;else Repository.pendingBook="";
-                  Repository.run(this,shelf?"":queued,shelf?Repository.MODE_SYNC_LIBRARY:Repository.MODE_BOOK_NEXT,false);
+                  Repository.BookRequest request=shelf?null:Repository.takeBook();
+                  if(shelf)Repository.pendingAll=false;
+                  Repository.run(this,shelf?"":request.book,shelf?Repository.MODE_SYNC_LIBRARY:request.mode,false);
                   Repository.awaitIdle();
                 }
               } catch (Exception e) {

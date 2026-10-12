@@ -37,7 +37,22 @@ public final class Repository {
       cancel = new AtomicBoolean(false);
   public static volatile boolean pendingAll = false, manualOverride = false;
   public static volatile String status = "Sẵn sàng", pendingBook = "";
-  public static final int MODE_BOOK_NEXT = 1, MODE_BOOK_ALL = 2, MODE_SYNC_LIBRARY = 3;
+  public static final int MODE_BOOK_NEXT = 1, MODE_BOOK_ALL = 2, MODE_SYNC_LIBRARY = 3, MODE_READER_NEXT = 4;
+  private static int pendingBookMode=MODE_BOOK_NEXT;
+  static final class BookRequest {
+    final String book;final int mode;
+    BookRequest(String book,int mode){this.book=book;this.mode=mode;}
+  }
+  static synchronized void queueBook(String book,int mode){
+    // A reader handoff must not downgrade an explicit full/continue request for this book.
+    if(book.equals(pendingBook)&&pendingBookMode!=MODE_READER_NEXT&&mode==MODE_READER_NEXT)return;
+    pendingBookMode=mode;pendingBook=book;
+  }
+  static synchronized BookRequest takeBook(){
+    BookRequest request=new BookRequest(pendingBook,pendingBookMode);
+    pendingBook="";pendingBookMode=MODE_BOOK_NEXT;return request;
+  }
+  static synchronized int queuedBookMode(){return pendingBookMode;}
   public static volatile int currentMode = 0;
   public static volatile int syncTotal = 0, syncDone = 0, syncPct = 100;
   public static volatile boolean isSyncing = false;
@@ -321,12 +336,12 @@ public final class Repository {
   }
 
   public static void run(Context ctx, String book, int mode, boolean charging) throws Exception {
-    if(pocketPaused && !charging && mode==MODE_BOOK_NEXT)return;
+    if(pocketPaused && !charging && (mode==MODE_BOOK_NEXT||mode==MODE_READER_NEXT))return;
     init(ctx);
     if(syncPaused)return;
     if (!busy.compareAndSet(false, true)) {
       if (mode == MODE_SYNC_LIBRARY) pendingAll = true;
-      else if (book != null && !book.isEmpty()) {if(mode==MODE_BOOK_ALL)Store.get(ctx).setKeepFull(book,true);pendingBook = book;}
+      else if (book != null && !book.isEmpty()) {if(mode==MODE_BOOK_ALL)Store.get(ctx).setKeepFull(book,true);queueBook(book,mode);}
       return;
     }
     cancel.set(false);
@@ -347,12 +362,14 @@ public final class Repository {
       Store s = Store.get(ctx);
       if(mode==MODE_SYNC_LIBRARY)importShelf(ctx);
       ArrayList<Store.Book> todo = new ArrayList<>();
+      Map<String,Integer> requestModes=new HashMap<>();
 
-      if (mode == MODE_BOOK_NEXT || mode == MODE_BOOK_ALL) {
+      if (mode == MODE_BOOK_NEXT || mode == MODE_BOOK_ALL || mode==MODE_READER_NEXT) {
         Store.Book b = s.book(book);
         if (b != null && !b.id.equals("demo")) {
           if (mode == MODE_BOOK_ALL) s.setKeepFull(b.id, true);
           todo.add(b);
+          requestModes.put(b.id,mode);
         }
       } else { // MODE_SYNC_LIBRARY
         for (Store.Book b : s.books()) {
@@ -372,7 +389,7 @@ public final class Repository {
         if (pendingAll) {
           pendingAll = false;librarySync=true;currentMode=MODE_SYNC_LIBRARY;
           // A refresh request preempts the bulk queue after the current chapter.
-          importShelf(ctx);refreshedCatalogs.clear();todo.clear();ledger.clear();syncTotal=0;syncDone=0;
+          importShelf(ctx);refreshedCatalogs.clear();todo.clear();requestModes.clear();ledger.clear();syncTotal=0;syncDone=0;
           for(Store.Book candidate:s.books()){
             if(candidate.id.equals("demo")||candidate.dropped)continue;
             if(s.syncTarget(candidate)||candidate.id.equals(activeBook))todo.add(candidate);
@@ -380,9 +397,13 @@ public final class Repository {
           s.sortDownloads(todo);promoteActive(todo);
         }
         if (!pendingBook.isEmpty()) {
-          Store.Book p = s.book(pendingBook);
-          pendingBook = "";
+          BookRequest request=takeBook();
+          Store.Book p = s.book(request.book);
           if (p != null) {
+            // A shelf/full task already authorized for this book keeps its broader scope.
+            boolean alreadyQueued=false;for(Store.Book queued:todo)if(queued.id.equals(p.id)){alreadyQueued=true;break;}
+            if(!alreadyQueued&&!requestModes.containsKey(p.id))requestModes.put(p.id,request.mode);
+            else if(request.mode!=MODE_READER_NEXT)requestModes.put(p.id,request.mode);
             todo.removeIf(x -> x.id.equals(p.id));
             todo.add(0,p);
             notify(ctx,"Ưu tiên truyện đang đọc: "+p.title);
@@ -391,13 +412,20 @@ public final class Repository {
         if (todo.isEmpty() || (charging && !ChargeJob.isCharging(ctx))) break;
 
         Store.Book b = todo.remove(0);
+        if(b==null)continue;
+        int bookMode=requestModes.getOrDefault(b.id,librarySync?MODE_SYNC_LIBRARY:mode);
+        boolean readerOnly=bookMode==MODE_READER_NEXT;
+        currentMode=bookMode;
         if(librarySync&&b!=null&&!s.syncTarget(b)&&!b.id.equals(activeBook)){UpdateReport.log(ctx,b.title+": chặn tải do không đủ điều kiện");continue;}
         if (b == null || b.id == null || b.id.isEmpty() || !FetchPolicy.allowDownload(b.dropped,(mode==MODE_BOOK_ALL && b.id.equals(book))||(manualOverride&&s.isKeepFull(b.id)))) continue;
 
         // 1. Refresh catalog FIRST to know real chapter count
         if(!refreshedCatalogs.contains(b.id)){
           UpdateReport.selected(ctx);UpdateReport.log(ctx,b.title+": đủ điều kiện tải — "+(s.isKeepFull(b.id)?"bạn chọn giữ toàn bộ":b.visits>0?"đã đọc trong APK":"bạn bật tự động tải hoặc đang mở đọc"));
-          try{catalog(ctx,b);}catch(Exception error){hadFailures=true;UpdateReport.log(ctx,b.title+": lỗi kiểm tra mục lục — "+error.getMessage()+"; giữ dữ liệu offline và tiếp tục bộ khác");notify(ctx,"Không cập nhật được "+b.title+" · Xem Chi tiết cập nhật");continue;}
+          try{
+            if(readerOnly&&!s.chapters(b.id).isEmpty())UpdateReport.log(ctx,b.title+": lượt mở đọc dùng mục lục đã lưu; cập nhật web theo yêu cầu hoặc lịch sạc + Wi-Fi");
+            else catalog(ctx,b);
+          }catch(Exception error){hadFailures=true;UpdateReport.log(ctx,b.title+": lỗi kiểm tra mục lục — "+error.getMessage()+"; giữ dữ liệu offline và tiếp tục bộ khác");notify(ctx,"Không cập nhật được "+b.title+" · Xem Chi tiết cập nhật");continue;}
           refreshedCatalogs.add(b.id);
         }
         Store.Book refreshed = s.book(b.id);
@@ -406,7 +434,7 @@ public final class Repository {
         List<Store.Chapter> chapters = s.chapters(b.id);
         int current = s.readingStart(b,chapters);
 
-        boolean isFullMode = (mode == MODE_BOOK_ALL && b.id.equals(book)) || s.isKeepFull(b.id) || s.isCompleted(b.id);
+        boolean isFullMode = bookMode==MODE_BOOK_ALL || s.isKeepFull(b.id) || s.isCompleted(b.id);
 
         boolean toEnd = FetchPolicy.toEnd(b.followed,s.favorite(b),b.visits>0,isFullMode);
         int scopeEnd = toEnd ? Integer.MAX_VALUE : current + FetchPolicy.AHEAD;
@@ -419,11 +447,11 @@ public final class Repository {
         }
         // If full mode: also earlier chapters
         for (Store.Chapter ch : chapters) {
-          if (isFullMode && ch.ord < current && !s.isHidden(b.id,ch.id) && !s.readable(ch.id) && s.autoIllustration(ch)) needDownload.add(ch);
+          if (isFullMode && !readerOnly && ch.ord < current && !s.isHidden(b.id,ch.id) && !s.readable(ch.id) && s.autoIllustration(ch)) needDownload.add(ch);
         }
 
         needDownload.sort((a,z)->Boolean.compare(s.illustrationHint(a),s.illustrationHint(z)));
-        UpdateReport.log(ctx,b.title+": phạm vi — "+(isFullMode?"toàn bộ truyện":toEnd?"từ chương đang đọc đến cuối, giữ 3 chương trước":"chương đang đọc + tối đa 15 chương tiếp, giữ 3 chương trước"));
+        UpdateReport.log(ctx,b.title+": phạm vi — "+(readerOnly?"mở đọc: chỉ phần hiện tại và phía sau, không tải bù chương cũ":isFullMode?"toàn bộ truyện":toEnd?"từ chương đang đọc đến cuối, giữ 3 chương trước":"chương đang đọc + tối đa 15 chương tiếp, giữ 3 chương trước"));
         int stored=0;for(Store.Chapter ch:chapters)if(ch.ready)stored++;
         UpdateReport.log(ctx,b.title+": đã lưu "+stored+"/"+chapters.size()+" chương toàn bộ · Cần tải "+needDownload.size()+" chương trong phạm vi đã chọn");
         for(Store.Chapter needed:needDownload){if(!needed.book.equals(b.id))throw new IOException("Hàng đợi sai truyện; đã dừng để giữ dữ liệu");if(!s.illustrationHint(needed))ledger.add(needed.id);}
@@ -509,14 +537,13 @@ public final class Repository {
       }
     } catch(Exception error){UpdateReport.checkpoint(ctx,"Đã dừng tác vụ: "+error.getMessage());throw error;} finally {
       syncPct=Store.get(ctx).totalOfflinePercent();
-      if(!"COMPLETED".equals(syncState))syncPct=Math.min(99,syncPct);
       GeckoClient.release();busy.set(false);
       ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}
       if(cancel.get()||syncPaused){pendingBook="";pendingAll=false;}
       manualOverride = false;
       isSyncing = false;
-      notify(ctx,syncPaused?"Đã tạm dừng đồng bộ · Dữ liệu tải được giữ nguyên":syncPct==100?"Chữ offline đã đủ · Xem cảnh báo ảnh riêng":"Offline "+syncPct+"% · Chưa tải đủ");
+      notify(ctx,syncPaused?"Đã tạm dừng đồng bộ · Chữ offline "+syncPct+"%":!"COMPLETED".equals(syncState)?"Lượt cập nhật chưa hoàn tất · Chữ offline "+syncPct+"% · Xem Chi tiết cập nhật":syncPct==100?"Chữ offline 100% · Ảnh thiếu xem riêng":"Lượt tải đã xong · Chữ offline toàn thư viện "+syncPct+"% · Phần còn thiếu xem Chi tiết cập nhật");
       UpdateReport.finish(ctx);
       resumePending(ctx);
     }
@@ -526,7 +553,7 @@ public final class Repository {
     if(busy.get()||syncPaused||cancel.get()||(!pendingAll&&pendingBook.isEmpty()))return;
     Intent i=new Intent(ctx,DownloadService.class);
     if(pendingAll)i.putExtra("mode",MODE_SYNC_LIBRARY);
-    else i.putExtra("mode",MODE_BOOK_NEXT).putExtra("book",pendingBook);
+    else i.putExtra("mode",queuedBookMode()).putExtra("book",pendingBook);
     try{ctx.startForegroundService(i);}catch(Exception e){notify(ctx,"Yêu cầu cập nhật còn chờ · Không khởi chạy được: "+e.getClass().getSimpleName());}
   }
 
