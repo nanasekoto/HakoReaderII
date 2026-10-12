@@ -14,7 +14,7 @@ public final class UiLibrarySnapshot {
  public final List<Store.Book> books;
  public final Map<String,Summary> summaries;
  public final long loadedAt,loadMillis,lastShelfSync,readingRevision;
- private UiLibrarySnapshot(List<Store.Book>b,Map<String,Summary>s,long ms,long stamp,long revision){
+ UiLibrarySnapshot(List<Store.Book>b,Map<String,Summary>s,long ms,long stamp,long revision){
   books=Collections.unmodifiableList(b);summaries=Collections.unmodifiableMap(s);
   loadedAt=System.currentTimeMillis();loadMillis=ms;lastShelfSync=stamp;
   readingRevision=revision;
@@ -28,13 +28,19 @@ public final class UiLibrarySnapshot {
   long revision=store.readingRevision();
   List<Store.Book> books=store.books();Map<String,Summary> out=new HashMap<>();
   for(Store.Book b:books){
+   Summary s=summarize(store,prefs,b);out.put(b.id,s);
+  }
+  return new UiLibrarySnapshot(books,out,android.os.SystemClock.elapsedRealtime()-started,prefs.getLong("lastShelfSync",0),revision);
+ }
+ static Summary summarize(Store store,SharedPreferences prefs,Store.Book b){
    Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);
    s.total=0;s.full=store.isKeepFull(b.id);boolean afterCurrent=false;
+   Set<String> read=store.readingIds(b.id,chapters);
    for(Store.Chapter ch:chapters){
-    boolean readable=store.readable(ch.id);if(store.ignoredForReading(ch))s.illustrations++;else {s.total++;if(readable)s.stored++;}
-    s.missingImages+=store.missingImages(ch.id);
-    if(afterCurrent&&!store.ignoredForReading(ch)&&!store.wasRead(ch.id))s.remaining++;
-    if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.currentRead=store.wasRead(ch.id);s.remaining=0;afterCurrent=true;}
+    // Lists use metadata only. Content and images are validated when opened/downloaded.
+    if(store.ignoredForReading(ch))s.illustrations++;else {s.total++;if(ch.ready)s.stored++;}
+    if(afterCurrent&&!store.ignoredForReading(ch)&&!read.contains(ch.id))s.remaining++;
+    if(ch.id.equals(b.current)){s.currentTitle=ch.title;s.currentRead=read.contains(ch.id);s.remaining=0;afterCurrent=true;}
    }
    // readable() above also classifies legacy image markup; count only afterwards.
    Store.ReadCounts counts=store.readCounts(chapters);
@@ -45,9 +51,7 @@ public final class UiLibrarySnapshot {
    s.updated=(b.followed&&changed)||(s.newCount>0&&s.stored<s.total)||(b.followed&&s.total==0&&shelfCount(b.shelfInfo)>0);
    s.updatedAt=prefs.getLong("shelf_updated_at_"+b.id,0);
    s.completedOffline=store.isCompleted(b.id)&&s.total>0&&s.stored==s.total&&!changed;
-   out.put(b.id,s);
-  }
-  return new UiLibrarySnapshot(books,out,android.os.SystemClock.elapsedRealtime()-started,prefs.getLong("lastShelfSync",0),revision);
+   return s;
  }
  private static int shelfCount(String s){try{return Math.max(0,Integer.parseInt(s.trim().split("\\s+")[0]));}catch(Exception e){return 0;}}
 }

@@ -99,3 +99,6 @@ Xem [quy tắc minh họa và hàng chờ](READING_ILLUSTRATIONS_0717.md). Truy�
 ## Quy tắc thay thế từ 0.7.21
 
 [Tiến độ theo mốc đọc](SEQUENTIAL_PROGRESS_0721.md) thay thế quy tắc đọc của các phiên bản trước: minh họa không tính; tới cuối chương chữ thì mọi chương chữ tới mốc đó mặc định đã đọc. Đọc hết phần mới nhất tự lưu hàng chờ Hako; chỉ gửi sau kiểm tra tủ sách/mục lục mới khi chưa có chương chữ mới hơn. Giữ tại chương hiện tại khi kiểm tra/tải chương tiếp theo. Mục lục có nút sắp xếp thật và không lấy liên kết Đọc tiếp làm chương.
+
+## 0.7.22 — Khởi động từ bản trạng thái
+Quy trình mới được chốt tại docs/SNAPSHOT_STARTUP_0722.md: mở các danh sách từ thông tin lưu riêng; cập nhật màn hình chính chỉ kiểm tra Vừa đọc/Yêu thích; cập nhật Tủ sách chỉ kiểm tra kệ. Dừng trang kệ dựa vào chương mới nhất không đổi, không dựa vào chưa đọc. Không quét HTML và ảnh để dựng danh sách. Nội dung được kiểm tra khi chọn đọc hoặc tải.
