@@ -24,7 +24,7 @@ public final class Repository {
   }
   public static void setSyncPaused(Context c,boolean paused){
     syncPaused=paused;c.getSharedPreferences("settings",0).edit().putBoolean("sync_paused",paused).commit();
-    if(paused){cancel.set(true);pendingAll=false;pendingPersonal=false;pendingBook="";c.getSystemService(android.app.job.JobScheduler.class).cancel(42);}
+    if(paused){cancel.set(true);pendingAll=false;pendingPersonal=false;clearBook();c.getSystemService(android.app.job.JobScheduler.class).cancel(42);}
     ChargeJob.schedule(c,!paused&&c.getSharedPreferences("settings",0).getBoolean("charging",true));
     if(!paused)ReadSync.schedule(c);
     notify(c,paused?"Đã tạm dừng đồng bộ · Dữ liệu tải được giữ nguyên":"Đã tiếp tục đồng bộ");
@@ -43,16 +43,16 @@ public final class Repository {
     final String book;final int mode;
     BookRequest(String book,int mode){this.book=book;this.mode=mode;}
   }
-  static synchronized void queueBook(String book,int mode){
-    // A reader handoff must not downgrade an explicit full/continue request for this book.
+  private static final Object bookQueueLock=new Object();
+  static void queueBook(String book,int mode){synchronized(bookQueueLock){
+    // Never share the network/download monitor with main-thread queue handoff.
     if(book.equals(pendingBook)&&pendingBookMode!=MODE_READER_NEXT&&mode==MODE_READER_NEXT)return;
     pendingBookMode=mode;pendingBook=book;
-  }
-  static synchronized BookRequest takeBook(){
-    BookRequest request=new BookRequest(pendingBook,pendingBookMode);
-    pendingBook="";pendingBookMode=MODE_BOOK_NEXT;return request;
-  }
-  static synchronized int queuedBookMode(){return pendingBookMode;}
+  }}
+  static BookRequest takeBook(){synchronized(bookQueueLock){BookRequest request=new BookRequest(pendingBook,pendingBookMode);pendingBook="";pendingBookMode=MODE_BOOK_NEXT;return request;}}
+  static BookRequest peekBook(){synchronized(bookQueueLock){return new BookRequest(pendingBook,pendingBookMode);}}
+  static int queuedBookMode(){synchronized(bookQueueLock){return pendingBookMode;}}
+  private static void clearBook(){synchronized(bookQueueLock){pendingBook="";pendingBookMode=MODE_BOOK_NEXT;}}
   public static volatile int currentMode = 0;
   public static volatile int syncTotal = 0, syncDone = 0, syncPct = 100;
   public static volatile boolean isSyncing = false;
@@ -554,7 +554,7 @@ public final class Repository {
       GeckoClient.release();busy.set(false);
       ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}
-      if(cancel.get()||syncPaused){pendingBook="";pendingAll=false;pendingPersonal=false;}
+      if(cancel.get()||syncPaused){clearBook();pendingAll=false;pendingPersonal=false;}
       manualOverride = false;
       isSyncing = false;
       notify(ctx,syncPaused?"Đã tạm dừng đồng bộ · Chữ offline "+syncPct+"%":!"COMPLETED".equals(syncState)?"Lượt cập nhật chưa hoàn tất · Chữ offline "+syncPct+"% · Xem Chi tiết cập nhật":syncPct==100?"Chữ offline 100% · Ảnh thiếu xem riêng":"Lượt tải đã xong · Chữ offline toàn thư viện "+syncPct+"% · Phần còn thiếu xem Chi tiết cập nhật");
@@ -583,7 +583,7 @@ public final class Repository {
     Intent i=new Intent(ctx,DownloadService.class);
     if(pendingAll)i.putExtra("mode",MODE_SYNC_LIBRARY);
     else if(pendingPersonal)i.putExtra("mode",MODE_SYNC_PERSONAL);
-    else i.putExtra("mode",queuedBookMode()).putExtra("book",pendingBook);
+    else{BookRequest request=peekBook();if(request.book.isEmpty())return;i.putExtra("mode",request.mode).putExtra("book",request.book);}
     try{ctx.startForegroundService(i);}catch(Exception e){notify(ctx,"Yêu cầu cập nhật còn chờ · Không khởi chạy được: "+e.getClass().getSimpleName());}
   }
 
