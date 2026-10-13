@@ -14,7 +14,7 @@ public final class SequentialReadTest extends Instrumentation {
   void check(boolean ok,String label){checks++;if(!ok)throw new AssertionError(label);Bundle b=new Bundle();b.putString("stream","PASS "+label+"\n");sendStatus(0,b);}
   Object field(String name)throws Exception{Field f=MainActivity.class.getDeclaredField(name);f.setAccessible(true);return f.get(activity);}
   void call(String name,Class<?>[] types,Object...args)throws Exception{Method m=MainActivity.class.getDeclaredMethod(name,types);m.setAccessible(true);runOnMainSync(()->{try{m.invoke(activity,args);}catch(Exception e){throw new RuntimeException(e);}});waitForIdleSync();SystemClock.sleep(200);waitForIdleSync();}
-  View find(View root,String label){if(label.equals(String.valueOf(root.getContentDescription())))return root;if(root instanceof ViewGroup)for(int n=0;n<((ViewGroup)root).getChildCount();n++){View hit=find(((ViewGroup)root).getChildAt(n),label);if(hit!=null)return hit;}return null;}
+  View find(View root,String label){if(label.equals(String.valueOf(root.getContentDescription()))||root instanceof TextView&&label.equals(((TextView)root).getText().toString()))return root;if(root instanceof ViewGroup)for(int n=0;n<((ViewGroup)root).getChildCount();n++){View hit=find(((ViewGroup)root).getChildAt(n),label);if(hit!=null)return hit;}return null;}
   public void onCreate(Bundle args){super.onCreate(args);start();}
   public void onStart(){Bundle result=new Bundle();try{
     Context ctx=getTargetContext();Store s=Store.get(ctx);android.content.SharedPreferences prefs=ctx.getSharedPreferences("settings",0);
