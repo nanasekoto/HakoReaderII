@@ -1,4 +1,4 @@
-# Hako Pocket — 0.7.23 Gecko (workflow và báo cáo)
+# Hako Pocket — 0.7.30 Gecko (UI, tải theo đợt và ưu tiên)
 
 Ứng dụng đọc Hako offline cho Xteink S4: Android 11, ARM 32-bit, màn hình e-ink. `main` là bộ source chính thức, thống nhất từ phiên bản 0.7.15 người dùng đã phản hồi chạy khá ổn.
 
@@ -65,3 +65,4 @@ APK nằm trong `build/deliver/`. `version.properties` là nguồn phiên bản 
 Gecko chạy riêng khi cần truy cập web; đọc offline dùng bộ đọc native. Phiên đăng nhập được giữ trong profile Gecko. Khi Hako yêu cầu xác minh mới, người dùng xử lý trong Tài khoản. Không cam kết mọi thử thách Cloudflare luôn thành công hoặc đưa ra số liệu pin/RAM chưa đo.
 
 Các giấy phép font và jsoup đi kèm được giữ trong source và assets. Khóa ký hiện có được giữ để tương thích cài đè bản cá nhân; đây không phải mô hình phân phối công khai bằng một khóa bí mật.
+

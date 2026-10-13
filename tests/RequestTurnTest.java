@@ -1,0 +1,7 @@
+package vn.nanase.hako;
+import java.util.*;
+public final class RequestTurnTest {
+ static void check(boolean ok,String label){if(!ok)throw new AssertionError(label);}
+ public static void main(String[] args)throws Exception{RequestTurn gate=new RequestTurn();List<String> order=Collections.synchronizedList(new ArrayList<>());gate.acquire(true);Thread low=new Thread(()->{try{gate.acquire(true);order.add("background");gate.release();}catch(Exception e){throw new RuntimeException(e);}});Thread high=new Thread(()->{try{gate.acquire(false);order.add("foreground");gate.release();}catch(Exception e){throw new RuntimeException(e);}});low.start();high.start();long end=System.currentTimeMillis()+2000;while(gate.waitingForeground()==0&&System.currentTimeMillis()<end)Thread.sleep(1);check(gate.waitingForeground()==1,"foreground registered");gate.release();low.join(2000);high.join(2000);check(order.equals(Arrays.asList("foreground","background")),"next request goes to user before background");check(!gate.active(),"network ownership released");gate.acquire(true);Thread canceled=new Thread(()->{try{gate.acquire(false);throw new AssertionError("unexpected owner");}catch(InterruptedException expected){}});canceled.start();end=System.currentTimeMillis()+2000;while(gate.waitingForeground()==0&&System.currentTimeMillis()<end)Thread.sleep(1);canceled.interrupt();canceled.join(2000);check(gate.waitingForeground()==0,"canceled waiter cannot block background");gate.release();gate.acquire(true);gate.release();System.out.println("RequestTurnTest passed");}
+}
+

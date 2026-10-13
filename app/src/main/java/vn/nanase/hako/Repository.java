@@ -234,13 +234,16 @@ public final class Repository {
     LibraryState.changed(c,b.id,true);
   }
 
-  public static synchronized void download(Context ctx, Store.Chapter c) throws Exception {
+  public static void download(Context ctx, Store.Chapter c) throws Exception {
     download(ctx,c,false);
   }
 
-  public static synchronized void download(Context ctx,Store.Chapter c,boolean force) throws Exception {download(ctx,c,force,false);}
-  public static synchronized void downloadImages(Context ctx,Store.Chapter c)throws Exception{download(ctx,c,true,true);}
-  private static synchronized void download(Context ctx,Store.Chapter c,boolean force,boolean imagesOnly) throws Exception {
+  public static void download(Context ctx,Store.Chapter c,boolean force) throws Exception {download(ctx,c,force,false);}
+  public static void downloadImages(Context ctx,Store.Chapter c)throws Exception{download(ctx,c,true,true);}
+  public static final java.util.concurrent.locks.ReentrantReadWriteLock contentLock=new java.util.concurrent.locks.ReentrantReadWriteLock();
+  private static final Object[] chapterLocks=new Object[64];static{for(int i=0;i<chapterLocks.length;i++)chapterLocks[i]=new Object();}
+  private static void download(Context ctx,Store.Chapter c,boolean force,boolean imagesOnly) throws Exception {contentLock.readLock().lock();try{synchronized(chapterLocks[(c.id.hashCode()&Integer.MAX_VALUE)%chapterLocks.length]){downloadChapter(ctx,c,force,imagesOnly);}}finally{contentLock.readLock().unlock();}}
+  private static void downloadChapter(Context ctx,Store.Chapter c,boolean force,boolean imagesOnly) throws Exception {
     Store s = Store.get(ctx);
     boolean cachedContent=s.readable(c.id);
     if(!force&&s.cachedIllustration(c.id)){UpdateReport.log(ctx,c.title+": giữ minh họa đã lưu · không tải lại trang");return;}
@@ -344,7 +347,7 @@ public final class Repository {
     return b.toString();
   }
 
-  public static void run(Context ctx, String book, int mode, boolean charging) throws Exception {OperationTrace.Span trace=OperationTrace.begin("download.run");try{
+  public static void run(Context ctx, String book, int mode, boolean charging) throws Exception {OperationTrace.Span trace=OperationTrace.begin("download.run");boolean previousBackground=RequestTurn.background.get();RequestTurn.background.set(true);try{
     if(pocketPaused && !charging && (mode==MODE_BOOK_NEXT||mode==MODE_READER_NEXT))return;
     init(ctx);
     if(syncPaused)return;
@@ -449,22 +452,14 @@ public final class Repository {
 
         boolean isFullMode = bookMode==MODE_BOOK_ALL || s.isKeepFull(b.id) || s.isCompleted(b.id);
 
-        boolean toEnd = FetchPolicy.toEnd(b.followed,s.favorite(b),b.visits>0,isFullMode);
-        int scopeEnd = toEnd ? Integer.MAX_VALUE : current + FetchPolicy.AHEAD;
-
-        // 2. Identify EXACT chapters needed
-        List<Store.Chapter> needDownload = new ArrayList<>();
-        // Priority: current reading chapter to end of book
-        for (Store.Chapter ch : chapters) {
-          if (ch.ord >= current && ch.ord <= scopeEnd && !s.isHidden(b.id,ch.id) && s.autoIllustration(ch) && !s.readable(ch.id)) needDownload.add(ch);
-        }
-        // If full mode: also earlier chapters
-        for (Store.Chapter ch : chapters) {
-          if (isFullMode && !readerOnly && ch.ord < current && !s.isHidden(b.id,ch.id) && s.autoIllustration(ch) && !s.readable(ch.id)) needDownload.add(ch);
-        }
-
+        boolean fullRequest=bookMode==MODE_BOOK_ALL;
+        Store.BatchPlan batch=fullRequest?null:s.readingBatch(b,chapters);
+        boolean toEnd=fullRequest;int scopeEnd=fullRequest?Integer.MAX_VALUE:current+14;
+        List<Store.Chapter> scope=fullRequest?chapters:batch.chapters;
+        List<Store.Chapter> needDownload=new ArrayList<>();
+        if(fullRequest||!s.batchDone(b.id,batch))for(Store.Chapter ch:scope)if(!s.isHidden(b.id,ch.id)&&s.autoIllustration(ch)&&!s.readable(ch.id))needDownload.add(ch);
         needDownload.sort((a,z)->Boolean.compare(s.illustrationHint(a),s.illustrationHint(z)));
-        UpdateReport.log(ctx,b.title+": phạm vi — "+(readerOnly?"mở đọc: chỉ phần hiện tại và phía sau, không tải bù chương cũ":isFullMode?"toàn bộ truyện":toEnd?"từ chương đang đọc đến cuối, giữ 3 chương trước":"chương đang đọc + tối đa 15 chương tiếp, giữ 3 chương trước"));
+        UpdateReport.log(ctx,b.title+": phạm vi — "+(readerOnly?"mở đọc: chỉ phần hiện tại và phía sau, không tải bù chương cũ":isFullMode?"toàn bộ truyện":toEnd?"từ chương đang đọc đến cuối, giữ 3 chương trước":"đợt tối đa 15 chương chữ, nghỉ đến chương chữ thứ 14"));
         int stored=0;for(Store.Chapter ch:chapters)if(ch.ready)stored++;
         UpdateReport.log(ctx,b.title+": đã lưu "+stored+"/"+chapters.size()+" chương toàn bộ · Cần tải "+needDownload.size()+" chương trong phạm vi đã chọn");
         for(Store.Chapter needed:needDownload){if(!needed.book.equals(b.id))throw new IOException("Hàng đợi sai truyện; đã dừng để giữ dữ liệu");if(!s.illustrationHint(needed))ledger.add(needed.id);}
@@ -502,7 +497,7 @@ public final class Repository {
           // Recheck disk: this snapshot may predate a priority download.
           if (s.readable(ch.id)){ledger.complete(ch.id);syncDone=ledger.done();UpdateReport.log(ctx,ch.title+": dùng cache hợp lệ, không gọi mạng");continue;}
 
-          long delay = FetchPolicy.delayMillis(++distance);
+          long delay = fullRequest?FetchPolicy.delayMillis(++distance):4000;
           if (!waitFor(ctx, delay, b.id, charging)) break;
 
           try {
@@ -525,6 +520,7 @@ public final class Repository {
         if(!pendingAll&&(IllustrationPolicy.shouldYield(b.id,pendingBook)||(!priorityChapterId.isEmpty()&&!needDownload.isEmpty()))){final String interrupted=b.id;todo.removeIf(x->x.id.equals(interrupted));todo.add(b);UpdateReport.checkpoint(ctx,"Nhường lượt tải: "+b.title+" · giữ phần còn lại trong hàng chờ");}
         else UpdateReport.checkpoint(ctx,"Hoàn tất lượt xử lý: "+b.title);
         boolean unfinished=false;for(Store.Chapter pending:needDownload)if(!s.ignoredForReading(pending)&&!s.readable(pending.id)){unfinished=true;break;}
+        if(!unfinished&&!cancel.get()&&!pauseAutomatic(charging)){if(!fullRequest)s.finishBatch(b.id,batch);}
         if(!unfinished&&!cancel.get()&&!pauseAutomatic(charging))ctx.getSharedPreferences("download_resume",0).edit().remove(b.id).commit();
         Store.Book latest = s.book(b.id);
         if (latest != null && !isFullMode) s.prune(latest);
@@ -563,7 +559,7 @@ public final class Repository {
       UpdateReport.finish(ctx);
       resumePending(ctx);
     }
-  }finally{OperationTrace.end(trace,"closed",0);}}
+  }finally{RequestTurn.background.set(previousBackground);OperationTrace.end(trace,"closed",0);}}
 
   static boolean inScope(Store s,Store.Book b,int mode){
     return mode==MODE_SYNC_LIBRARY?b.followed:mode==MODE_SYNC_PERSONAL?(b.stamp>0||s.favorite(b)):true;

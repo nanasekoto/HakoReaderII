@@ -21,7 +21,7 @@ public final class GeckoClient {
  public static void init(Context c){app=c.getApplicationContext();}
  private static void connect()throws Exception{
   if(server!=null)return;
-  if(connection!=null)release();
+  if(connection!=null)releaseNow();
   CountDownLatch ready=new CountDownLatch(1);AtomicReference<String> error=new AtomicReference<>();
   ui.post(()->{ui.removeCallbacks(cleanup);connection=new ServiceConnection(){
    public void onServiceConnected(ComponentName n,IBinder b){server=new Messenger(b);ready.countDown();}
@@ -30,24 +30,29 @@ public final class GeckoClient {
   };if(!app.bindService(new Intent(app,GeckoEngineService.class),connection,Context.BIND_AUTO_CREATE)){error.set("Không khởi động được Gecko");ready.countDown();}});
   if(!ready.await(30,TimeUnit.SECONDS)||server==null)throw new IOException(error.get()==null?"Gecko khởi động quá lâu":error.get());
  }
- public static synchronized byte[] request(String url,String script,int max)throws Exception{OperationTrace.Span trace=OperationTrace.begin("net.request");try{
+ private static final RequestTurn turns=new RequestTurn();private static boolean releaseWanted;
+ public static byte[] request(String url,String script,int max)throws Exception{
+  if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");long queued=Diagnostics.now();turns.acquire(RequestTurn.background.get());OperationTrace.Span trace=OperationTrace.begin("net.request",queued);try{return requestNow(url,script,max);}finally{OperationTrace.end(trace,"closed",0);synchronized(turns){turns.release();if(releaseWanted||!Repository.busy.get()){releaseWanted=false;releaseNow();}}}
+ }
+ private static byte[] requestNow(String url,String script,int max)throws Exception{
   if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");
   if(app==null)throw new IOException("Chưa khởi tạo Gecko");
   if(authenticating)throw new IOException("Đang đăng nhập; tải sẽ tiếp tục sau khi quay về app");
   final boolean canceledAtStart=Repository.cancel.get();
-  File output=File.createTempFile("gecko-",".tmp",app.getCacheDir());
+  File output=File.createTempFile("gecko-",".tmp",app.getCacheDir());int requestId=-1;boolean completed=false;
   try{
    OperationTrace.Span binding=OperationTrace.begin("net.bind");try{connect();}finally{OperationTrace.end(binding,"closed",0);}CountDownLatch done=new CountDownLatch(1);AtomicReference<String> error=new AtomicReference<>();
-   int id=ids.incrementAndGet();Messenger reply=new Messenger(new Handler(Looper.getMainLooper()){public void handleMessage(Message m){if(m.arg1==id){error.set(m.getData().getString("error"));done.countDown();}}});
+   int id=ids.incrementAndGet();requestId=id;Messenger reply=new Messenger(new Handler(Looper.getMainLooper()){public void handleMessage(Message m){if(m.arg1==id){error.set(m.getData().getString("error"));done.countDown();}}});
    Bundle b=new Bundle();b.putString("url",url);b.putString("origin",HakoParser.ORIGIN);b.putString("script",script);b.putString("file",output.getAbsolutePath());b.putInt("max",max);
    Message msg=Message.obtain(null,1);msg.arg1=id;msg.replyTo=reply;msg.setData(b);server.send(msg);
    long end=SystemClock.elapsedRealtime()+60000;
    while(!done.await(250,TimeUnit.MILLISECONDS)){if(authenticating||(!canceledAtStart&&Repository.cancel.get()))throw new IOException("Đã dừng tải");if(SystemClock.elapsedRealtime()>end)throw new IOException("Gecko quá thời gian chờ");}
-   if(error.get()!=null){if(error.get().contains("HTTP 403")||error.get().contains("HTTP 429")||error.get().contains("xác minh")||error.get().contains("giới hạn")||error.get().contains("đăng nhập HAKO trước"))Repository.cooldown(app,30*60*1000L);throw new IOException(error.get());}
+   completed=true;if(error.get()!=null){if(error.get().contains("HTTP 403")||error.get().contains("HTTP 429")||error.get().contains("xác minh")||error.get().contains("giới hạn")||error.get().contains("đăng nhập HAKO trước"))Repository.cooldown(app,30*60*1000L);throw new IOException(error.get());}
    try(InputStream in=new FileInputStream(output);ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buf=new byte[8192];int n,total=0;while((n=in.read(buf))!=-1){total+=n;if(total>max)throw new IOException("Tài nguyên quá lớn");out.write(buf,0,n);}return out.toByteArray();}
-  }finally{output.delete();if(!Repository.busy.get())release();}
- }finally{OperationTrace.end(trace,"closed",0);}}
- public static synchronized void release(){
+  }finally{if(!completed&&requestId>0&&server!=null)try{Message stop=Message.obtain(null,2);stop.arg1=requestId;server.send(stop);}catch(Exception ignored){}output.delete();}
+ }
+ public static void release(){synchronized(turns){if(turns.active()){releaseWanted=true;return;}releaseNow();}}
+ private static void releaseNow(){
   ServiceConnection old=connection;connection=null;server=null;
   ui.post(()->{if(old!=null)try{app.unbindService(old);}catch(Exception ignored){}ui.removeCallbacks(cleanup);ui.postDelayed(cleanup,8000);});
  }

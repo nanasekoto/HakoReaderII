@@ -30,7 +30,8 @@ public final class NativeReader extends View {
  public void setTouchLocked(boolean locked){this.touchLocked=locked;invalidate();}
  public boolean isTouchLocked(){return touchLocked;} public void setOpenAtEnd(boolean end){this.openAtEnd=end;} 
  private String bookTitle="",chapterTitle="",notice="";
- public void setNotice(String value){notice=value;invalidate();}
+ private long noticeRevision;
+ public void setNotice(String value){if(java.util.Objects.equals(notice,value))return;notice=value;long revision=++noticeRevision;invalidate();if(!value.isEmpty())postDelayed(()->{if(revision==noticeRevision){notice="";invalidate();}},7000);}
  private final TextPaint statusPaint=new TextPaint(Paint.ANTI_ALIAS_FLAG);
  private int headerHeight=0,footerHeight=0,remainingChapters=-1;
  public void setRemainingChapters(int value){if(remainingChapters!=value){remainingChapters=value;invalidate();}}
@@ -214,7 +215,7 @@ public final class NativeReader extends View {
   statusPaint.setTextAlign(Paint.Align.LEFT);
   if(!bookTitle.isEmpty()||!chapterTitle.isEmpty()){
    String lockPrefix=touchLocked?"🔒 ":"";
-   String headerText=lockPrefix+(bookTitle.isEmpty()?chapterTitle:(chapterTitle.isEmpty()?bookTitle:bookTitle+" · "+chapterTitle));
+   String headerText=!notice.isEmpty()?notice:lockPrefix+(bookTitle.isEmpty()?chapterTitle:(chapterTitle.isEmpty()?bookTitle:bookTitle+" · "+chapterTitle));
    float textW=statusPaint.measureText(headerText);
    if(textW>availW){
     while(headerText.length()>3&&statusPaint.measureText(headerText+"…")>availW){
@@ -247,7 +248,7 @@ public final class NativeReader extends View {
   c.drawText(pageStr,margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.CENTER);
-  String centerStatus=notice.isEmpty()?(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ 100%":(syncPct+"%"))):notice;
+  String centerStatus=(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ 100%":(syncPct+"%")));
   String remaining=remainingChapterText();float room=Math.max(0,getWidth()-2*(margin+Math.max(statusPaint.measureText(pageStr),statusPaint.measureText(remaining))+8*getResources().getDisplayMetrics().density));centerStatus=android.text.TextUtils.ellipsize(centerStatus,statusPaint,room,android.text.TextUtils.TruncateAt.END).toString();c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.RIGHT);

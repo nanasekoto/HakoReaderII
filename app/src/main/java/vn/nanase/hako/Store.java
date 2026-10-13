@@ -202,14 +202,19 @@ public final class Store extends SQLiteOpenHelper {
   }
   public int readingStart(Book b,List<Chapter> chapters){int index=resumeIndex(b,chapters);return index<0?0:chapters.get(index).ord;}
   /** A reader opening never backfills old chapters, even for a retained-full book. */
-  public boolean needsReadingDownload(String book){if(downloadsSuppressed(book))return false;
-    Book b=book(book);if(b==null||b.dropped)return false;
-    List<Chapter> chapters=chapters(book);int current=readingStart(b,chapters);
-    boolean toEnd=FetchPolicy.toEnd(b.followed,favorite(b),b.visits>0,isKeepFull(book)||isCompleted(book));
-    int end=toEnd?Integer.MAX_VALUE:current+FetchPolicy.AHEAD;
-    for(Chapter ch:chapters)if(ch.ord>=current&&ch.ord<=end&&!isHidden(book,ch.id)&&!readable(ch.id)&&autoIllustration(ch))return true;
-    return false;
+  public static final class BatchPlan {public final List<Chapter> chapters;public final String key;BatchPlan(List<Chapter> c,String k){chapters=c;key=k;}}
+  public synchronized BatchPlan readingBatch(Book b,List<Chapter> all){
+    List<Chapter> text=new ArrayList<>();for(Chapter ch:all)if(!ignoredForReading(ch)&&!isHidden(b.id,ch.id))text.add(ch);
+    int ord=readingStart(b,all),current=0;while(current+1<text.size()&&text.get(current).ord<ord)current++;
+    android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);String prefix="batch_"+b.id+"_",anchor=prefs.getString(prefix+"anchor","");int saved=-1;for(int i=0;i<text.size();i++)if(text.get(i).id.equals(anchor)){saved=i;break;}
+    if(anchor.equals("end")&&text.size()==prefs.getInt(prefix+"count",-1))saved=text.size();
+    int start=BatchWindow.start(saved,current,text.size()),end=BatchWindow.end(start,text.size());List<Chapter> window=new ArrayList<>(text.subList(Math.min(start,text.size()),end));StringBuilder key=new StringBuilder();for(Chapter ch:window)key.append(ch.id).append('|');String signature=key.toString();
+    if(!signature.equals(prefs.getString(prefix+"key",""))){prefs.edit().putString(prefix+"key",signature).putString(prefix+"anchor",start<text.size()?text.get(start).id:"end").putInt(prefix+"count",text.size()).putBoolean(prefix+"done",false).apply();}
+    return new BatchPlan(window,signature);
   }
+  public boolean batchDone(String book,BatchPlan plan){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);return p.getBoolean("batch_"+book+"_done",false)&&plan.key.equals(p.getString("batch_"+book+"_key",""));}
+  public void finishBatch(String book,BatchPlan plan){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(plan.key.equals(p.getString("batch_"+book+"_key","")))p.edit().putBoolean("batch_"+book+"_done",true).apply();}
+  public boolean needsReadingDownload(String book){if(downloadsSuppressed(book))return false;Book b=book(book);if(b==null||b.dropped)return false;BatchPlan plan=readingBatch(b,chapters(book));if(plan.chapters.isEmpty()||batchDone(book,plan))return false;if(Repository.busy.get()&&context.getSharedPreferences("download_resume",0).contains(book))return false;for(Chapter ch:plan.chapters)if(!readable(ch.id))return true;finishBatch(book,plan);return false;}
   public BookProgress progress(Book b) {
     List<Chapter> chs = chapters(b.id);
     int total = chs.size();
@@ -455,15 +460,15 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void resetDerived(){chapterCache.clear();chapterLookup.clear();chapterTitles.clear();validatedFiles.clear();validatedImages.clear();imageCounts.clear();imageCountStamps.clear();validationLoaded=false;TocState.resetForImport();}
   public boolean downloadsSuppressed(String book){return context.getSharedPreferences("settings",0).getBoolean("cache_deleted_"+book,false);}
   public void allowDownloads(String book){context.getSharedPreferences("settings",0).edit().remove("cache_deleted_"+book).apply();}
-  public void clearDownloaded(String book)throws Exception{
+  public void clearDownloaded(String book)throws Exception{OperationTrace.Span trace=OperationTrace.begin("book.clear_files");Repository.contentLock.writeLock().lock();try{
     if(book==null||!book.matches("[a-z0-9-]+"))throw new IllegalArgumentException();
     synchronized(Repository.class){List<Chapter> all;
-      synchronized(this){context.getSharedPreferences("settings",0).edit().putBoolean("cache_deleted_"+book,true).commit();Repository.discardQueued(book);all=chapters(book);}
+      synchronized(this){context.getSharedPreferences("settings",0).edit().putBoolean("cache_deleted_"+book,true).commit();Repository.discardQueued(book);context.getSharedPreferences("settings",0).edit().putBoolean("batch_"+book+"_done",false).apply();all=chapters(book);}
       // File deletion can be slow; do not hold the metadata monitor needed by UI.
       for(Chapter ch:all){delete(dir(ch.id));validatedFiles.remove(ch.id);validatedImages.remove(ch.id);imageCounts.remove(ch.id);imageCountStamps.remove(ch.id);}
       synchronized(this){ContentValues values=new ContentValues();values.put("ready",0);values.put("error","");getWritableDatabase().update("chapters",values,"book=?",new String[]{book});List<Chapter> next=new ArrayList<>();for(Chapter ch:all){Chapter changed=copyChapter(ch);changed.ready=false;changed.error="";next.add(changed);}cacheChapters(book,next);displayChanged(book,true);}persistValidation();
     }
-  }
+  }finally{Repository.contentLock.writeLock().unlock();OperationTrace.end(trace,"complete",0);}}
   public File dir(String id) {
     if (!id.matches("[a-z0-9-]+")) throw new IllegalArgumentException();
     return new File(cache, id);

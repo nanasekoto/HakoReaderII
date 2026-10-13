@@ -1,5 +1,11 @@
 # Quy tắc vận hành hiện hành
 
+## Điều chỉnh người dùng chốt cho 0.7.30
+
+Quy tắc tải tự động bên dưới được thay bằng **từng đợt tối đa 15 chương chữ**, gồm chương bắt đầu; tới chương chữ thứ 14 mới chuẩn bị đợt tiếp. Minh họa không tính. Theo dõi/yêu thích/giữ full không tự yêu cầu tải đến cuối nữa. Chủ động Tải full vẫn tải toàn bộ và giữ toàn bộ; chính sách giữ nội dung, Pause, Wi-Fi/sạc, đăng nhập và xác minh Đọc hết không đổi. Hoàn thành đợt thì nghỉ; tiếp tục đợt lỗi từ các chương còn thiếu, không tải lại phần hợp lệ.
+
+Thông tin truyện bỏ nút Đọc tiếp/Xem tiếp; phím âm lượng cuộn trang thông tin và Cài đặt, các nút −/+ chỉnh số. Sắp xếp đảo chiều trực tiếp một lần bấm, chỉ ảnh hưởng hiển thị. Footer giữ ba thông số cố định; thông báo ở header riêng, không thay % tải. Chi tiết hiện hành ở CURRENT_ARCHITECTURE.md.
+
 Quy tắc nền 0.7.15 và bản vá chương ảnh 0.7.16. Đây là quy tắc đã chốt với người dùng; tài liệu lịch sử không được dùng để thay thế bảng dưới.
 
 ## 1. Phân biệt các danh sách
@@ -105,3 +111,4 @@ Quy trình mới được chốt tại docs/SNAPSHOT_STARTUP_0722.md: mở các 
 
 ## Bổ sung 0.7.23
 Xem CURRENT_ARCHITECTURE.md: một worker chuẩn bị chương được chọn; danh sách dùng index có cập nhật theo thay đổi; nhập kệ chỉ ghi hàng/rank thay đổi. Mở chương chưa lưu sẽ tự mở sau khi tải xong theo yêu cầu, giảm một lần chọn lại. Nút Báo cáo ở cạnh Hako Pocket; tự gửi chỉ khi đã cấu hình dịch vụ, ở nền và có Wi-Fi. Không thay phạm vi tải, mốc đọc hoặc bằng chứng gửi đọc hết Hako.
+

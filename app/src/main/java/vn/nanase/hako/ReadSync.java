@@ -27,7 +27,7 @@ public final class ReadSync extends JobService {
     if(s.getPendingJob(42)==null)s.schedule(new JobInfo.Builder(42,new ComponentName(c,ReadSync.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());
   }
   private static final Object mutex=new Object();
-  public static boolean process(Context c){OperationTrace.Span trace=OperationTrace.begin("read.sync");try{
+  public static boolean process(Context c){OperationTrace.Span trace=OperationTrace.begin("read.sync");boolean previousBackground=RequestTurn.background.get();RequestTurn.background.set(true);try{
     synchronized(mutex){
       Repository.init(c);
       if(Repository.syncPaused)return false;
@@ -40,7 +40,7 @@ public final class ReadSync extends JobService {
       }catch(Exception e){Repository.notify(c,"Đang chờ gửi đã đọc HAKO · "+e.getMessage());return true;
       }finally{GeckoClient.release();Repository.busy.set(false);synchronized(Repository.busy){Repository.busy.notifyAll();}Repository.resumePending(c);}
     }
-  }finally{OperationTrace.end(trace,"closed",0);}}
+  }finally{RequestTurn.background.set(previousBackground);OperationTrace.end(trace,"closed",0);}}
   /** Called by the web owner after a successful shelf check; does not acquire busy twice. */
   public static boolean processQueued(Context c){
       if(!connected(c))return !Store.get(c).queuedBooks().isEmpty();

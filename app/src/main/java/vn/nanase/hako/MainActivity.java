@@ -957,23 +957,26 @@ public class MainActivity extends Activity {
 
   private void openStoryInfo(HakoParser.Link link,boolean force){
     leaveReader();reset();bookId=link.id;chapterId="";root.addView(text(link.title,19));root.addView(button("Quay lại",this::goBack));status();
-    final StoryInfo[] cached={null};final Store.Book[] book={null};
-    taskOp("book.info_cache","Đang mở thông tin truyện…",()->{try{cached[0]=StoryInfo.load(this,link.id);}catch(Exception ignored){}book[0]=store.book(link.id);return null;},()->{
-      if(cached[0]!=null)renderStoryInfo(cached[0],book[0]);
+    final StoryInfo[] cached={null};final Store.Book[] book={null};final TocState.Entry[] detail={null};final List<VolumeGroup>[] groups=new List[]{null};
+    taskOp("book.info_cache","Đang mở thông tin truyện…",()->{try{cached[0]=StoryInfo.load(this,link.id);}catch(Exception ignored){}book[0]=store.book(link.id);if(book[0]!=null){detail[0]=TocState.load(this,link.id);if(detail[0]==null)detail[0]=TocState.refresh(this,link.id);groups[0]=preparedGroups(detail[0]);}return null;},()->{
+      if(cached[0]!=null){tocEntry=detail[0];tocGroups=groups[0]==null?new ArrayList<>():groups[0];renderStoryInfo(cached[0],book[0]);}
       if(force||cached[0]==null||(!link.latestKey.isEmpty()&&!link.latestKey.equals(cached[0].latestKey)))fetchStoryInfo(link);
     });
   }
-  private void fetchStoryInfo(HakoParser.Link link){final StoryInfo[] info={null};final Store.Book[] book={null};
-    taskOp("book.info","Đang lấy thông tin truyện…",()->{Repository.init(this);Repository.allowed(this);String html=Repository.page(link.url,true);info[0]=StoryInfo.parse(html,link.url);if(info[0].id.isEmpty())throw new IOException("Không nhận dạng được truyện");store.putBook(new HakoParser.Link(info[0].id,info[0].title,info[0].url));java.util.List<HakoParser.Link> chapters=HakoParser.chapters(html,link.url);if(!chapters.isEmpty())store.catalog(info[0].id,chapters);info[0].save(this);book[0]=store.book(info[0].id);return null;},()->renderStoryInfo(info[0],book[0]));
+  private void fetchStoryInfo(HakoParser.Link link){final StoryInfo[] info={null};final Store.Book[] book={null};final TocState.Entry[] detail={null};final List<VolumeGroup>[] groups=new List[]{null};
+    taskOp("book.info","Đang lấy thông tin truyện…",()->{Repository.init(this);Repository.allowed(this);String html=Repository.page(link.url,true);info[0]=StoryInfo.parse(html,link.url);if(info[0].id.isEmpty())throw new IOException("Không nhận dạng được truyện");store.putBook(new HakoParser.Link(info[0].id,info[0].title,info[0].url));java.util.List<HakoParser.Link> chapters=HakoParser.chapters(html,link.url);if(!chapters.isEmpty())store.catalog(info[0].id,chapters);info[0].save(this);book[0]=store.book(info[0].id);detail[0]=TocState.refresh(this,info[0].id);groups[0]=preparedGroups(detail[0]);return null;},()->{tocEntry=detail[0];tocGroups=groups[0];renderStoryInfo(info[0],book[0]);});
   }
-  private void renderStoryInfo(StoryInfo info,Store.Book b){if(info==null)return;reset();bookId=info.id;chapterId="";root.addView(button("Quay lại",this::goBack));ScrollView scroll=new ScrollView(this);LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(10),0,dp(10),dp(8));
-    box.addView(text(info.title,19));box.addView(text("Tình trạng trên HAKO: "+info.status,14));box.addView(text("Tổng: "+info.chapters+" chương",14));
-    String updated=info.updatedText;if(info.updatedAt>0){long age=Math.max(0,System.currentTimeMillis()-info.updatedAt);updated=age<3600000?(age/60000)+" phút trước":age<86400000?(age/3600000)+" giờ trước":(age/86400000)+" ngày trước";}
-    box.addView(text("Cập nhật cuối: "+updated,13));box.addView(text("Thông tin lưu: "+new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.ROOT).format(new java.util.Date(info.fetchedAt)),11));
-    if(b!=null&&b.dropped)box.addView(text("Trên máy: bạn đã tạm ngưng tải bộ này",12));if(store.downloadsSuppressed(info.id))box.addView(text("Đã xóa nội dung trên máy. Tải nền của bộ này đang dừng.",12));
-    box.addView(text(info.summary.isEmpty()?"Chưa lấy được giới thiệu truyện.":info.summary,15));
-    if(b!=null){box.addView(button("Đọc tiếp",()->openBook(b)));box.addView(button("Mục lục / chọn chương",()->contents(b)));box.addView(button("Tải toàn bộ",()->startDownloads(info.id,Repository.MODE_BOOK_ALL)));box.addView(button("Xóa chương đã tải",()->clearDownloadedDialog(b)));}
-    box.addView(button("Cập nhật thông tin",()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),true)));box.addView(button("Mở trên HAKO",()->browse(info.url)));scroll.addView(box);currentScroll=scroll;root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));status();
+  private void renderStoryInfo(StoryInfo info,Store.Book b){
+    if(info==null)return;reset();bookId=info.id;chapterId="";
+    LinearLayout header=new LinearLayout(this);header.addView(new IconButton(this,4,"Quay lại",this::goBack),new LinearLayout.LayoutParams(dp(44),dp(44)));TextView heading=text(info.title,17);heading.setMaxLines(2);heading.setTypeface(UI_MEDIUM);header.addView(heading,new LinearLayout.LayoutParams(0,dp(52),1));if(b!=null)header.addView(new IconButton(this,15,"Menu truyện",()->bookMenu(b)),new LinearLayout.LayoutParams(dp(44),dp(44)));root.addView(header);
+    root.addView(text("Tác giả: "+(info.author.isEmpty()?"Chưa rõ":info.author)+" · "+info.status,12));if(!info.artist.isEmpty())root.addView(text("Họa sĩ: "+info.artist,12));
+    String updated=info.updatedText;if(info.updatedAt>0&&info.updatedAt<=System.currentTimeMillis()){long age=System.currentTimeMillis()-info.updatedAt;updated=age<3600000?(age/60000)+" phút trước":age<86400000?(age/3600000)+" giờ trước":(age/86400000)+" ngày trước";}
+    root.addView(text("Cập nhật: "+updated+" · "+info.chapters+" chương",12));
+    ScrollView summary=new ScrollView(this);TextView body=text(info.summary.isEmpty()?"Chưa có giới thiệu đã lưu.":info.summary,14);body.setPadding(dp(6),dp(4),dp(6),dp(4));summary.addView(body);root.addView(summary,new LinearLayout.LayoutParams(-1,dp(128)));currentScroll=summary;summary.setContentDescription("Giới thiệu truyện");
+    LinearLayout tools=new LinearLayout(this);Button order=button(prefs.getBoolean("chapter_desc_"+info.id,false)?"Mới trước ⇅":"Cũ trước ⇅",()->{prefs.edit().putBoolean("chapter_desc_"+info.id,!prefs.getBoolean("chapter_desc_"+info.id,false)).apply();renderStoryInfo(info,b);});tools.addView(order,new LinearLayout.LayoutParams(0,dp(40),1));tools.addView(button("Làm mới",()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),true)),new LinearLayout.LayoutParams(dp(100),dp(40)));root.addView(tools);
+    if(b!=null&&tocEntry!=null&&info.id.equals(tocEntry.book.id)){List<VolumeGroup> groups=new ArrayList<>(tocGroups);if(prefs.getBoolean("chapter_desc_"+info.id,false))Collections.reverse(groups);PagedBookList list=new PagedBookList(this);currentList=list;list.setAdapter(new BaseAdapter(){public int getCount(){return groups.size();}public Object getItem(int n){return groups.get(n);}public long getItemId(int n){return n;}public View getView(int n,View old,ViewGroup parent){VolumeGroup group=groups.get(n);TextView row=text(group.name+"\n"+group.chapters.size()+" chương · "+group.readSummary,14);row.setPadding(dp(8),dp(10),dp(8),dp(10));return row;}});list.setOnItemClickListener((parent,view,n,id)->{tocSection=groups.get(n).name;volumeChapters(b,groups.get(n));});root.addView(list,new LinearLayout.LayoutParams(-1,0,1));}
+    else root.addView(text("Chưa có mục lục đã lưu.",13));
+    summary.setOnTouchListener((view,event)->{if(event.getAction()==android.view.MotionEvent.ACTION_DOWN)summary.requestFocus();return false;});summary.setFocusableInTouchMode(true);status();
   }
   private void clearDownloadedDialog(Store.Book b){new AlertDialog.Builder(this).setTitle("Xóa chương đã tải?").setMessage("Chỉ xóa chữ và ảnh đã tải của bộ này. Giữ thông tin, mục lục, yêu thích và tiến trình đọc. Tải nền của bộ này dừng cho đến khi bạn chọn tải lại.").setPositiveButton("Xóa chương",(d,w)->taskOp("book.clear","Đang xóa chương đã tải…",()->{store.clearDownloaded(b.id);return null;},()->{preparedCache=null;preparedCacheKey="";message("Đã xóa nội dung tải về; thông tin và tiến trình truyện được giữ.");})).setNegativeButton("Giữ lại",null).show();}
 
@@ -997,13 +1000,10 @@ public class MainActivity extends Activity {
     header.addView(resume,new LinearLayout.LayoutParams(0,dp(44),1));
     header.addView(new IconButton(this,b.pinned?19:9,b.pinned?"Bỏ ghim":"Ghim để dễ tìm",()->task("Đang lưu ghim…",()->{Store.Book latest=store.book(b.id);if(latest!=null)store.pin(b.id,!latest.pinned);return null;},()->contents(b))),new LinearLayout.LayoutParams(dp(48),dp(44)));
     header.addView(new IconButton(this,18,"Tải toàn bộ",()->startDownloads(b.id,Repository.MODE_BOOK_ALL)),new LinearLayout.LayoutParams(dp(48),dp(44)));
-    header.addView(new IconButton(this,21,"Sắp xếp chương",()->{
-      new AlertDialog.Builder(this).setTitle("Sắp xếp chương").setSingleChoiceItems(new String[]{"Chương cũ nhất trước","Chương mới nhất trước"},prefs.getBoolean("chapter_desc_"+b.id,false)?1:0,(dialog,which)->{
-        prefs.edit().putBoolean("chapter_desc_"+b.id,which==1).apply();dialog.dismiss();
-        final List<VolumeGroup> groups=new ArrayList<>();
-        task("Đang sắp xếp…",()->{TocState.Entry entry=TocState.peek(b.id);if(entry==null)entry=TocState.refresh(this,b.id);groups.addAll(preparedGroups(entry));return null;},()->{if(!section.equals("Chọn tập"))for(VolumeGroup group:groups)if(group.name.equals(section)){volumeChapters(b,group);return;}contents(b);});
-      }).setNegativeButton("Đóng",null).show();
-    }),new LinearLayout.LayoutParams(dp(48),dp(44)));
+    Button sort=button(prefs.getBoolean("chapter_desc_"+b.id,false)?"Mới trước ⇅":"Cũ trước ⇅",()->{
+      prefs.edit().putBoolean("chapter_desc_"+b.id,!prefs.getBoolean("chapter_desc_"+b.id,false)).apply();
+      if(tocEntry!=null&&b.id.equals(tocEntry.book.id)){if(tocSection.isEmpty())renderContents(tocEntry.book,tocEntry.chapters,tocGroups);else for(VolumeGroup group:tocGroups)if(group.name.equals(tocSection)){renderVolumeChapters(tocEntry.book,group,tocEntry.chapters,tocEntry.read,group.readSummary);break;}}
+    });sort.setTextSize(11);header.addView(sort,new LinearLayout.LayoutParams(dp(92),dp(44)));
     header.addView(new IconButton(this,15,"Menu truyện",()->bookMenu(b)),new LinearLayout.LayoutParams(dp(48),dp(44)));
     root.addView(header);
     TextView info=new TextView(this);info.setText(section+" · "+count);info.setTextSize(12);info.setTextColor(MUTED);
@@ -1570,22 +1570,23 @@ public class MainActivity extends Activity {
     new AlertDialog.Builder(this).setTitle("Chi tiết cập nhật").setView(scroll).setPositiveButton("Đóng",null).setNeutralButton("Xuất báo cáo",(d,w)->{reportExportPending=true;optionalPicker(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain").putExtra(Intent.EXTRA_TITLE,"Hako-bao-cao-cap-nhat.txt"),92);}).setNegativeButton("Làm mới",(d,w)->updateDetails()).show();
   }
   private void requestFullShelf(int mode){Repository.requestShelfScan(mode);startDownloads("",Repository.MODE_SYNC_LIBRARY);}
-  private SeekBar settingsActiveSlider;
-  private boolean settingsVolume(int key,KeyEvent event){if(key!=KeyEvent.KEYCODE_VOLUME_UP&&key!=KeyEvent.KEYCODE_VOLUME_DOWN)return false;if(event.getAction()==KeyEvent.ACTION_DOWN&&settingsActiveSlider!=null){OperationTrace.Span trace=OperationTrace.begin(settingsActiveSlider.getTag() instanceof String?(String)settingsActiveSlider.getTag():"settings.adjust");try{settingsActiveSlider.setProgress(settingsActiveSlider.getProgress()+(key==KeyEvent.KEYCODE_VOLUME_UP?1:-1));}finally{OperationTrace.end(trace,"complete",0);}}return true;}
+  private ScrollView settingsScroll;
+  private boolean settingsVolume(int key,KeyEvent event){if(key!=KeyEvent.KEYCODE_VOLUME_UP&&key!=KeyEvent.KEYCODE_VOLUME_DOWN)return false;if(event.getAction()==KeyEvent.ACTION_DOWN&&settingsScroll!=null)settingsScroll.pageScroll(key==KeyEvent.KEYCODE_VOLUME_UP?View.FOCUS_UP:View.FOCUS_DOWN);return true;}
+  private SeekBar stepControl(LinearLayout box,int max,int value){SeekBar model=new SeekBar(this);model.setMax(max);model.setProgress(value);LinearLayout row=new LinearLayout(this);Button minus=button("−",()->model.setProgress(model.getProgress()-1));Button plus=button("+",()->model.setProgress(model.getProgress()+1));TextView hint=text("Chỉnh bằng − / +",12);hint.setGravity(Gravity.CENTER);row.addView(minus,new LinearLayout.LayoutParams(dp(64),dp(44)));row.addView(hint,new LinearLayout.LayoutParams(0,dp(44),1));row.addView(plus,new LinearLayout.LayoutParams(dp(64),dp(44)));box.addView(row);return model;}
   private void settings(){
     LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(10),0,dp(10),0);
-    box.addView(text("Chọn thanh chỉnh rồi dùng phím âm lượng + / −. Phím điều hướng chọn thông số.",12));
-    box.addView(text("Phông chữ đọc sách (chạm để chọn):",14));
-    Spinner fonts=new Spinner(this);fonts.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"Tinos (chân thanh mảnh)","DejaVu Serif (chân rõ nét)","Liberation Serif (chữ dày êm mắt)","Liberation Sans (không chân siêu nét)","Không chân hệ thống","Font tự nhập (TTF/OTF)"}));fonts.setSelection(prefs.getInt("font2",2));box.addView(fonts);
+    box.addView(text("Phím âm lượng: lên / xuống. Nút − / +: chỉnh thông số.",12));
+    box.addView(text("Phông chữ (bấm đổi trực tiếp):",14));
+    String[] fontNames={"Tinos","DejaVu Serif","Liberation Serif","Liberation Sans","Không chân hệ thống","Font tự nhập"};final int[] fontChoice={Math.max(0,Math.min(5,prefs.getInt("font2",2)))};Button fontSelect=button("Phông: "+fontNames[fontChoice[0]]+" ⇅",()->{});box.addView(fontSelect);
     TextView preview=text("Tiếng Việt: Nguyễn, quyển, tưởng, khuỷu — ă â ê ô ơ ư đ",18);box.addView(preview);
-    TextView sizeLabel=text("Cỡ chữ",14);box.addView(sizeLabel);SeekBar size=new SeekBar(this);size.setMax(44);size.setProgress(Math.round((prefs.getFloat("size2",22f)-12)*2));box.addView(size);
+    TextView sizeLabel=text("Cỡ chữ",14);box.addView(sizeLabel);SeekBar size=stepControl(box,44,Math.round((prefs.getFloat("size2",22f)-12)*2));
     TextView lineLabel=text("Giãn dòng trong đoạn",14);box.addView(lineLabel);
-    SeekBar line=new SeekBar(this);line.setMax(16);line.setProgress(Math.round((prefs.getFloat("line",1.30f)-0.70f)/0.05f));box.addView(line);
+    SeekBar line=stepControl(box,16,Math.round((prefs.getFloat("line",1.30f)-0.70f)/0.05f));
     TextView paraLabel=text("Khoảng cách giữa các đoạn",14);box.addView(paraLabel);
-    SeekBar para=new SeekBar(this);para.setMax(10);para.setProgress(prefs.getInt("paraSpaceDp",8)/2);box.addView(para);
+    SeekBar para=stepControl(box,10,prefs.getInt("paraSpaceDp",8)/2);
     TextView indentLabel=text("Thụt đầu dòng mỗi đoạn",14);box.addView(indentLabel);
-    SeekBar indent=new SeekBar(this);indent.setMax(10);indent.setProgress(prefs.getInt("indentDp",9)/3);box.addView(indent);
-    TextView marginLabel=text("Lề mép màn hình",14);box.addView(marginLabel);SeekBar margin=new SeekBar(this);margin.setMax(28);margin.setProgress(prefs.getInt("margin",5));box.addView(margin);
+    SeekBar indent=stepControl(box,10,prefs.getInt("indentDp",9)/3);
+    TextView marginLabel=text("Lề mép màn hình",14);box.addView(marginLabel);SeekBar margin=stepControl(box,28,prefs.getInt("margin",5));
     CheckBox bold=check("Nét đậm (thử trên màn E Ink)",prefs.getInt("weight",400)>400);box.addView(bold);
     final android.graphics.Typeface[] fontCache=new android.graphics.Typeface[6];
     Runnable update=()->{
@@ -1599,13 +1600,12 @@ public class MainActivity extends Activity {
       indentLabel.setText("Thụt đầu dòng: "+(iDp==0?"0 dp (không thụt)":iDp+" dp"));
       marginLabel.setText("Lề mép màn hình: "+margin.getProgress()+" dp");
       preview.setTextSize(fs);
-      try{int n=fonts.getSelectedItemPosition();android.graphics.Typeface tf=fontCache[n];if(tf==null)tf=n==0?android.graphics.Typeface.createFromAsset(getAssets(),"Tinos.ttf"):n==1?android.graphics.Typeface.createFromAsset(getAssets(),"DejaVu.ttf"):n==2?android.graphics.Typeface.createFromAsset(getAssets(),"LiberationSerif.ttf"):n==3?android.graphics.Typeface.createFromAsset(getAssets(),"LiberationSans.ttf"):n==4?android.graphics.Typeface.SANS_SERIF:android.graphics.Typeface.createFromFile(new File(getFilesDir(),"reader-font.ttf"));fontCache[n]=tf;preview.setTypeface(tf,bold.isChecked()?1:0);}catch(Exception e){preview.setTypeface(android.graphics.Typeface.SERIF);}
+      try{int n=fontChoice[0];android.graphics.Typeface tf=fontCache[n];if(tf==null)tf=n==0?android.graphics.Typeface.createFromAsset(getAssets(),"Tinos.ttf"):n==1?android.graphics.Typeface.createFromAsset(getAssets(),"DejaVu.ttf"):n==2?android.graphics.Typeface.createFromAsset(getAssets(),"LiberationSerif.ttf"):n==3?android.graphics.Typeface.createFromAsset(getAssets(),"LiberationSans.ttf"):n==4?android.graphics.Typeface.SANS_SERIF:android.graphics.Typeface.createFromFile(new File(getFilesDir(),"reader-font.ttf"));fontCache[n]=tf;preview.setTypeface(tf,bold.isChecked()?1:0);}catch(Exception e){preview.setTypeface(android.graphics.Typeface.SERIF);}
     };
     SeekBar.OnSeekBarChangeListener listener=new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean u){update.run();}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}};
     size.setOnSeekBarChangeListener(listener);line.setOnSeekBarChangeListener(listener);para.setOnSeekBarChangeListener(listener);indent.setOnSeekBarChangeListener(listener);margin.setOnSeekBarChangeListener(listener);
-    fonts.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> a,View v,int p,long id){update.run();}public void onNothingSelected(AdapterView<?> a){}});
+    fontSelect.setOnClickListener(v->{fontChoice[0]=(fontChoice[0]+1)%fontNames.length;fontSelect.setText("Phông: "+fontNames[fontChoice[0]]+" ⇅");update.run();});
     size.setTag("settings.size");line.setTag("settings.line");para.setTag("settings.paragraph");indent.setTag("settings.indent");margin.setTag("settings.margin");
-    for(SeekBar slider:new SeekBar[]{size,line,para,indent,margin}){slider.setFocusableInTouchMode(true);slider.setOnFocusChangeListener((v,focused)->{if(focused)settingsActiveSlider=slider;});slider.setOnTouchListener((v,event)->{settingsActiveSlider=slider;return false;});}settingsActiveSlider=size;
     bold.setOnCheckedChangeListener((a,b)->update.run());update.run();
     CheckBox taps=check("Chạm trên/dưới để lật trang",prefs.getBoolean("taps",true));box.addView(taps);CheckBox charging=check("Đồng bộ tủ sách khi sạc",prefs.getBoolean("charging",true));box.addView(charging);CheckBox touchLockBox=check("Khóa cảm ứng khi đọc (chống chạm túi, chỉ mở bằng phím cứng)",prefs.getBoolean("touch_lock",false));box.addView(touchLockBox);
     box.addView(button("Nhập font TTF / OTF",()->optionalPicker(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),88)));
@@ -1616,17 +1616,17 @@ public class MainActivity extends Activity {
     box.addView(button("Thông tin WebView & thiết bị",this::webViewInfo));
     box.addView(button("Sao lưu / chuyển thiết bị",()->{settingsDialog.dismiss();transferDialog();}));
     box.addView(button("Tên miền HAKO",this::domain));box.addView(button("Đọc mẫu offline",this::demo));
-    box.addView(text("Chưa lưu tủ/yêu thích: tải trước tối đa 15 chương. Đã lưu và đang đọc: tải đến cuối. Giữ 3 chương trước; Tải full giữ toàn bộ. Tải trước 1–2: chờ 4s; 3–5: 12s; 6–10: 30s; 11–15: 60s. Khóa hoặc rời app: dừng tải tự động sau chương đang tải khi dùng pin. Tải full thủ công vẫn tiếp tục. Đọc bản lưu không cần chạy trang HAKO.",12));
-    ScrollView scroll=new ScrollView(this);scroll.addView(box);
+    box.addView(text("Tải tự động: 15 chương chữ mỗi đợt, gồm chương đang đọc. Đến chương chữ thứ 14 mới chuẩn bị đợt tiếp. Giữ 3 chương trước; Tải full thủ công giữ toàn bộ. Khóa hoặc rời app: dừng tải tự động sau chương đang tải khi dùng pin. Tải full thủ công vẫn tiếp tục. Đọc bản lưu không cần chạy trang HAKO.",12));
+    ScrollView scroll=new ScrollView(this);scroll.addView(box);settingsScroll=scroll;
     settingsDialog = new AlertDialog.Builder(this).setTitle("Chữ & tải nội dung").setView(scroll).setPositiveButton("Áp dụng",(d,w)->{OperationTrace.Span trace=OperationTrace.begin("settings.apply");try{
-      if(fonts.getSelectedItemPosition()==5&&!new File(getFilesDir(),"reader-font.ttf").isFile()){message("Chưa nhập font. Đang giữ lựa chọn cũ.");return;}
+      if(fontChoice[0]==5&&!new File(getFilesDir(),"reader-font.ttf").isFile()){message("Chưa nhập font. Đang giữ lựa chọn cũ.");return;}
       float ls=Math.round((0.70f+line.getProgress()*0.05f)*100f)/100f;
       int pDp=para.getProgress()*2;
       int iDp=indent.getProgress()*3;
-      prefs.edit().putInt("font2",fonts.getSelectedItemPosition()).putFloat("size2",12+size.getProgress()/2f).putFloat("line",ls).putInt("paraSpaceDp",pDp).putInt("indentDp",iDp).putInt("margin",margin.getProgress()).putInt("weight",bold.isChecked()?700:400).putBoolean("taps",taps.isChecked()).putBoolean("charging",charging.isChecked()).putBoolean("touch_lock",touchLockBox.isChecked()).apply();touchLocked=touchLockBox.isChecked();if(nativeReader!=null)nativeReader.setTouchLocked(touchLocked);Repository.pocketPaused=touchLocked;if(touchLocked){hideToolbar();hideBoundaryPrompt();}
+      prefs.edit().putInt("font2",fontChoice[0]).putFloat("size2",12+size.getProgress()/2f).putFloat("line",ls).putInt("paraSpaceDp",pDp).putInt("indentDp",iDp).putInt("margin",margin.getProgress()).putInt("weight",bold.isChecked()?700:400).putBoolean("taps",taps.isChecked()).putBoolean("charging",charging.isChecked()).putBoolean("touch_lock",touchLockBox.isChecked()).apply();touchLocked=touchLockBox.isChecked();if(nativeReader!=null)nativeReader.setTouchLocked(touchLocked);Repository.pocketPaused=touchLocked;if(touchLocked){hideToolbar();hideBoundaryPrompt();}
       ChargeJob.schedule(this,charging.isChecked());
       if(nativeReader!=null)applyReaderStyle();
-    }finally{OperationTrace.end(trace,"complete",0);}}).setNegativeButton("Đóng",null).show();settingsDialog.setOnKeyListener((dialog,key,event)->settingsVolume(key,event));size.requestFocus();
+    }finally{OperationTrace.end(trace,"complete",0);}}).setNegativeButton("Đóng",null).show();settingsDialog.setOnKeyListener((dialog,key,event)->settingsVolume(key,event));scroll.requestFocus();
   }
 
   private volatile boolean transferWorking;
@@ -1965,6 +1965,7 @@ public class MainActivity extends Activity {
     int code = event.getKeyCode();
     int action = event.getAction();
     if(settingsDialog!=null&&settingsDialog.isShowing()&&settingsVolume(code,event))return true;
+    if(nativeReader==null&&(code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_VOLUME_DOWN)){if(action==KeyEvent.ACTION_DOWN){if(currentScroll!=null&&currentScroll.hasFocus())currentScroll.pageScroll(code==KeyEvent.KEYCODE_VOLUME_UP?View.FOCUS_UP:View.FOCUS_DOWN);else performPageAction(code==KeyEvent.KEYCODE_VOLUME_UP?-1:1);}return true;}
 
     if(touchLocked && (code==KeyEvent.KEYCODE_MENU || code==KeyEvent.KEYCODE_DPAD_CENTER || code==KeyEvent.KEYCODE_ENTER))return true;
 
