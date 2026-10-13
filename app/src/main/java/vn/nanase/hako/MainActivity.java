@@ -205,7 +205,7 @@ public class MainActivity extends Activity {
             if (status != null&&!String.valueOf(status.getText()).equals(text)) status.setText(text);
             if(i.getBooleanExtra("books_changed",false)&&!bookId.isEmpty()&&chapterId.isEmpty()&&currentList!=null&&currentList.getAdapter() instanceof BaseAdapter)((BaseAdapter)currentList.getAdapter()).notifyDataSetChanged();
             if (syncBadge != null) {
-              syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : (Repository.syncPct >= 100 ? "✓ 100%" : (Repository.syncPct + "%")));
+              syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : (Repository.syncPct >= 100 ? "✓ Xong" : "⏸"));
             }
             if (nativeReader != null) {
               nativeReader.setSyncStatus(Repository.isSyncing, Repository.syncPct);
@@ -223,7 +223,7 @@ public class MainActivity extends Activity {
     Repository.init(this);GeckoClient.init(this);
     // Do not scan the library on the main thread before the home screen appears.
     // Use the persisted display state; validate only the selected content on its worker.
-    Repository.syncPct=prefs.getInt("last_offline_percent",0);
+    Repository.syncPct=prefs.getInt("last_download_percent_v2",0);
     library();
     if(readyLibrary!=null){final UiLibrarySnapshot saved=readyLibrary;libraryIo.execute(saved::prepareIndices);}
     root.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener(){public boolean onPreDraw(){root.getViewTreeObserver().removeOnPreDrawListener(this);Diagnostics.elapsed("startup.first_layout",boot);return true;}});
@@ -316,7 +316,7 @@ public class MainActivity extends Activity {
     bottomBar.addView(status, new LinearLayout.LayoutParams(0, -2, 1f));
 
     syncBadge = new TextView(this);
-    syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : (Repository.syncPct >= 100 ? "✓ 100%" : (Repository.syncPct + "%")));
+    syncBadge.setText(Repository.isSyncing ? ("⤓ " + Repository.syncPct + "%") : (Repository.syncPct >= 100 ? "✓ Xong" : "⏸"));
     syncBadge.setTextSize(11);
     syncBadge.setTypeface(UI_MEDIUM);
     syncBadge.setTextColor(Color.BLACK);
@@ -829,8 +829,8 @@ public class MainActivity extends Activity {
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
         int storedAll=summary.stored;
-        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+"Chữ "+storedAll+"/"+totalChs+" · "+summary.readLabel()+(summary.newCount>0?" · "+summary.newCount+" mới":""));
-        int wholePct=totalChs==0?0:Math.min(storedAll==totalChs?100:99,Math.round(storedAll*100f/totalChs));badge.setText("CHỮ "+wholePct+"%");
+        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+"Đã tải "+storedAll+"/"+totalChs+" chương"+" · "+summary.readLabel()+(summary.newCount>0?" · "+summary.newCount+" mới":""));
+        badge.setText(totalChs==0?"Chưa rõ":summary.unread+" chưa đọc");badge.setTextSize(18f);
         LinearLayout meta=new LinearLayout(MainActivity.this);meta.setGravity(Gravity.CENTER_VERTICAL);meta.addView(subView,new LinearLayout.LayoutParams(0,-2,1));meta.addView(badge);card.addView(meta);
 
         return card;

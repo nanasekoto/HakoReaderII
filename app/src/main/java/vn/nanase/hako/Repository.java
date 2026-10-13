@@ -183,7 +183,7 @@ public final class Repository {
     UpdateReport.checkpoint(ctx,"Hoàn tất cập nhật tủ sách");
     notify(ctx, "Đã cập nhật tủ sách: " + count + " mục · Chuẩn bị tải theo ưu tiên");
     ctx.sendBroadcast(new Intent(EVENT).setPackage(ctx.getPackageName()).putExtra("shelf_changed",true).putExtra("text",status));
-    }finally{shelfUpdating=false;if("SHELF".equals(syncState))syncState="CHECKING";}
+    }finally{shelfUpdating=false;if("SHELF".equals(syncState))syncState=busy.get()?"CHECKING":"COMPLETED";}
   }
 
   public static Store.Book add(Context c, String url) throws Exception {
@@ -472,7 +472,7 @@ public final class Repository {
         if (syncTotal == 0) {
           notify(ctx, b.title + ": Đã tải đủ ✓");
         } else {
-          syncPct = Math.min(99, Math.round(syncDone * 100f / syncTotal));
+          syncPct = DownloadLedger.percent(syncDone,syncTotal);
           notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + ")");
         }
 
@@ -508,7 +508,7 @@ public final class Repository {
             download(ctx, ch);Diagnostics.count("download.attempt_completed");
             if (s.readable(ch.id)) {
               ledger.complete(ch.id);syncDone=ledger.done();
-              syncPct = syncTotal > 0 ? Math.min(99, Math.round(syncDone * 100f / syncTotal)) : 100;
+              syncPct = syncTotal > 0 ? DownloadLedger.percent(syncDone,syncTotal) : 100;
               notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + "): " + ch.title);
             }
           } catch (Exception e) {
@@ -553,14 +553,16 @@ public final class Repository {
         notify(ctx, "Chưa hoàn tất: còn " + remaining + " chương chưa tải");
       }
     } catch(Exception error){UpdateReport.checkpoint(ctx,"Đã dừng tác vụ: "+error.getMessage());throw error;} finally {
-      try{UiLibrarySnapshot display=LibraryState.refresh(ctx);int total=0,stored=0;for(Store.Book item:display.books){if(!Store.get(ctx).syncTarget(item))continue;UiLibrarySnapshot.Summary info=display.summary(item);total+=info.scopeTotal;stored+=info.scopeStored;}syncPct=total==0?0:Math.round(stored*100f/total);ctx.getSharedPreferences("settings",0).edit().putInt("last_offline_percent",syncPct).apply();}catch(Exception snapshotError){UpdateReport.log(ctx,"Giữ bản thông tin cũ: "+snapshotError.getMessage());}
+      if("CHECKING".equals(syncState)||"SHELF".equals(syncState)||"DOWNLOADING".equals(syncState))syncState="INCOMPLETE";
+      if("COMPLETED".equals(syncState))syncPct=100;else syncPct=Math.min(99,DownloadLedger.percent(syncDone,syncTotal));
+      ctx.getSharedPreferences("settings",0).edit().putInt("last_download_percent_v2",syncPct).apply();
       GeckoClient.release();busy.set(false);
       ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}
       if(cancel.get()||syncPaused){clearBook();pendingAll=false;pendingPersonal=false;}
       manualOverride = false;
       isSyncing = false;
-      notify(ctx,syncPaused?"Đã tạm dừng đồng bộ · Chữ offline "+syncPct+"%":!"COMPLETED".equals(syncState)?"Lượt cập nhật chưa hoàn tất · Chữ offline "+syncPct+"% · Xem Chi tiết cập nhật":syncPct==100?"Chữ offline 100% · Ảnh thiếu xem riêng":"Lượt tải đã xong · Chữ offline toàn thư viện "+syncPct+"% · Phần còn thiếu xem Chi tiết cập nhật");
+      notify(ctx,syncPaused?"Đã tạm dừng lượt cập nhật":!"COMPLETED".equals(syncState)?"Lượt cập nhật chưa hoàn tất · Xem Chi tiết cập nhật":"Đã hoàn tất lượt cập nhật · Ảnh thiếu xem riêng");
       UpdateReport.finish(ctx);
       resumePending(ctx);
     }
