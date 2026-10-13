@@ -274,7 +274,8 @@ public class MainActivity extends Activity {
     root.addView(l);
   }
 
-  private void reset() {
+  private boolean storyInformation;
+  private void reset() {storyInformation=false;
     generation++;
     caughtUpPrompt=false; caughtUpBook=null;
     cancelLockKey();
@@ -967,7 +968,7 @@ public class MainActivity extends Activity {
     taskOp("book.info","Đang lấy thông tin truyện…",()->{Repository.init(this);Repository.allowed(this);String html=Repository.page(link.url,true);info[0]=StoryInfo.parse(html,link.url);if(info[0].id.isEmpty())throw new IOException("Không nhận dạng được truyện");store.putBook(new HakoParser.Link(info[0].id,info[0].title,info[0].url));java.util.List<HakoParser.Link> chapters=HakoParser.chapters(html,link.url);if(!chapters.isEmpty())store.catalog(info[0].id,chapters);info[0].save(this);book[0]=store.book(info[0].id);detail[0]=TocState.refresh(this,info[0].id);groups[0]=preparedGroups(detail[0]);return null;},()->{tocEntry=detail[0];tocGroups=groups[0];renderStoryInfo(info[0],book[0]);});
   }
   private void renderStoryInfo(StoryInfo info,Store.Book b){
-    if(info==null)return;reset();bookId=info.id;chapterId="";
+    if(info==null)return;reset();storyInformation=true;bookId=info.id;chapterId="";
     LinearLayout header=new LinearLayout(this);header.addView(new IconButton(this,4,"Quay lại",this::goBack),new LinearLayout.LayoutParams(dp(44),dp(44)));TextView heading=text(info.title,17);heading.setMaxLines(2);heading.setTypeface(UI_MEDIUM);header.addView(heading,new LinearLayout.LayoutParams(0,dp(52),1));if(b!=null)header.addView(new IconButton(this,15,"Menu truyện",()->bookMenu(b)),new LinearLayout.LayoutParams(dp(44),dp(44)));root.addView(header);
     root.addView(text("Tác giả: "+(info.author.isEmpty()?"Chưa rõ":info.author)+" · "+info.status,12));if(!info.artist.isEmpty())root.addView(text("Họa sĩ: "+info.artist,12));
     String updated=info.updatedText;if(info.updatedAt>0&&info.updatedAt<=System.currentTimeMillis()){long age=System.currentTimeMillis()-info.updatedAt;updated=age<3600000?(age/60000)+" phút trước":age<86400000?(age/3600000)+" giờ trước":(age/86400000)+" ngày trước";}
@@ -1572,7 +1573,8 @@ public class MainActivity extends Activity {
   private void requestFullShelf(int mode){Repository.requestShelfScan(mode);startDownloads("",Repository.MODE_SYNC_LIBRARY);}
   private ScrollView settingsScroll;
   private boolean settingsVolume(int key,KeyEvent event){if(key!=KeyEvent.KEYCODE_VOLUME_UP&&key!=KeyEvent.KEYCODE_VOLUME_DOWN)return false;if(event.getAction()==KeyEvent.ACTION_DOWN&&settingsScroll!=null)settingsScroll.pageScroll(key==KeyEvent.KEYCODE_VOLUME_UP?View.FOCUS_UP:View.FOCUS_DOWN);return true;}
-  private SeekBar stepControl(LinearLayout box,int max,int value){SeekBar model=new SeekBar(this);model.setMax(max);model.setProgress(value);LinearLayout row=new LinearLayout(this);Button minus=button("−",()->model.setProgress(model.getProgress()-1));Button plus=button("+",()->model.setProgress(model.getProgress()+1));TextView hint=text("Chỉnh bằng − / +",12);hint.setGravity(Gravity.CENTER);row.addView(minus,new LinearLayout.LayoutParams(dp(64),dp(44)));row.addView(hint,new LinearLayout.LayoutParams(0,dp(44),1));row.addView(plus,new LinearLayout.LayoutParams(dp(64),dp(44)));box.addView(row);return model;}
+  private void stepChange(SeekBar model,int amount){OperationTrace.Span trace=OperationTrace.begin(String.valueOf(model.getContentDescription()));try{model.setProgress(model.getProgress()+amount);}finally{OperationTrace.end(trace,"ok",0);}}
+  private SeekBar stepControl(LinearLayout box,int max,int value){SeekBar model=new SeekBar(this);model.setMax(max);model.setProgress(value);LinearLayout row=new LinearLayout(this);Button minus=button("−",()->stepChange(model,-1));Button plus=button("+",()->stepChange(model,1));TextView hint=text("",14);model.setTag(hint);hint.setGravity(Gravity.CENTER);row.addView(minus,new LinearLayout.LayoutParams(dp(64),dp(44)));row.addView(hint,new LinearLayout.LayoutParams(0,dp(44),1));row.addView(plus,new LinearLayout.LayoutParams(dp(64),dp(44)));box.addView(row);return model;}
   private void settings(){
     LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(10),0,dp(10),0);
     box.addView(text("Phím âm lượng: lên / xuống. Nút − / +: chỉnh thông số.",12));
@@ -1594,18 +1596,19 @@ public class MainActivity extends Activity {
       float ls=Math.round((0.70f+line.getProgress()*0.05f)*100f)/100f;
       int pDp=para.getProgress()*2;
       int iDp=indent.getProgress()*3;
-      sizeLabel.setText("Cỡ chữ: "+fs+" sp");
-      lineLabel.setText("Giãn dòng trong đoạn: "+String.format(java.util.Locale.US,"%.2fx",ls));
-      paraLabel.setText("Khoảng cách đoạn: "+(pDp==0?"0 dp (sát nhau)":pDp+" dp"));
-      indentLabel.setText("Thụt đầu dòng: "+(iDp==0?"0 dp (không thụt)":iDp+" dp"));
-      marginLabel.setText("Lề mép màn hình: "+margin.getProgress()+" dp");
+      sizeLabel.setText("Cỡ chữ");
+      lineLabel.setText("Giãn dòng");
+      paraLabel.setText("Khoảng cách đoạn");
+      indentLabel.setText("Thụt đầu dòng");
+      marginLabel.setText("Lề mép màn hình");
+      ((TextView)size.getTag()).setText(fs+" sp");((TextView)line.getTag()).setText(String.format(java.util.Locale.US,"%.2fx",ls));((TextView)para.getTag()).setText(pDp+" dp");((TextView)indent.getTag()).setText(iDp+" dp");((TextView)margin.getTag()).setText(margin.getProgress()+" dp");
       preview.setTextSize(fs);
       try{int n=fontChoice[0];android.graphics.Typeface tf=fontCache[n];if(tf==null)tf=n==0?android.graphics.Typeface.createFromAsset(getAssets(),"Tinos.ttf"):n==1?android.graphics.Typeface.createFromAsset(getAssets(),"DejaVu.ttf"):n==2?android.graphics.Typeface.createFromAsset(getAssets(),"LiberationSerif.ttf"):n==3?android.graphics.Typeface.createFromAsset(getAssets(),"LiberationSans.ttf"):n==4?android.graphics.Typeface.SANS_SERIF:android.graphics.Typeface.createFromFile(new File(getFilesDir(),"reader-font.ttf"));fontCache[n]=tf;preview.setTypeface(tf,bold.isChecked()?1:0);}catch(Exception e){preview.setTypeface(android.graphics.Typeface.SERIF);}
     };
     SeekBar.OnSeekBarChangeListener listener=new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean u){update.run();}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}};
     size.setOnSeekBarChangeListener(listener);line.setOnSeekBarChangeListener(listener);para.setOnSeekBarChangeListener(listener);indent.setOnSeekBarChangeListener(listener);margin.setOnSeekBarChangeListener(listener);
     fontSelect.setOnClickListener(v->{fontChoice[0]=(fontChoice[0]+1)%fontNames.length;fontSelect.setText("Phông: "+fontNames[fontChoice[0]]+" ⇅");update.run();});
-    size.setTag("settings.size");line.setTag("settings.line");para.setTag("settings.paragraph");indent.setTag("settings.indent");margin.setTag("settings.margin");
+    size.setContentDescription("settings.size");line.setContentDescription("settings.line");para.setContentDescription("settings.paragraph");indent.setContentDescription("settings.indent");margin.setContentDescription("settings.margin");
     bold.setOnCheckedChangeListener((a,b)->update.run());update.run();
     CheckBox taps=check("Chạm trên/dưới để lật trang",prefs.getBoolean("taps",true));box.addView(taps);CheckBox charging=check("Đồng bộ tủ sách khi sạc",prefs.getBoolean("charging",true));box.addView(charging);CheckBox touchLockBox=check("Khóa cảm ứng khi đọc (chống chạm túi, chỉ mở bằng phím cứng)",prefs.getBoolean("touch_lock",false));box.addView(touchLockBox);
     box.addView(button("Nhập font TTF / OTF",()->optionalPicker(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),88)));
@@ -1965,7 +1968,7 @@ public class MainActivity extends Activity {
     int code = event.getKeyCode();
     int action = event.getAction();
     if(settingsDialog!=null&&settingsDialog.isShowing()&&settingsVolume(code,event))return true;
-    if(nativeReader==null&&(code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_VOLUME_DOWN)){if(action==KeyEvent.ACTION_DOWN){if(currentScroll!=null&&currentScroll.hasFocus())currentScroll.pageScroll(code==KeyEvent.KEYCODE_VOLUME_UP?View.FOCUS_UP:View.FOCUS_DOWN);else performPageAction(code==KeyEvent.KEYCODE_VOLUME_UP?-1:1);}return true;}
+    if(nativeReader==null&&(code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_VOLUME_DOWN)){if(action==KeyEvent.ACTION_DOWN){if(storyInformation&&currentScroll!=null&&(code==KeyEvent.KEYCODE_VOLUME_DOWN?currentScroll.canScrollVertically(1):currentList==null||currentList.getFirstVisiblePosition()==0)){currentScroll.pageScroll(code==KeyEvent.KEYCODE_VOLUME_UP?View.FOCUS_UP:View.FOCUS_DOWN);}else if(currentScroll!=null&&currentScroll.hasFocus()&&!storyInformation)currentScroll.pageScroll(code==KeyEvent.KEYCODE_VOLUME_UP?View.FOCUS_UP:View.FOCUS_DOWN);else performPageAction(code==KeyEvent.KEYCODE_VOLUME_UP?-1:1);}return true;}
 
     if(touchLocked && (code==KeyEvent.KEYCODE_MENU || code==KeyEvent.KEYCODE_DPAD_CENTER || code==KeyEvent.KEYCODE_ENTER))return true;
 
