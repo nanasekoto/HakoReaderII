@@ -64,6 +64,7 @@ public final class WorkflowDiagnosticsTest extends Instrumentation {
   JSONObject pageTotals=OperationTrace.payload();check(pageTotals.getJSONArray("samples").length()==detailedBefore&&pageTotals.getJSONObject("totals").getJSONArray("read.page").getLong(0)==pageBefore+100,"Page turns aggregate in RAM without per-turn JSON samples");
   check(Diagnostics.payload().getJSONArray("cpuBetweenReaderActions").length()<=1,"Rapid page turns do not poll CPU on every turn");
   Field probe=Diagnostics.class.getDeclaredField("probeTask");probe.setAccessible(true);Diagnostics.resumeMonitoring();java.util.concurrent.ScheduledFuture<?> priorProbe=(java.util.concurrent.ScheduledFuture<?>)probe.get(null);Diagnostics.background(ctx);check(priorProbe.isCancelled()&&probe.get(null)==null,"Background cancels stall timer instead of periodically waking the logging thread");Diagnostics.resumeMonitoring();check(probe.get(null)!=null,"Foreground restores stall detection once");
+  Diagnostics.setMeasuring(false);long cpu=Diagnostics.cpuBegin();check(cpu==-1,"Disabled measurement avoids per-turn CPU sampling");Diagnostics.setMeasuring(true);cpu=Diagnostics.cpuBegin();Diagnostics.cpuEnd("test.turn",cpu);check(Diagnostics.payload().getJSONObject("readerThreadCpu").getJSONArray("test.turn").getLong(0)==1,"Enabled measurement reports CPU time separately from elapsed time");
   result.putString("stream","PASS TOTAL "+checks+" workflow diagnostics checks\n");finish(0,result);
  }catch(Throwable e){result.putString("stream","FAIL "+e+"\n");finish(1,result);}}
 }

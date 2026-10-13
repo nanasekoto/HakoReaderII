@@ -43,7 +43,7 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public boolean isCompleted(String id){return context.getSharedPreferences("settings",0).getBoolean("completed_"+id,false);}
-  public void setCompleted(String id,boolean value){displayChanged(id,true);context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();if(value)setKeepFull(id,true);}
+  public void setCompleted(String id,boolean value){displayChanged(id,true);context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();}
   public int newArrivals(String id){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(!p.contains("new_arrival_ids_"+id))return p.getInt("new_arrivals_"+id,0);int n=0;for(String chapter:p.getStringSet("new_arrival_ids_"+id,Collections.emptySet()))if(!illustration(chapter)&&!wasRead(chapter))n++;return n;}
   public synchronized void mergeShelf(List<HakoParser.Link> links){mergeShelf(links,0);}
   public static void traceQuery(String sql){OperationTrace.query(sql);Diagnostics.count("db.query");String lower=sql.toLowerCase(java.util.Locale.ROOT);Diagnostics.count(lower.contains("from chapters")?"db.chapters_query":lower.contains("from books")?"db.books_query":"db.other_query");}
@@ -146,6 +146,7 @@ public final class Store extends SQLiteOpenHelper {
   }
   public boolean autoIllustration(Chapter ch){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(illustration(ch.id)&&fileStamp(html(ch.id)).equals(p.getString("illustration_cached_"+ch.id,""))){UpdateReport.log(context,ch.title+": dùng khung minh họa đã lưu · ảnh thiếu chỉ tải lại khi yêu cầu");return false;}return IllustrationPolicy.shouldAttempt(illustrationHint(ch),p.getBoolean("illustration_attempted_"+ch.id,false),false);}
 
+  public synchronized void resetUnreadForFull(String book){getWritableDatabase().delete("read_chapters","id IN (SELECT id FROM chapters WHERE book=?)",new String[]{book});context.getSharedPreferences("settings",0).edit().remove("read_tip_"+book).remove("reading_text_"+book).remove("read_queue_tip_"+book).remove("read_no_button_tip_"+book).commit();clearQueue(book);ContentValues v=new ContentValues();v.put("current","");v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{book});readingRevision.incrementAndGet();displayChanged(book,true);}
   public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
   public synchronized void queueCaughtUp(String id){queueCaughtUp(id,false);}
   public synchronized void queueCaughtUp(String id,boolean acceptIllustrations){

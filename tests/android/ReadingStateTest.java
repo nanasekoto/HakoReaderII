@@ -61,6 +61,8 @@ public final class ReadingStateTest extends Instrumentation {
     check(s.totalOfflinePercent()==100,"Valid saved text reaches 100 without a library verification flag");
     check(s.missingImages("truyen-999001-1")==1,"Missing illustration remains reported separately");
     check(s.book(book).current.equals("truyen-999001-4"),"Download and progress checks never move reading position");
+    int textTotal=0;for(Store.Chapter ch:s.chapters(book))if(!s.ignoredForReading(ch))textTotal++;s.resetUnreadForFull(book);check(s.unread(book)==textTotal&&!s.queued(book)&&s.book(book).current.isEmpty(),"Full-download reset marks every text chapter unread without deleting content");check(s.readable("truyen-999001-2"),"Reset unread reuses downloaded content");
     result.putString("stream","PASS TOTAL "+checks+" reading state checks\n");finish(0,result);
   }catch(Throwable e){result.putString("stream","FAIL "+e+"\n");finish(1,result);}}
 }
+

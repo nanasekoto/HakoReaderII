@@ -206,7 +206,7 @@ public final class NativeReader extends View {
   Diagnostics.elapsed("reader.layout",begun);invalidate();publish();}finally{OperationTrace.end(trace,"closed",0);}
  }
  protected void onDraw(Canvas c){
-  super.onDraw(c);if(layout==null||pages.isEmpty())return;
+  super.onDraw(c);if(layout==null||pages.isEmpty())return;long cpuDraw=Diagnostics.cpuBegin();
   int textTop=headerHeight,textBottom=getHeight()-footerHeight;
   int availW=getWidth()-2*margin;
 
@@ -248,7 +248,7 @@ public final class NativeReader extends View {
   c.drawText(pageStr,margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.CENTER);
-  String centerStatus=(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ Xong":"⏸"));
+  String centerStatus=(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ Xong":"Ⅱ"));
   String remaining=remainingChapterText();float room=Math.max(0,getWidth()-2*(margin+Math.max(statusPaint.measureText(pageStr),statusPaint.measureText(remaining))+8*getResources().getDisplayMetrics().density));centerStatus=android.text.TextUtils.ellipsize(centerStatus,statusPaint,room,android.text.TextUtils.TruncateAt.END).toString();c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.RIGHT);
@@ -256,8 +256,9 @@ public final class NativeReader extends View {
   c.drawText(pctStr,getWidth()-margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.LEFT);
+  Diagnostics.cpuEnd("reader.draw",cpuDraw);
  }
- public void turn(int direction){if(layout==null||pages.isEmpty())return;long turnStarted=Diagnostics.now();listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();long elapsed=Math.max(0,Diagnostics.now()-turnStarted);OperationTrace.pageTurn(elapsed);Diagnostics.pageTurn(turnStarted);}
+ public void turn(int direction){if(layout==null||pages.isEmpty())return;long cpuTurn=Diagnostics.cpuBegin();long turnStarted=Diagnostics.now();listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();long elapsed=Math.max(0,Diagnostics.now()-turnStarted);OperationTrace.pageTurn(elapsed);Diagnostics.pageTurn(turnStarted);Diagnostics.cpuEnd("reader.turn",cpuTurn);}
  public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
  public boolean onTouchEvent(MotionEvent e){
    if(touchLocked){
