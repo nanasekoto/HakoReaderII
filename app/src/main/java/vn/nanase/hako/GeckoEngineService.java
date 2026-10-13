@@ -7,7 +7,7 @@ import org.json.*;
 import org.mozilla.geckoview.*;
 /** One native request at a time, no renderer remains after unbinding. */
 public final class GeckoEngineService extends Service {
- private Message current;private GeckoSession session;private WebExtension extension;private InputStream activeBody;private Runnable deadline;
+ private Message current;private GeckoSession session;private String sessionPath="";private WebExtension extension;private InputStream activeBody;private Runnable deadline;
  private final Handler ui=new Handler(Looper.getMainLooper());
  private final Messenger endpoint=new Messenger(new Handler(Looper.getMainLooper()){public void handleMessage(Message m){
   if(m.what==2){if(current!=null&&current.arg1==m.arg1)finish("Đã dừng yêu cầu");return;}
@@ -39,7 +39,7 @@ public final class GeckoEngineService extends Service {
   else render(job);
  }
  private void render(Message job){
-  Bundle b=job.getData();boolean fresh=session==null;if(fresh)session=new GeckoSession();final GeckoSession target=session;
+  Bundle b=job.getData();String path=java.net.URI.create(b.getString("url")).getPath();if(session!=null&&path.equals(sessionPath)){session.close();session=null;}boolean fresh=session==null;if(fresh)session=new GeckoSession();sessionPath=path;final GeckoSession target=session;
   android.util.Log.i("HakoGecko","Renderer opened; extension flags="+extension.flags);
   target.setProgressDelegate(new GeckoSession.ProgressDelegate(){public void onPageStart(GeckoSession s,String uri){android.util.Log.i("HakoGecko","Page started");}public void onPageStop(GeckoSession s,boolean success){android.util.Log.i("HakoGecko","Page stopped: "+success);}});
   target.setNavigationDelegate(new GeckoSession.NavigationDelegate(){public GeckoResult<String> onLoadError(GeckoSession s,String uri,WebRequestError error){if(current==job)finish("Không tải được trang; kiểm tra mạng hoặc mở Đăng nhập.");return null;}});
