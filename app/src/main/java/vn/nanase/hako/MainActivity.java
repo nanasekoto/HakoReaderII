@@ -876,7 +876,7 @@ public class MainActivity extends Activity {
     if(prefs.getBoolean("sync_paused",false)){if(mode==Repository.MODE_BOOK_NEXT||mode==Repository.MODE_READER_NEXT)return;Repository.setSyncPaused(this,false);}
     if(mode==Repository.MODE_BOOK_ALL && !id.isEmpty()) {
       if(nativeReader!=null&&id.equals(bookId)){flushReaderSave();nativeReader=null;readerReady=false;contents(displayBook(id));}
-      libraryAction("Đã chọn tải full · đặt lại chưa đọc",()->{store.resetUnreadForFull(id);store.setKeepFull(id,true);Intent request=new Intent(this,DownloadService.class).putExtra("book",id).putExtra("mode",mode);startForegroundService(request);return null;},"Đã xếp hàng tải full · tất cả chương chưa đọc");return;
+      final java.util.concurrent.Future<?> savedBeforeReset=lastReaderSave;libraryAction("Đã chọn tải full · đặt lại chưa đọc",()->{if(savedBeforeReset!=null)savedBeforeReset.get();store.resetUnreadForFull(id);store.setKeepFull(id,true);Intent request=new Intent(this,DownloadService.class).putExtra("book",id).putExtra("mode",mode);startForegroundService(request);return null;},"Đã xếp hàng tải full · tất cả chương chưa đọc");return;
     }
     if(mode==Repository.MODE_SYNC_LIBRARY){Repository.notify(this,Repository.busy.get()?"Đã nhận Cập nhật · chờ tác vụ hiện tại kết thúc":"Đã nhận Cập nhật · chuẩn bị kết nối HAKO");libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);}
     Intent i = new Intent(this, DownloadService.class).putExtra("book", id).putExtra("mode", mode);
