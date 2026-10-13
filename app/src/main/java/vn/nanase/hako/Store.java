@@ -150,6 +150,7 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void queueCaughtUp(String id){queueCaughtUp(id,false);}
   public synchronized void queueCaughtUp(String id,boolean acceptIllustrations){
     if(chapters(id).isEmpty()||unread(id)>0)throw new IllegalStateException("Chỉ đồng bộ đọc hết sau khi đã đọc hết các chương offline");
+    if(completedTip(id).equals(context.getSharedPreferences("settings",0).getString("read_no_button_tip_"+id,"!")))return;
     context.getSharedPreferences("settings",0).edit().putBoolean("read_baseline_"+id,true).commit();
     org.json.JSONArray ids=new org.json.JSONArray();
     SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(Chapter c:chapters(id)){ids.put(c.id);}d.setTransactionSuccessful();}finally{d.endTransaction();}
@@ -158,6 +159,8 @@ public final class Store extends SQLiteOpenHelper {
     context.getSharedPreferences("settings",0).edit().putString("read_queue_tip_"+id,tip).commit();
     if(!context.getSharedPreferences("read_queue",0).edit().putString(id,ids.toString()).commit())throw new IllegalStateException("Không lưu được hàng chờ");
   }
+  public synchronized void noReadButton(String id){context.getSharedPreferences("settings",0).edit().putString("read_no_button_tip_"+id,completedTip(id)).commit();clearQueue(id);}
+  public void readButtonReturned(String id){context.getSharedPreferences("settings",0).edit().remove("read_no_button_tip_"+id).apply();}
   public Set<String> queuedBooks(){return new HashSet<>(context.getSharedPreferences("read_queue",0).getAll().keySet());}
   private String queuedTip(String book){
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);String tip=prefs.getString("read_queue_tip_"+book,"");if(!tip.isEmpty())return tip;

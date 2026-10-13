@@ -30,8 +30,8 @@ public final class Repository {
     notify(c,paused?"Đã tạm dừng đồng bộ · Dữ liệu tải được giữ nguyên":"Đã tiếp tục đồng bộ");
   }
   private static long lastNetwork=0;
-  public static void cooldown(Context c,long ms){long capped=Math.min(ms,30*60*1000L);c.getSharedPreferences("settings",0).edit().putLong("cooldownUntil",System.currentTimeMillis()+capped).apply();}
-  public static void allowed(Context c)throws IOException {if(System.currentTimeMillis()<c.getSharedPreferences("settings",0).getLong("cooldownUntil",0))throw new IOException("Đang nghỉ sau giới hạn truy cập. Thử lại sau 30 phút.");}
+  public static void cooldown(Context c,long ms){c.getSharedPreferences("settings",0).edit().remove("cooldownUntil").apply();}
+  public static void allowed(Context c)throws IOException {c.getSharedPreferences("settings",0).edit().remove("cooldownUntil").apply();}
   public static final String EVENT = "vn.nanase.hako.STATUS";
   public static final AtomicBoolean busy = new AtomicBoolean(false),
       cancel = new AtomicBoolean(false);
@@ -123,7 +123,7 @@ public final class Repository {
       done.add(next);
       if (Jsoup.parse(html).selectFirst("input[type=password]") != null)
         throw new IOException("Hãy đăng nhập HAKO trước khi nhập kệ sách.");
-      List<HakoParser.Link> links = HakoParser.shelf(html, next);Diagnostics.count("shelf.page_parsed");for(HakoParser.Link ignored:links)Diagnostics.count("shelf.row_seen");
+      List<HakoParser.Link> links = HakoParser.shelf(html, next);ReadSync.observeShelf(ctx,html);Diagnostics.count("shelf.page_parsed");for(HakoParser.Link ignored:links)Diagnostics.count("shelf.row_seen");
       if(links.isEmpty()&&!previousKeys.isEmpty())throw new IOException("Không đọc được danh sách tủ sách; đã giữ dữ liệu cũ");
       List<ShelfAnchor.Row> anchorRows=new ArrayList<>();
       for (HakoParser.Link l : links) {
@@ -517,6 +517,7 @@ public final class Repository {
             if(s.illustrationHint(ch))ctx.getSharedPreferences("settings",0).edit().putBoolean("illustration_attempted_"+ch.id,true).commit();
             UpdateReport.log(ctx,b.title+" · "+ch.title+": lỗi tải — "+e.getMessage());
             notify(ctx, "Lỗi tải " + ch.title + ": " + e.getMessage());
+            String reason=e.getMessage()==null?"":e.getMessage();if(reason.contains("403")||reason.contains("429")||reason.contains("xác minh")||reason.contains("đăng nhập")||reason.contains("quá thời gian")||reason.contains("45 giây")){todo.clear();break;}
             Thread.sleep(1500);
           }
         }

@@ -28,6 +28,7 @@ jobs:
         run: |
           bash test.sh
           node tests/report-relay-test.cjs
+          node tests/read-button-test.cjs
           node -e "require('fs').writeFileSync('app/src/main/assets/build-info.json', JSON.stringify({commit:process.env.GITHUB_SHA,builtAt:new Date().toISOString()}))"
       - name: Android SDK
         run: |

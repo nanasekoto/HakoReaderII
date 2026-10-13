@@ -17,7 +17,7 @@ public final class HakoParser {
   public static class Link {
     public String id, title, url;
     public String info="", latestKey="";
-    public long updatedAt;
+    public long updatedAt;public boolean readButtonAvailable;
 
     public Link(String i, String t, String u) {
       id = i;
@@ -108,7 +108,7 @@ public final class HakoParser {
     Set<String> seen = new HashSet<>();
     for (Element a : d.select("table a[href]")) {
       String u = normalize(a.absUrl("href")), id = storyId(u);
-      if (!id.isEmpty() && seen.add(id)) {Link l=new Link(id,a.text(),u);Element row=a.closest("tr");if(row!=null){Element marker=row.selectFirst(".mark-read[data-unread]");if(marker!=null)l.info=marker.attr("data-unread")+" chương mới";else {Element count=row.selectFirst(".update-status");l.info=count==null?"Chưa rõ số chương mới":count.text();}}if(row!=null){
+      if (!id.isEmpty() && seen.add(id)) {Link l=new Link(id,a.text(),u);Element row=a.closest("tr");if(row!=null){l.readButtonAvailable=row.selectFirst(".mark-read[data-series]")!=null;Element marker=row.selectFirst(".mark-read[data-unread]");if(marker!=null)l.info=marker.attr("data-unread")+" chương mới";else {Element count=row.selectFirst(".update-status");l.info=count==null?"Chưa rõ số chương mới":count.text();}}if(row!=null){
         Element chapter=row.selectFirst("a[href*='/c']");
         if(chapter!=null&&!chapterId(chapter.absUrl("href")).isEmpty())l.latestKey=chapterId(chapter.absUrl("href"))+"|"+chapter.text().trim();
         Element time=row.selectFirst("time[datetime], [data-timestamp], .timeago[title]");

@@ -42,17 +42,7 @@ public final class SequentialReadTest extends Instrumentation {
     call("contents",new Class<?>[]{Store.Book.class},s.book(book));
     ListView list=null;long limit=SystemClock.elapsedRealtime()+5000;while(SystemClock.elapsedRealtime()<limit){list=(ListView)field("currentList");if(list!=null)break;SystemClock.sleep(50);waitForIdleSync();}
     check(list!=null&&list.getAdapter().getItem(0).toString().contains("[Minh họa]"),"Illustration TOC label has no seen or unread state");
-    View sort=find(activity.getWindow().getDecorView(),"Sắp xếp chương");check(sort!=null,"Clock is replaced by actionable chapter sorting");
-    runOnMainSync(()->sort.performClick());waitForIdleSync();SystemClock.sleep(200);
-    AccessibilityNodeInfo root=null;List<AccessibilityNodeInfo> options=Collections.emptyList();
-    long dialogLimit=SystemClock.elapsedRealtime()+5000;
-    while(SystemClock.elapsedRealtime()<dialogLimit){root=getUiAutomation().getRootInActiveWindow();if(root!=null){options=root.findAccessibilityNodeInfosByText("Chương mới nhất trước");if(!options.isEmpty())break;}SystemClock.sleep(100);waitForIdleSync();}
-    if(options.isEmpty())throw new AssertionError("Sort option not visible");
-    android.graphics.Rect bounds=new android.graphics.Rect();options.get(0).getBoundsInScreen(bounds);
-    long now=SystemClock.uptimeMillis();MotionEvent down=MotionEvent.obtain(now,now,MotionEvent.ACTION_DOWN,bounds.centerX(),bounds.centerY(),0),up=MotionEvent.obtain(now,now+50,MotionEvent.ACTION_UP,bounds.centerX(),bounds.centerY(),0);
-    down.setSource(InputDevice.SOURCE_TOUCHSCREEN);up.setSource(InputDevice.SOURCE_TOUCHSCREEN);
-    getUiAutomation().injectInputEvent(down,true);getUiAutomation().injectInputEvent(up,true);down.recycle();up.recycle();waitForIdleSync();SystemClock.sleep(200);waitForIdleSync();
-    check(prefs.getBoolean("chapter_desc_"+book,false),"Actual sort dialog selects newest first");
+    View sort=find(activity.getWindow().getDecorView(),"Cũ trước ⇅");check(sort!=null,"Direct chapter-order button is present");runOnMainSync(()->sort.performClick());waitForIdleSync();SystemClock.sleep(200);check(prefs.getBoolean("chapter_desc_"+book,false)&&find(activity.getWindow().getDecorView(),"Mới trước ⇅")!=null,"One click changes order without a dialog");
     list=(ListView)field("currentList");check(list.getAdapter().getItem(0).toString().contains("Chương 3"),"Newest chapter moves to first display row");
     check(s.chapters(book).get(0).id.equals(book+"-1")&&s.book(book).current.equals(book+"-5"),"Visual sorting leaves canonical reading order and position unchanged");
     final ListView sorted=list;runOnMainSync(()->sorted.performItemClick(sorted.getChildAt(0),0,0));waitForIdleSync();long openLimit=SystemClock.elapsedRealtime()+8000;while(!field("chapterId").equals(book+"-5")&&SystemClock.elapsedRealtime()<openLimit){SystemClock.sleep(25);waitForIdleSync();}
@@ -70,3 +60,4 @@ public final class SequentialReadTest extends Instrumentation {
     result.putString("stream","PASS TOTAL "+checks+" sequential reading checks\n");finish(0,result);
   }catch(Throwable e){result.putString("stream","FAIL "+e+"\n");finish(1,result);}}
 }
+

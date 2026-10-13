@@ -26,6 +26,7 @@ public final class ReadSync extends JobService {
     JobScheduler s=c.getSystemService(JobScheduler.class);
     if(s.getPendingJob(42)==null)s.schedule(new JobInfo.Builder(42,new ComponentName(c,ReadSync.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());
   }
+  public static void observeShelf(Context c,String html){if(org.jsoup.Jsoup.parse(html).selectFirst("input[type=password]")!=null)return;Store store=Store.get(c);for(HakoParser.Link row:HakoParser.shelf(html,HakoParser.ORIGIN)){if(row.readButtonAvailable)store.readButtonReturned(row.id);else if(store.queued(row.id)){store.noReadButton(row.id);Repository.notify(c,"Chưa gửi Đọc hết · Không có nút trên HAKO, đã bỏ hàng chờ");}}}
   private static final Object mutex=new Object();
   public static boolean process(Context c){OperationTrace.Span trace=OperationTrace.begin("read.sync");boolean previousBackground=RequestTurn.background.get();RequestTurn.background.set(true);try{
     synchronized(mutex){
@@ -53,11 +54,12 @@ public final class ReadSync extends JobService {
           Repository.catalog(c,b,true);
           if(Repository.syncPaused||Repository.cancel.get())continue;if(!s.canSubmitServer(id)){Repository.notify(c,"Chưa gửi Đọc hết: "+b.title+" · Mục lục mới có chương chưa xác nhận hoặc chưa đủ bằng chứng");continue;}
           String snapshot=c.getSharedPreferences("read_queue",0).getString(id,"");
-          RenderedPage.action(c,HakoParser.ORIGIN+"/ke-sach","read:"+id.substring(id.lastIndexOf('-')+1));
+          String action=RenderedPage.action(c,HakoParser.ORIGIN+"/ke-sach","read:"+id.substring(id.lastIndexOf('-')+1));
+          if("NO_READ_BUTTON".equals(action)){if(snapshot.equals(c.getSharedPreferences("read_queue",0).getString(id,"")))s.noReadButton(id);Repository.notify(c,"Chưa gửi Đọc hết · HAKO không có nút, đã bỏ hàng chờ");continue;}
           c.getSharedPreferences("settings",0).edit().remove("catalog-"+id).commit();
           Repository.catalog(c,b,true);
           // New arrivals stay locally unread even if Hako's mark-all raced their publication.
-          if(snapshot.equals(c.getSharedPreferences("read_queue",0).getString(id,"")))s.clearQueue(id);
+          if(snapshot.equals(c.getSharedPreferences("read_queue",0).getString(id,""))){if("OK_BUTTON_GONE".equals(action))s.noReadButton(id);else s.clearQueue(id);}
           Repository.notify(c,s.unread(id)>0?"HAKO đã cập nhật · Có chương mới chưa đọc":"Đã đồng bộ đã đọc lên HAKO");
         }catch(Exception e){retry=true;android.util.Log.w("HakoSync","Read queue retained: "+e.getClass().getSimpleName());}
       }

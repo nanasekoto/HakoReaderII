@@ -112,3 +112,6 @@ Quy trình mới được chốt tại docs/SNAPSHOT_STARTUP_0722.md: mở các 
 ## Bổ sung 0.7.23
 Xem CURRENT_ARCHITECTURE.md: một worker chuẩn bị chương được chọn; danh sách dùng index có cập nhật theo thay đổi; nhập kệ chỉ ghi hàng/rank thay đổi. Mở chương chưa lưu sẽ tự mở sau khi tải xong theo yêu cầu, giảm một lần chọn lại. Nút Báo cáo ở cạnh Hako Pocket; tự gửi chỉ khi đã cấu hình dịch vụ, ở nền và có Wi-Fi. Không thay phạm vi tải, mốc đọc hoặc bằng chứng gửi đọc hết Hako.
 
+
+0.7.30 bổ sung: Khi kệ sách hợp lệ không có nút Đọc hết cho truyện, bỏ yêu cầu đang chờ và không tạo lại cho cùng mốc đã đọc. Chỉ xét lại khi có mốc mới hoặc thấy nút trở lại. Trang đăng nhập/lỗi không được coi là bằng chứng thiếu nút. Bỏ khóa cập nhật 30 phút; lỗi hiện tại vẫn được báo, nhưng người dùng có thể thử lại ngay sau đăng nhập. Không tự lặp liên tục qua các chương khi bị chặn truy cập.
+
