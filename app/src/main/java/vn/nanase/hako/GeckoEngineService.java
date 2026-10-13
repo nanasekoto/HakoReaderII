@@ -39,7 +39,7 @@ public final class GeckoEngineService extends Service {
   else render(job);
  }
  private void render(Message job){
-  Bundle b=job.getData();String path=java.net.URI.create(b.getString("url")).getPath();if(session!=null&&path.equals(sessionPath)){session.close();session=null;}boolean fresh=session==null;if(fresh)session=new GeckoSession();sessionPath=path;final GeckoSession target=session;
+  Bundle b=job.getData();String path=HakoParser.pageIdentity(b.getString("url"));if(session!=null&&path.equals(sessionPath)){session.close();session=null;}boolean fresh=session==null;if(fresh)session=new GeckoSession();sessionPath=path;final GeckoSession target=session;
   android.util.Log.i("HakoGecko","Renderer opened; extension flags="+extension.flags);
   target.setProgressDelegate(new GeckoSession.ProgressDelegate(){public void onPageStart(GeckoSession s,String uri){android.util.Log.i("HakoGecko","Page started");}public void onPageStop(GeckoSession s,boolean success){android.util.Log.i("HakoGecko","Page stopped: "+success);}});
   target.setNavigationDelegate(new GeckoSession.NavigationDelegate(){public GeckoResult<String> onLoadError(GeckoSession s,String uri,WebRequestError error){if(current==job)finish("Không tải được trang; kiểm tra mạng hoặc mở Đăng nhập.");return null;}});
@@ -47,7 +47,9 @@ public final class GeckoEngineService extends Service {
    public GeckoResult<Object> onMessage(String app,Object message,WebExtension.MessageSender sender){
     android.util.Log.i("HakoGecko","Bridge message; current job="+(current==job)+" same session="+(sender.session==target)+" type="+(message==null?"null":message.getClass().getSimpleName()));
     if(current!=job||sender.session!=target||!(message instanceof JSONObject))return null;
-    if(!HakoParser.isOrigin(sender.url)||!java.net.URI.create(sender.url).getPath().equals(java.net.URI.create(b.getString("url")).getPath()))return null;
+    if(!HakoParser.isOrigin(sender.url)&&!sender.url.equals(b.getString("url")))return null;
+    String senderPath=java.net.URI.create(sender.url).getPath();if("/login".equals(senderPath)||senderPath.startsWith("/login/")){finish("Hãy đăng nhập HAKO trước.");return null;}
+    if(!HakoParser.pageIdentity(sender.url).equals(HakoParser.pageIdentity(b.getString("url"))))return null;
     JSONObject msg=(JSONObject)message;
     if(msg.has("phase")){android.util.Log.i("HakoGecko","Bridge phase: "+msg.optString("phase")+" ready="+msg.optString("ready")+" hasScript="+msg.optBoolean("hasScript"));return null;}
     if(msg.optBoolean("hello")){

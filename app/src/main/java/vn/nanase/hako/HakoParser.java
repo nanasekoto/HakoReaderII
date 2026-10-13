@@ -70,6 +70,9 @@ public final class HakoParser {
     }
   }
 
+  /** Content identity only; callers still validate the sender's origin separately. */
+  public static String pageIdentity(String url){String path=URI.create(url).getPath();if(path==null||path.isEmpty())path="/";Matcher chapter=CHAPTER.matcher(path);if(chapter.matches())return "chapter:"+chapter.group(1)+":"+chapter.group(2)+":"+chapter.group(3);Matcher story=STORY.matcher(path);if(story.matches())return "story:"+story.group(1)+":"+story.group(2);return path;}
+
   public static String storyUrl(String u) {
     u = normalize(u);
     return chapterId(u).isEmpty() ? u : u.substring(0, u.lastIndexOf('/'));

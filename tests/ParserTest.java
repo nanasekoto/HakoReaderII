@@ -114,6 +114,10 @@ public class ParserTest {
     List<HakoParser.Link> novels=HakoParser.storyList(discovery,HakoParser.ORIGIN);
     check(novels.size()==1&&novels.get(0).id.equals("truyen-92"),"Discovery ignores comment ranking and sidebar story links");
     check(novels.get(0).latestKey.equals("truyen-92-3|Latest chapter"),"Discovery records latest chapter identity without treating it as a novel");
+    check(HakoParser.pageIdentity("https://docln.sbs/truyen/123-old/c456-old").equals(HakoParser.pageIdentity("https://docln.net/truyen/123-renamed/c456-new")),"Same chapter remains identifiable through canonical slug/domain redirect");
+    check(!HakoParser.pageIdentity("https://docln.sbs/truyen/123-old/c456-old").equals(HakoParser.pageIdentity("https://docln.sbs/truyen/123-old/c457-next")),"Stale different chapter document is rejected");
+    check(!HakoParser.pageIdentity("https://docln.sbs/truyen/123-old").equals(HakoParser.pageIdentity("https://docln.sbs/truyen/123-old/c456-ch")),"Story metadata is not a chapter document");
+    check(HakoParser.pageIdentity("https://docln.sbs/ke-sach?page=1").equals(HakoParser.pageIdentity("https://docln.sbs/ke-sach?page=2")),"Read-all action can traverse shelf pagination within its request");
     System.out.println("PASS " + passed + " parser assertions");
   }
 }
