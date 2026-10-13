@@ -856,7 +856,7 @@ public class MainActivity extends Activity {
   private void submitCaughtUpConfirmed(Store.Book b,boolean acceptIllustrations){
     if(b==null||caughtUpUpdating)return;caughtUpUpdating=true;
     final String[] failure={""};
-    task("Đang lưu đã đọc…",()->{try{if(store.unread(b.id)>0)throw new IOException("Chưa gửi Đọc hết lên HAKO · "+store.readCounts(store.chapters(b.id)).label());store.queueCaughtUp(b.id,acceptIllustrations);ReadSync.schedule(this);}catch(Exception e){failure[0]=e.getMessage();}finally{caughtUpUpdating=false;}return null;},()->{if(!failure[0].isEmpty()){message(failure[0]);return;}if(nativeReader!=null)nativeReader.setNotice("Đã đọc · Chờ đồng bộ HAKO");if(status!=null)status.setText("Đã lưu hàng chờ HAKO");});
+    task("Đang lưu đã đọc…",()->{try{if(store.unread(b.id)>0)throw new IOException("Chưa gửi Đọc hết lên HAKO · "+store.readCounts(store.chapters(b.id)).label());store.queueCaughtUp(b.id,acceptIllustrations);ReadSync.schedule(this);}catch(Exception e){failure[0]=e.getMessage();}finally{caughtUpUpdating=false;}return null;},()->{if(!failure[0].isEmpty()){message(failure[0]);return;}boolean queued=store.queued(b.id);if(nativeReader!=null)nativeReader.setNotice(queued?"Đã đọc · Chờ đồng bộ HAKO":"Đã đọc trên máy · Không chờ gửi HAKO");if(status!=null)status.setText(queued?"Đã lưu hàng chờ HAKO":"Không chờ gửi HAKO");});
   }
 
   private void readerMenu(){new AlertDialog.Builder(this).setItems(new String[]{"Chương trước","Chương tiếp","Đánh dấu đoạn","Ẩn thanh công cụ","Tải trước / tiếp tục","Dừng tải","Mở HAKO","Chạm lật trang: "+(prefs.getBoolean("taps",true)?"Bật":"Tắt"),"Đầu chương","Cuối chương","Đã bắt kịp trên HAKO","Tải lại chương này","Chỉ tải lại ảnh thiếu"},(d,w)->{
