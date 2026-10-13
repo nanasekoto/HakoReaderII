@@ -173,7 +173,7 @@ public class MainActivity extends Activity {
     prefs.edit().putBoolean("touch_lock",touchLocked).apply();
     if(nativeReader!=null)nativeReader.setTouchLocked(touchLocked);
     hideToolbar(); hideBoundaryPrompt();
-    Repository.pocketPaused=touchLocked;Diagnostics.foreground=true;
+    Repository.pocketPaused=touchLocked;Diagnostics.resumeMonitoring();
   }
   private volatile String bookId = "", chapterId = "";
   private int generation = 0;
@@ -1753,7 +1753,7 @@ public class MainActivity extends Activity {
 
   @Override protected void onResume(){
     super.onResume();
-    Repository.pocketPaused=touchLocked;Diagnostics.foreground=true;
+    Repository.pocketPaused=touchLocked;Diagnostics.resumeMonitoring();
   }
 
   protected void onDestroy() {

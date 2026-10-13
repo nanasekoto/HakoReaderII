@@ -257,7 +257,7 @@ public final class NativeReader extends View {
 
   statusPaint.setTextAlign(Paint.Align.LEFT);
  }
- public void turn(int direction){OperationTrace.Span trace=OperationTrace.begin("read.page");try{long turnStarted=Diagnostics.now();if(layout==null||pages.isEmpty())return;listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();Diagnostics.elapsed("reader.page_turn",turnStarted);}finally{OperationTrace.end(trace,"complete",0);}}
+ public void turn(int direction){if(layout==null||pages.isEmpty())return;long turnStarted=Diagnostics.now();listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();long elapsed=Math.max(0,Diagnostics.now()-turnStarted);OperationTrace.pageTurn(elapsed);Diagnostics.pageTurn(turnStarted);}
  public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
  public boolean onTouchEvent(MotionEvent e){
    if(touchLocked){

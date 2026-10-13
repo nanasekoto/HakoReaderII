@@ -59,7 +59,13 @@ public final class WorkflowDiagnosticsTest extends Instrumentation {
   try{call("saveReport",new Class<?>[]{boolean.class},false);long end=SystemClock.elapsedRealtime()+5000;while(!ctx.getSharedPreferences("diagnostics",0).getString("status","").contains("Không gửi email")&&SystemClock.elapsedRealtime()<end)SystemClock.sleep(25);check(ctx.getSharedPreferences("diagnostics",0).getString("status","").contains("Không gửi email"),"Manual save completes without document picker while chapter executor is blocked");check(ctx.getSystemService(android.app.job.JobScheduler.class).getPendingJob(43)==null,"Save-only operation schedules no email job");}finally{busyRelease.countDown();}
   check(new JSONObject(Store.read(Diagnostics.queue(ctx))).has("workflow"),"Report includes bounded workflow metrics without novel titles");
   for(int i=0;i<10;i++)Diagnostics.queue(ctx);check(new File(ctx.getFilesDir(),"report-outbox").listFiles((d,n)->n.endsWith(".json")).length<=8,"Outbox retention is bounded");
+  int detailedBefore=OperationTrace.payload().getJSONArray("samples").length();long pageBefore=OperationTrace.payload().getJSONObject("totals").optJSONArray("read.page")==null?0:OperationTrace.payload().getJSONObject("totals").getJSONArray("read.page").getLong(0);
+  for(int n=0;n<100;n++){OperationTrace.pageTurn(1);Diagnostics.pageTurn(Diagnostics.now());}
+  JSONObject pageTotals=OperationTrace.payload();check(pageTotals.getJSONArray("samples").length()==detailedBefore&&pageTotals.getJSONObject("totals").getJSONArray("read.page").getLong(0)==pageBefore+100,"Page turns aggregate in RAM without per-turn JSON samples");
+  check(Diagnostics.payload().getJSONArray("cpuBetweenReaderActions").length()<=1,"Rapid page turns do not poll CPU on every turn");
+  Field probe=Diagnostics.class.getDeclaredField("probeTask");probe.setAccessible(true);Diagnostics.resumeMonitoring();java.util.concurrent.ScheduledFuture<?> priorProbe=(java.util.concurrent.ScheduledFuture<?>)probe.get(null);Diagnostics.background(ctx);check(priorProbe.isCancelled()&&probe.get(null)==null,"Background cancels stall timer instead of periodically waking the logging thread");Diagnostics.resumeMonitoring();check(probe.get(null)!=null,"Foreground restores stall detection once");
   result.putString("stream","PASS TOTAL "+checks+" workflow diagnostics checks\n");finish(0,result);
  }catch(Throwable e){result.putString("stream","FAIL "+e+"\n");finish(1,result);}}
 }
+
 

@@ -21,6 +21,7 @@ public final class Diagnostics {
  private static final Handler mainHandler=new Handler(Looper.getMainLooper());
  private static volatile long probeAt;private static volatile boolean probePending;private static int stallCaptures;
  private static final ScheduledExecutorService monitor=Executors.newSingleThreadScheduledExecutor();
+ private static ScheduledFuture<?> probeTask;private static long cpuEventAt,cpuEventValue;private static final ArrayDeque<long[]> cpuEvents=new ArrayDeque<>();
  private static long started,cpuStarted;private static String session="";private static JSONObject previousSession;private static String commit="unknown";
  public static long now(){return SystemClock.elapsedRealtime();}
  public static void count(String name){if(app!=null&&(counters.size()<48||counters.containsKey(name)))counters.computeIfAbsent(name,k->new AtomicLong()).incrementAndGet();}
@@ -29,11 +30,14 @@ public final class Diagnostics {
   long ms=Math.max(0,now()-begin);long[] s=timings.get(name);if(s==null){if(timings.size()>=32)return;s=new long[]{0,0,Long.MAX_VALUE,0};timings.put(name,s);}s[0]++;s[1]+=ms;s[2]=Math.min(s[2],ms);s[3]=Math.max(s[3],ms);flushLater();
   ArrayDeque<Long> window=samples.computeIfAbsent(name,k->new ArrayDeque<>());window.addLast(ms);while(window.size()>64)window.removeFirst();
  }
+ public static synchronized void resumeMonitoring(){foreground=true;if(app!=null&&(probeTask==null||probeTask.isCancelled()))probeTask=monitor.scheduleWithFixedDelay(Diagnostics::probe,3,3,TimeUnit.SECONDS);}
+ public static synchronized void pageTurn(long begin){if(app==null)return;long time=now(),ms=Math.max(0,time-begin);long[] sum=timings.get("reader.page_turn");if(sum==null){sum=new long[]{0,0,Long.MAX_VALUE,0};timings.put("reader.page_turn",sum);}sum[0]++;sum[1]+=ms;sum[2]=Math.min(sum[2],ms);sum[3]=Math.max(sum[3],ms);
+  if(cpuEventAt==0||time-cpuEventAt>=10000){long cpu=android.os.Process.getElapsedCpuTime();if(cpuEventAt!=0){cpuEvents.addLast(new long[]{time-cpuEventAt,Math.max(0,cpu-cpuEventValue),Repository.busy.get()?1:0});while(cpuEvents.size()>16)cpuEvents.removeFirst();}cpuEventAt=time;cpuEventValue=cpu;}}
  public static synchronized void failure(String stage,Throwable e){errors.addLast(stage+": "+e.getClass().getSimpleName());StackTraceElement[] frames=e.getStackTrace();for(int i=0;i<Math.min(4,frames.length);i++)errors.addLast(frames[i].getClassName()+"."+frames[i].getMethodName()+":"+frames[i].getLineNumber());while(errors.size()>16)errors.removeFirst();flushLater();}
  public static synchronized void start(Context c){
-  if(app!=null){foreground=true;return;}
+  if(app!=null){resumeMonitoring();return;}
   app=c.getApplicationContext();started=now();cpuStarted=android.os.Process.getElapsedCpuTime();session=UUID.randomUUID().toString();foreground=true;
-  monitor.scheduleWithFixedDelay(Diagnostics::probe,3,3,TimeUnit.SECONDS);
+  resumeMonitoring();
   Thread.UncaughtExceptionHandler previous=Thread.getDefaultUncaughtExceptionHandler();
   Thread.setDefaultUncaughtExceptionHandler((thread,error)->{try{failure("crash",error);write(new AtomicFile(new File(app.getFilesDir(),"diagnostics-crash.json")),payload());}catch(Exception ignored){}finally{if(previous!=null)previous.uncaughtException(thread,error);else android.os.Process.killProcess(android.os.Process.myPid());}});
   disk.execute(()->{try{
@@ -61,7 +65,7 @@ public final class Diagnostics {
   Runtime r=Runtime.getRuntime();root.put("heapUsed",r.totalMemory()-r.freeMemory()).put("heapMax",r.maxMemory());
   synchronized(Diagnostics.class){JSONObject times=new JSONObject();for(Map.Entry<String,long[]> e:timings.entrySet()){long[] s=e.getValue();times.put(e.getKey(),new JSONObject().put("count",s[0]).put("totalMs",s[1]).put("minMs",s[2]).put("maxMs",s[3]).put("recentMs",new JSONArray(samples.getOrDefault(e.getKey(),new ArrayDeque<>()))));}root.put("timings",times);
   JSONObject counts=new JSONObject();for(Map.Entry<String,AtomicLong> e:counters.entrySet())counts.put(e.getKey(),e.getValue().get());root.put("counts",counts);
-  JSONArray issues=new JSONArray();for(String error:errors)issues.put(error);root.put("issues",issues);}root.put("operations",OperationTrace.payload());return root;
+  JSONArray issues=new JSONArray();for(String error:errors)issues.put(error);root.put("issues",issues);}root.put("operations",OperationTrace.payload());synchronized(Diagnostics.class){JSONArray cpu=new JSONArray();for(long[] event:cpuEvents)cpu.put(new JSONArray(event));root.put("cpuBetweenReaderActions",cpu).put("cpuBetweenReaderActionsColumns",new JSONArray(Arrays.asList("elapsedMs","mainProcessCpuMs","downloadBusyAtEnd"))).put("cpuSamplingRule","event-only-minimum-10s-no-timer; interval includes all main-process work, not just page turning");}return root;
  }
  public static void flush()throws Exception{if(app!=null)write(new AtomicFile(new File(app.getFilesDir(),"diagnostics-last.json")),payload());}
  private static void write(AtomicFile target,JSONObject json)throws Exception{FileOutputStream stream=null;try{stream=target.startWrite();stream.write(json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));target.finishWrite(stream);}catch(Exception e){if(stream!=null)target.failWrite(stream);throw e;}}
@@ -85,6 +89,6 @@ public final class Diagnostics {
   s.append("\nDB query: ").append(counters.getOrDefault("db.query",new AtomicLong()).get()).append(" · kiểm tra cache: ").append(counters.getOrDefault("cache.check",new AtomicLong()).get());return s.toString();
  }
  private static synchronized Map<String,long[]> timingCopy(){Map<String,long[]> result=new LinkedHashMap<>();for(Map.Entry<String,long[]> e:timings.entrySet())result.put(e.getKey(),e.getValue().clone());return result;}
- public static void background(Context c){foreground=false;disk.execute(()->{try{flush();}catch(Exception ignored){}});}
+ public static void background(Context c){synchronized(Diagnostics.class){foreground=false;if(probeTask!=null){probeTask.cancel(false);probeTask=null;}probePending=false;cpuEventAt=0;}disk.execute(()->{try{flush();}catch(Exception ignored){}});}
 }
 
