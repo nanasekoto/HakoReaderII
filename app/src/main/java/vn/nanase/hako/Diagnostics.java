@@ -44,7 +44,7 @@ public final class Diagnostics {
   }catch(Exception e){failure("start",e);}});
  }
  public static void captureStall(long delay)throws Exception{
-  JSONObject record=new JSONObject().put("schema",1).put("session",session).put("delayMs",delay).put("capturedAt",System.currentTimeMillis());JSONArray frames=new JSONArray();
+  JSONObject record=new JSONObject().put("schema",1).put("session",session).put("version",app.getPackageManager().getPackageInfo(app.getPackageName(),0).versionName).put("commit",commit).put("delayMs",delay).put("capturedAt",System.currentTimeMillis());JSONArray frames=new JSONArray();
   for(StackTraceElement frame:Looper.getMainLooper().getThread().getStackTrace()){if(frames.length()>=24)break;frames.put(frame.getClassName()+"."+frame.getMethodName()+":"+frame.getLineNumber());}record.put("mainThread",frames);
   write(new AtomicFile(new File(app.getFilesDir(),"diagnostics-stall.json")),record);count("ui.stall");
  }
@@ -61,7 +61,7 @@ public final class Diagnostics {
   Runtime r=Runtime.getRuntime();root.put("heapUsed",r.totalMemory()-r.freeMemory()).put("heapMax",r.maxMemory());
   synchronized(Diagnostics.class){JSONObject times=new JSONObject();for(Map.Entry<String,long[]> e:timings.entrySet()){long[] s=e.getValue();times.put(e.getKey(),new JSONObject().put("count",s[0]).put("totalMs",s[1]).put("minMs",s[2]).put("maxMs",s[3]).put("recentMs",new JSONArray(samples.getOrDefault(e.getKey(),new ArrayDeque<>()))));}root.put("timings",times);
   JSONObject counts=new JSONObject();for(Map.Entry<String,AtomicLong> e:counters.entrySet())counts.put(e.getKey(),e.getValue().get());root.put("counts",counts);
-  JSONArray issues=new JSONArray();for(String error:errors)issues.put(error);root.put("issues",issues);}return root;
+  JSONArray issues=new JSONArray();for(String error:errors)issues.put(error);root.put("issues",issues);}root.put("operations",OperationTrace.payload());return root;
  }
  public static void flush()throws Exception{if(app!=null)write(new AtomicFile(new File(app.getFilesDir(),"diagnostics-last.json")),payload());}
  private static void write(AtomicFile target,JSONObject json)throws Exception{FileOutputStream stream=null;try{stream=target.startWrite();stream.write(json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));target.finishWrite(stream);}catch(Exception e){if(stream!=null)target.failWrite(stream);throw e;}}
@@ -75,6 +75,7 @@ public final class Diagnostics {
  }
  public static void acknowledged(Context c,JSONObject report){
   synchronized(Diagnostics.class){JSONObject old=report.optJSONObject("previousSession");if(previousSession!=null&&old!=null&&previousSession.optString("session").equals(old.optString("session")))previousSession=null;}
+  JSONObject stall=report.optJSONObject("uiStall");if(stall!=null)try{AtomicFile file=new AtomicFile(new File(c.getFilesDir(),"diagnostics-stall.json"));JSONObject existing=new JSONObject(new String(file.readFully(),java.nio.charset.StandardCharsets.UTF_8));if(stall.optString("session").equals(existing.optString("session"))&&stall.optLong("capturedAt")==existing.optLong("capturedAt"))file.delete();}catch(Exception ignored){}
   JSONObject sent=report.optJSONObject("previousCrash");if(sent!=null)try{AtomicFile file=new AtomicFile(new File(c.getFilesDir(),"diagnostics-crash.json"));JSONObject existing=new JSONObject(new String(file.readFully(),java.nio.charset.StandardCharsets.UTF_8));if(existing.optString("session").equals(sent.optString("session")))file.delete();}catch(Exception ignored){}
  }
  public static String summary(Context c)throws Exception{

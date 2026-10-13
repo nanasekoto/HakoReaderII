@@ -79,7 +79,9 @@ public final class HakoParser {
     Document d = Jsoup.parse(html, base);
     List<Link> out = new ArrayList<>();
     Set<String> seen = new HashSet<>();
-    for (Element a : d.select("a[href]")) {
+    d.select("aside, #series-comments, #chapter-comments, .comment-list, .comment-section, .comment-item, .recent-comments, .top-comments, .ranking").remove();
+    org.jsoup.select.Elements anchors=d.select(".thumb-item-flow a[href], .search-item a[href], .listall_item a[href], .novel-item a[href]");if(anchors.isEmpty()){Element main=d.selectFirst("main, #mainpart, #main");anchors=(main==null?d:main).select("a[href]");}
+    for (Element a : anchors) {
       String href = a.attr("href");
       String id = storyId(href);
       if (id.isEmpty()) continue;
@@ -92,7 +94,7 @@ public final class HakoParser {
       if (container != null) {
         Element ch = container.selectFirst("a[href*='/c']");
         if (ch != null && !ch.text().trim().isEmpty() && !ch.equals(a)) {
-          l.info = ch.text().trim();
+          l.info = ch.text().trim();String cid=chapterId(ch.absUrl("href"));if(!cid.isEmpty())l.latestKey=cid+"|"+l.info;
         }
       }
       out.add(l);
@@ -371,3 +373,4 @@ public final class HakoParser {
     }
   }
 }
+

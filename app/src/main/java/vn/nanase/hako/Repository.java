@@ -53,6 +53,7 @@ public final class Repository {
   static BookRequest peekBook(){synchronized(bookQueueLock){return new BookRequest(pendingBook,pendingBookMode);}}
   static int queuedBookMode(){synchronized(bookQueueLock){return pendingBookMode;}}
   private static void clearBook(){synchronized(bookQueueLock){pendingBook="";pendingBookMode=MODE_BOOK_NEXT;}}
+  static void discardQueued(String book){synchronized(bookQueueLock){if(pendingBook.equals(book)){pendingBook="";pendingBookMode=MODE_BOOK_NEXT;}}}
   public static volatile int currentMode = 0;
   public static volatile int syncTotal = 0, syncDone = 0, syncPct = 100;
   public static volatile boolean isSyncing = false;
@@ -343,7 +344,7 @@ public final class Repository {
     return b.toString();
   }
 
-  public static void run(Context ctx, String book, int mode, boolean charging) throws Exception {
+  public static void run(Context ctx, String book, int mode, boolean charging) throws Exception {OperationTrace.Span trace=OperationTrace.begin("download.run");try{
     if(pocketPaused && !charging && (mode==MODE_BOOK_NEXT||mode==MODE_READER_NEXT))return;
     init(ctx);
     if(syncPaused)return;
@@ -428,7 +429,7 @@ public final class Repository {
         currentMode=bookMode;
         ctx.getSharedPreferences("download_resume",0).edit().putInt(b.id,bookMode).commit();
         if(librarySync&&b!=null&&!inScope(s,b,bookMode)){UpdateReport.log(ctx,b.title+": ngoài phạm vi cập nhật");continue;}
-        if (b == null || b.id == null || b.id.isEmpty() || !FetchPolicy.allowDownload(b.dropped,(mode==MODE_BOOK_ALL && b.id.equals(book))||(manualOverride&&s.isKeepFull(b.id)))) continue;
+        if (b == null || b.id == null || b.id.isEmpty() || s.downloadsSuppressed(b.id) || !FetchPolicy.allowDownload(b.dropped,(mode==MODE_BOOK_ALL && b.id.equals(book))||(manualOverride&&s.isKeepFull(b.id)))) continue;
 
         // 1. Refresh catalog FIRST to know real chapter count
         if(!refreshedCatalogs.contains(b.id)){
@@ -479,6 +480,7 @@ public final class Repository {
         // 3. Download loop per chapter with preemption
         int distance=0;
         for (Store.Chapter ch : needDownload) {
+          if(s.downloadsSuppressed(b.id))break;
           if (cancel.get() || pauseAutomatic(charging) || pendingAll || pendingPersonal || IllustrationPolicy.shouldYield(b.id,pendingBook)) break;
           if (charging && !ChargeJob.isCharging(ctx)) break;
 
@@ -561,7 +563,7 @@ public final class Repository {
       UpdateReport.finish(ctx);
       resumePending(ctx);
     }
-  }
+  }finally{OperationTrace.end(trace,"closed",0);}}
 
   static boolean inScope(Store s,Store.Book b,int mode){
     return mode==MODE_SYNC_LIBRARY?b.followed:mode==MODE_SYNC_PERSONAL?(b.stamp>0||s.favorite(b)):true;

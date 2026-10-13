@@ -19,18 +19,19 @@ public final class TocState {
  private static final Object persistLock=new Object();
  private static final ScheduledExecutorService writer=Executors.newSingleThreadScheduledExecutor();
  private static synchronized void remember(String id,Entry e){entries.put(id,e);int total=0;for(Entry entry:entries.values())total+=entry.chapters.size();while(entries.size()>4||(total>16000&&entries.size()>1)){String first=entries.keySet().iterator().next();total-=entries.remove(first).chapters.size();diskEntries.remove(first);diskGenerations.remove(first);}}
+ public static synchronized void resetForImport(){entries.clear();diskEntries.clear();diskGenerations.clear();dirty.clear();}
  public static synchronized Entry peek(String id){return dirty.contains(id)?null:entries.get(id);}
  public static void changed(Context c,String id){
   if(id==null||id.isEmpty())return;if(id.equals("*")){synchronized(TocState.class){dirty.addAll(entries.keySet());}return;}
   Context app=c.getApplicationContext();synchronized(TocState.class){dirty.add(id);if(!scheduled.add(id))return;}
   writer.schedule(()->{try{refresh(app,id);}catch(Exception error){Diagnostics.failure("toc.refresh",error);}finally{boolean again;synchronized(TocState.class){scheduled.remove(id);again=dirty.contains(id);}if(again)changed(app,id);}},200,TimeUnit.MILLISECONDS);
  }
- public static Entry refresh(Context c,String id)throws Exception{
+ public static Entry refresh(Context c,String id)throws Exception{OperationTrace.Span trace=OperationTrace.begin("toc.refresh");try{
   long begun=Diagnostics.now();Store store=Store.get(c);Entry result;
   // All writes that dirty this entry hold Store's monitor; publish while still owning that monitor.
   synchronized(store){Store.Book b=store.book(id);if(b==null){synchronized(TocState.class){dirty.remove(id);entries.remove(id);}return null;}List<Store.Chapter> chapters=store.chapters(id);result=new Entry(b,chapters,store.readingIds(id,chapters));synchronized(TocState.class){dirty.remove(id);remember(id,result);}}
   persist(c,id,result);Diagnostics.count("toc.refresh");Diagnostics.elapsed("toc.prepare",begun);return result;
- }
+ }finally{OperationTrace.end(trace,"closed",0);}}
  public static Entry load(Context c,String id)throws Exception{
   Entry warm=peek(id);if(warm!=null){Diagnostics.count("toc.memory_hit");return warm;}
   synchronized(TocState.class){if(dirty.contains(id))return null;}

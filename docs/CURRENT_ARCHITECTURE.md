@@ -1,4 +1,4 @@
-# Current architecture — 0.7.23 workflow/diagnostics batch
+# Current architecture — 0.7.29 workflow/features batch
 
 Baseline: 0.7.22 commit 2abfca4a8ab22ef89d66338769039b3786cb9a32. Current operating addendum is this file, SNAPSHOT_STARTUP_0722.md and sequential-progress rules; older README/0.7.15 diagrams are historical.
 
@@ -22,8 +22,8 @@ Baseline: 0.7.22 commit 2abfca4a8ab22ef89d66338769039b3786cb9a32. Current operat
 - Display base/delta AtomicFiles remain rebuildable derived state. Dirty markers follow original Store writes; catalog/read/current/ready/membership changes invalidate affected summaries. Warm navigation does not query chapters.
 - Prepared content is one bounded item per MainActivity; file/image fingerprint, paragraph/indent style, density and viewport invalidate it. It is discarded with activity lifetime. Reformat parsing is cancellable background work; final layout is not yet asynchronous.
 - Diagnostics-last/crash are bounded atomic snapshots; outbox has at most eight reports. Counter/phase names are code-defined, not arbitrary user values. No title, URL, cookie, token, password or novel content is collected. PSS/CPU metrics cover the main process, not the isolated Gecko process.
-- Report endpoint/token live in private settings. Script recipient/token live in private Script Properties. Automatic queueing/sending is limited to daily/background/Wi-Fi; manual send is explicit. Endpoint absent means local collection/export only, not successful email. Deletion requires matching service report-ID acknowledgement; mailbox delivery needs actual end-to-end confirmation.
-- No heartbeat watchdog. ANR/process death metadata is collected on next launch when Android provides it. The report upload and existing jobs keep separate IDs and queues.
+- Report endpoint/token live in private settings. Script recipient/token live in private Script Properties. Queueing/sending is manual-only. Endpoint absent means local collection/export only, not successful email. Deletion requires matching service report-ID acknowledgement; mailbox delivery needs actual end-to-end confirmation.
+- Foreground-only bounded stall monitor records delayed UI stacks; ANR/process death metadata is also collected on next launch when Android provides it. Report upload and existing jobs keep separate IDs and queues.
 
 ## Critical versus background
 
@@ -64,4 +64,27 @@ Files: Store, TocState, MainActivity, Repository, existing LibraryState/UiLibrar
 
 ## 0.7.28 main-thread service queue handoff
 S4 report defb7283 (0.7.26) records previous_exit_reason=6 and a 12.129s main-thread stall at DownloadService.onStartCommand → Repository.queueBook. Static synchronized queueBook/takeBook/queuedBookMode shared Repository.class with synchronized download network IO; this persisted into 0.7.27. Queue handoff now uses a dedicated tiny monitor only for immutable request pair assignment/take/peek/clear. Network serialization remains unchanged. Pause clears request pair under the same queue lock; resume builds one consistent request snapshot. QueueResponsivenessTest holds Repository.class while invoking queue/take on main and requires immediate completion and preservation of full request priority. This fixes the identified contention path without changing download scopes, retention, cache, snapshots or manual diagnostics. Rollback reverts the lock split; no database migration.
+
+## 0.7.29 current workflows and impact
+
+Baseline head cf67b636b274a276c991863ffcc06135a18c12ef, branch fix/workflow-diagnostics-0723. Latest actual 0.7.28 report: startup 222ms, first reader 4.893s, repeated reader 19ms, worker queue max 5.097s with web jobs around 6–8s. The captured old queueBook stall belongs to 0.7.26. These are one device/session observations, not general benchmarks.
+
+| Workflow | Critical / proposed implementation | Background / affected owners |
+|---|---|---|
+| Startup and lists | Restore existing metadata snapshot; no new global scans | Existing LibraryState indices and changed-ID work |
+| Search/new updates → novel | Choose a novel → cached StoryInfo → synopsis, site status, count, last update → explicit read/TOC | Missing/changed latest key or explicit refresh → webIo → parser → Store catalog + story-info/ID.json; no visit, read completion or chapter download |
+| Open cached chapter | readerIo → selection/physical validation → bounded Prepared → native UI/layout | Web listing/catalog/detail use webIo, not the chapter executor; existing io handles position/local actions. Gecko remains serialized, so uncached network requests may still wait for Gecko |
+| Page/chapter navigation | Existing canonical ordering/no-wrap; footer shows unread text chapters from the saved completion watermark | Reconcile remaining count on affected-book snapshot; download percentage and pages retained |
+| Settings | Active SeekBar adjusts with volume down/up; touch/focus selects another control; Apply persists | Cached font array per dialog avoids repeated asset creation |
+| Delete downloaded novel content | Confirmation → worker deletes chapter files; metadata monitor released during disk deletion | Store marks ready=false, invalidates validation/prepared/summaries; retain book/catalog/read/flags; suppression prevents background refill until explicit download choice |
+| Transfer | Manual full or metadata ZIP in app-specific external transfer folder; copy by USB | Dedicated transferIo, checkpoint/copy SQLite v3 + typed preferences, content optional; fresh empty destination only, stage/validate before DB replacement, no web cookies. Metadata-only clears ready and discards derived downloaded-state snapshots |
+| Reports | Small manual button, stable operation codes/parent/query/cache timing | Bounded OperationTrace memory; reportIo/outbox/receiver unchanged; no automatic email |
+
+Reusable states remain SQLite v3, LibraryState base/delta, TocState base/progress, validation index and one prepared reader. StoryInfo is additional derived detail metadata, invalidated by latest-key change/explicit refresh. It is not remote-read proof. Queue categories and code registry are in REPORT_OPERATION_CODES.md. Read-sync freshness, login profile isolation, scope/retention/Pause/charging+Wi-Fi, package/signing/cache IDs remain invariants.
+
+Portable backups are manual. Database always already resides on internal flash. Copying the live WAL database alone is unsafe; backup checkpoints before copy. Full archives contain private metadata/report configuration and must be kept private. Restore refuses a library with existing books; it is not a merge tool. It validates package, schema, paths, preferences and SQLite integrity. It stages files before swapping the fresh DB; storage failure during final installation is reported and needs retry on the fresh destination. Login must be repeated. This batch does not add automatic copying, startup filesystem inventory or recurring backup work.
+
+Batch: UI discovery/detail + footer/keys/delete; reader/web queue separation + report provenance; explicit transfer. Gates: JVM/parser/backend/static → debug Android offline FeatureFlowTest and existing regressions → one ARM32 release. No release per small edit. Rollback the branch batch/source while preserving SQLite and downloaded files; StoryInfo/operation telemetry are rebuildable. Suppression preference is intentional and can be cleared with an explicit download; no schema migration. Reverting transfer UI leaves any existing exported archive intact.
+
+Remaining measured risks: StaticLayout/visible bitmap decode on UI, uncached Gecko serialization, background Store/LibraryState metadata work, slow storage and actual S4 timing. Tests establish behavior and queue independence; physical speed and memory gains require the next user report.
 

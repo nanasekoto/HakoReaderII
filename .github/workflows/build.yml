@@ -63,10 +63,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Hako-0.7.28-validation
+          name: Hako-0.7.29-validation
           path: build/evidence/
       - uses: actions/upload-artifact@v4
         with:
-          name: Hako-Pocket-0.7.28-ARM32-tested
+          name: Hako-Pocket-0.7.29-ARM32-tested
           path: build/deliver/
 

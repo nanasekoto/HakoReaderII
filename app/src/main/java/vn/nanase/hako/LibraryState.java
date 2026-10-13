@@ -20,6 +20,7 @@ public final class LibraryState {
  private static final Map<String,JSONObject> deltaRecords=new LinkedHashMap<>();
  private static AtomicFile file(Context c){return new AtomicFile(new File(c.getFilesDir(),"library-state.json"));}
  private static AtomicFile deltaFile(Context c){return new AtomicFile(new File(c.getFilesDir(),"library-delta.json"));}
+ public static synchronized void resetForImport(){current=null;dirty.clear();baseGeneration="";deltaRecords.clear();}
  public static UiLibrarySnapshot peek(){return current;}
  public static UiLibrarySnapshot restore(Context c){
   if(current!=null)return current;
@@ -51,9 +52,9 @@ public final class LibraryState {
    writer.schedule(()->{scheduled.set(false);try{refresh(app);app.sendBroadcast(new Intent(Repository.EVENT).setPackage(app.getPackageName()).putExtra("snapshot_changed",true));}catch(Exception e){android.util.Log.w("LibraryState","Keep previous display state",e);}},150,TimeUnit.MILLISECONDS);
   }
  }
- public static synchronized UiLibrarySnapshot refresh(Context c)throws Exception{
+ public static synchronized UiLibrarySnapshot refresh(Context c)throws Exception{OperationTrace.Span trace=OperationTrace.begin("library.refresh");try{
   try{return refreshInternal(c);}catch(Exception error){dirty.put("*",true);throw error;}
- }
+ }finally{OperationTrace.end(trace,"closed",0);}}
  private static UiLibrarySnapshot refreshInternal(Context c)throws Exception{
   restore(c);Store store=Store.get(c);SharedPreferences prefs=c.getSharedPreferences("settings",0);
   Map<String,Boolean> changes=new HashMap<>();

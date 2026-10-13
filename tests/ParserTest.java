@@ -110,6 +110,11 @@ public class ParserTest {
     List<HakoParser.Link> filtered=HakoParser.chapters(shortcut,HakoParser.ORIGIN+"/truyen/123-fixture");
     check(filtered.size()==2&&filtered.get(1).title.equals("Tập 1 · Chương 2"),"Resume shortcut cannot steal actual chapter identity or create Other volume");
     check(HakoParser.readingShortcutTitle("Tập khác · Đọc tiếp"),"Recognize cached resume shortcut");
+    String discovery="<aside><a href='/truyen/91-popular'>Popular</a></aside><main><article class='thumb-item-flow'><a href='/truyen/92-real'>Real novel</a><a href='/truyen/92-real/c3-new'>Latest chapter</a></article><div id='series-comments'><article class='thumb-item-flow'><a href='/truyen/93-comment'>Comment novel</a></article></div><section class='ranking'><a href='/truyen/94-ranked'>Ranked novel</a></section></main>";
+    List<HakoParser.Link> novels=HakoParser.storyList(discovery,HakoParser.ORIGIN);
+    check(novels.size()==1&&novels.get(0).id.equals("truyen-92"),"Discovery ignores comment ranking and sidebar story links");
+    check(novels.get(0).latestKey.equals("truyen-92-3|Latest chapter"),"Discovery records latest chapter identity without treating it as a novel");
     System.out.println("PASS " + passed + " parser assertions");
   }
 }
+

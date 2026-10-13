@@ -46,7 +46,8 @@ public final class Store extends SQLiteOpenHelper {
   public void setCompleted(String id,boolean value){displayChanged(id,true);context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();if(value)setKeepFull(id,true);}
   public int newArrivals(String id){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(!p.contains("new_arrival_ids_"+id))return p.getInt("new_arrivals_"+id,0);int n=0;for(String chapter:p.getStringSet("new_arrival_ids_"+id,Collections.emptySet()))if(!illustration(chapter)&&!wasRead(chapter))n++;return n;}
   public synchronized void mergeShelf(List<HakoParser.Link> links){mergeShelf(links,0);}
-  private Cursor query(String sql,String[] args){Diagnostics.count("db.query");String lower=sql.toLowerCase(java.util.Locale.ROOT);Diagnostics.count(lower.contains("from chapters")?"db.chapters_query":lower.contains("from books")?"db.books_query":"db.other_query");return getReadableDatabase().rawQuery(sql,args);}
+  public static void traceQuery(String sql){OperationTrace.query(sql);Diagnostics.count("db.query");String lower=sql.toLowerCase(java.util.Locale.ROOT);Diagnostics.count(lower.contains("from chapters")?"db.chapters_query":lower.contains("from books")?"db.books_query":"db.other_query");}
+  private Cursor query(String sql,String[] args){traceQuery(sql);return getReadableDatabase().rawQuery(sql,args);}
   private boolean shelfIndexReady;
   private List<Book> shelfBooks(){
     if(!shelfIndexReady){getWritableDatabase().execSQL("CREATE INDEX IF NOT EXISTS book_shelf_rank ON books(followed,shelf_rank)");shelfIndexReady=true;}
@@ -77,7 +78,7 @@ public final class Store extends SQLiteOpenHelper {
     prefs.edit().putBoolean("read_baseline_"+id,true).commit();
   }
   public boolean favorite(Book b){return b.pinned||b.visits>=3;}
-  public boolean syncTarget(Book b){return !b.id.equals("demo")&&!b.dropped&&DownloadScope.eligible(b.visits>0,isKeepFull(b.id),context.getSharedPreferences("settings",0).getBoolean("auto_dl_"+b.id,false));}
+  public boolean syncTarget(Book b){return !downloadsSuppressed(b.id)&&!b.id.equals("demo")&&!b.dropped&&DownloadScope.eligible(b.visits>0,isKeepFull(b.id),context.getSharedPreferences("settings",0).getBoolean("auto_dl_"+b.id,false));}
   public boolean hasShelfUpdate(Book b){
     android.content.SharedPreferences p=context.getSharedPreferences("settings",0);
     String now=p.getString("shelf_key_"+b.id,""), old=p.getString("catalog_shelf_key_"+b.id,"");
@@ -114,12 +115,12 @@ public final class Store extends SQLiteOpenHelper {
     Set<String> read=readIds(book);List<Chapter> all=chapters(book);for(int i=all.size()-1;i>=0;i--){Chapter ch=all.get(i);if(read.contains(ch.id)&&!ignoredForReading(ch))return ch.id;}
     return "";
   }
-  public synchronized void completeThrough(String book,String chapter){displayChanged(book,true);
+  public synchronized void completeThrough(String book,String chapter){OperationTrace.Span trace=OperationTrace.begin("read.complete");try{displayChanged(book,true);
     Chapter ch=chapter(book,chapter);if(ch==null||!book.equals(ch.book)||ignoredForReading(ch))return;
     Chapter old=chapter(book,completedTip(book));
     if((old==null||ch.ord>=old.ord)&&!chapter.equals(context.getSharedPreferences("settings",0).getString("read_tip_"+book,""))){context.getSharedPreferences("settings",0).edit().putString("read_tip_"+book,chapter).commit();readingRevision.incrementAndGet();}
     readChapter(chapter);queueIfAllRead(book);
-  }
+  }finally{OperationTrace.end(trace,"closed",0);}}
   public int unread(String id){List<Chapter> all=chapters(id);Chapter tip=chapter(id,completedTip(id));int end=tip==null?-1:tip.ord;Set<String> read=readIds(id);int count=0;for(Chapter ch:all)if(!ignoredForReading(ch)&&ch.ord>end&&!read.contains(ch.id))count++;return count;}
   public static final class ReadCounts {
     public int textUnread,illustrationsUnseen,pendingReview;
@@ -201,7 +202,7 @@ public final class Store extends SQLiteOpenHelper {
   }
   public int readingStart(Book b,List<Chapter> chapters){int index=resumeIndex(b,chapters);return index<0?0:chapters.get(index).ord;}
   /** A reader opening never backfills old chapters, even for a retained-full book. */
-  public boolean needsReadingDownload(String book){
+  public boolean needsReadingDownload(String book){if(downloadsSuppressed(book))return false;
     Book b=book(book);if(b==null||b.dropped)return false;
     List<Chapter> chapters=chapters(book);int current=readingStart(b,chapters);
     boolean toEnd=FetchPolicy.toEnd(b.followed,favorite(b),b.visits>0,isKeepFull(book)||isCompleted(book));
@@ -430,7 +431,7 @@ public final class Store extends SQLiteOpenHelper {
     if(!ignoredForReading(target)&&!target.id.equals(b.current)){ContentValues values=new ContentValues();values.put("current",target.id);values.put("pos",0);values.put("fraction",0);getWritableDatabase().update("books",values,"id=?",new String[]{id});b.current=target.id;b.pos=0;b.fraction=0;readingRevision.incrementAndGet();displayChanged(id,true);}
     return new Selection(b,target);
   }
-  public synchronized void position(String book, String chapter, int pos, float fraction) {displayChanged(book,false);
+  public synchronized void position(String book, String chapter, int pos, float fraction) {OperationTrace.Span trace=OperationTrace.begin("read.persist");try{displayChanged(book,false);
     if(ignoredForReading(chapter))return;
     Book previous=book(book);boolean changed=previous!=null&&!chapter.equals(previous.current);
     ContentValues v = new ContentValues();
@@ -441,7 +442,7 @@ public final class Store extends SQLiteOpenHelper {
     getWritableDatabase().update("books", v, "id=?", new String[] {book});
     if(!illustration(chapter))context.getSharedPreferences("settings",0).edit().putString("reading_text_"+book,chapter).apply();
     if(changed)readingRevision.incrementAndGet();
-  }
+  }finally{OperationTrace.end(trace,"closed",0);}}
 
   public synchronized void state(String id, boolean ready, String error) {
     Chapter owner=chapterById(id);if(owner!=null)displayChanged(owner.book,true);
@@ -451,6 +452,18 @@ public final class Store extends SQLiteOpenHelper {
     getWritableDatabase().update("chapters", v, "id=?", new String[] {id});updateCachedState(owner,ready,error);
   }
 
+  public synchronized void resetDerived(){chapterCache.clear();chapterLookup.clear();chapterTitles.clear();validatedFiles.clear();validatedImages.clear();imageCounts.clear();imageCountStamps.clear();validationLoaded=false;TocState.resetForImport();}
+  public boolean downloadsSuppressed(String book){return context.getSharedPreferences("settings",0).getBoolean("cache_deleted_"+book,false);}
+  public void allowDownloads(String book){context.getSharedPreferences("settings",0).edit().remove("cache_deleted_"+book).apply();}
+  public void clearDownloaded(String book)throws Exception{
+    if(book==null||!book.matches("[a-z0-9-]+"))throw new IllegalArgumentException();
+    synchronized(Repository.class){List<Chapter> all;
+      synchronized(this){context.getSharedPreferences("settings",0).edit().putBoolean("cache_deleted_"+book,true).commit();Repository.discardQueued(book);all=chapters(book);}
+      // File deletion can be slow; do not hold the metadata monitor needed by UI.
+      for(Chapter ch:all){delete(dir(ch.id));validatedFiles.remove(ch.id);validatedImages.remove(ch.id);imageCounts.remove(ch.id);imageCountStamps.remove(ch.id);}
+      synchronized(this){ContentValues values=new ContentValues();values.put("ready",0);values.put("error","");getWritableDatabase().update("chapters",values,"book=?",new String[]{book});List<Chapter> next=new ArrayList<>();for(Chapter ch:all){Chapter changed=copyChapter(ch);changed.ready=false;changed.error="";next.add(changed);}cacheChapters(book,next);displayChanged(book,true);}persistValidation();
+    }
+  }
   public File dir(String id) {
     if (!id.matches("[a-z0-9-]+")) throw new IllegalArgumentException();
     return new File(cache, id);
@@ -530,14 +543,14 @@ public final class Store extends SQLiteOpenHelper {
   }
   private synchronized void reconcileReady(String id,boolean ready){Chapter known=cachedId(id);if(known!=null&&known.ready!=ready)state(id,ready,ready?"":known.error);}
   public boolean readable(String cid){
-    Diagnostics.count("cache.check");long begun=Diagnostics.now();
+    Diagnostics.count("cache.check");long begun=Diagnostics.now();boolean parsed=false;
     try{
       restoreValidation();File f=html(cid);
       if(!f.isFile()||f.length()==0){validatedFiles.remove(cid);validatedImages.remove(cid);reconcileReady(cid,false);return false;}
       String fingerprint=contentStamp(cid,f);
       String known=validatedFiles.get(cid);if(fingerprint.equals(known)){Diagnostics.count("cache.hit");reconcileReady(cid,true);return true;}
       if(("invalid:"+fingerprint).equals(known)){Diagnostics.count("cache.negative_hit");reconcileReady(cid,false);return false;}
-      Diagnostics.count("cache.parse");String body=read(f);classify(cid,body);
+      Diagnostics.count("cache.parse");parsed=true;String body=read(f);classify(cid,body);
       if(IllustrationPolicy.skipCachedIllustration(context.getSharedPreferences("settings",0).getInt("chapter_kind_"+cid,0),HakoParser.validContent(body),false))context.getSharedPreferences("settings",0).edit().putString("illustration_cached_"+cid,fileStamp(f)).apply();
       HakoParser.OfflineContent content=HakoParser.offlineContent(body);
       List<String> names=new ArrayList<>();
@@ -548,7 +561,7 @@ public final class Store extends SQLiteOpenHelper {
       ok=ok&&fingerprint.equals(contentStamp(cid,f));
       validatedFiles.put(cid,ok?fingerprint:"invalid:"+fingerprint);persistValidation();reconcileReady(cid,ok);
       return ok;
-    }catch(Exception e){validatedFiles.remove(cid);validatedImages.remove(cid);reconcileReady(cid,false);return false;}finally{Diagnostics.elapsed("cache.validation",begun);}
+    }catch(Exception e){validatedFiles.remove(cid);validatedImages.remove(cid);reconcileReady(cid,false);return false;}finally{Diagnostics.elapsed("cache.validation",begun);OperationTrace.cache(parsed,Diagnostics.now()-begun);}
   }
   public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
   public void cleanStartup(){
