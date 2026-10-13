@@ -1260,7 +1260,7 @@ public class MainActivity extends Activity {
   }
   private static final class OpenResult {Store.Book book;Store.Chapter chapter;NativeReader.Prepared content;int remaining;}
   private NativeReader.Prepared preparedCache;private String preparedCacheKey="";
-  private void openChapter(String bid,String requested){
+  private void openChapter(String bid,String requested){flushReaderSave();final java.util.concurrent.Future<?> checkpoint=lastReaderSave;
     final int request=++chapterOpenRequest;final long begun=Diagnostics.now();
     if(!Repository.activeBook.equals(bid)){leaveReader();Repository.activeBook=bid;}
     Repository.cancel.set(false);final boolean visit=!visitSession.equals(bid);final OpenResult result=new OpenResult();
@@ -1268,6 +1268,7 @@ public class MainActivity extends Activity {
     final int para=prefs.getInt("paraSpaceDp",8),indent=prefs.getInt("indentDp",9);
     if(nativeReader!=null)nativeReader.setNotice("Đang load chương…");
     task("Đang mở chương…",()->{
+      if(checkpoint!=null)checkpoint.get();
       if(request!=chapterOpenRequest)return null;
       Store.Selection selected=store.selectForReading(bid,requested);
       if(selected==null&&requested.isEmpty()){Store.Book book=store.book(bid);if(book!=null)Repository.catalog(this,book);selected=store.selectForReading(bid,requested);}
@@ -1286,8 +1287,9 @@ public class MainActivity extends Activity {
   private void showReader(String bid,String cid){openChapter(bid,cid);}
 
   private void toolCell(View view){android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setStroke(dp(1),Color.BLACK);view.setBackground(bg);}
+  private final java.util.concurrent.ExecutorService positionIo=java.util.concurrent.Executors.newSingleThreadExecutor();private java.util.concurrent.Future<?> lastReaderSave;
   private Runnable pendingReaderSave;private int unsavedPageTurns;
-  private void flushReaderSave(){if(pendingReaderSave!=null){libraryHandler.removeCallbacks(readerSaveCheckpoint);Runnable save=pendingReaderSave;pendingReaderSave=null;unsavedPageTurns=0;io.execute(save);}}
+  private void flushReaderSave(){if(pendingReaderSave!=null){libraryHandler.removeCallbacks(readerSaveCheckpoint);Runnable save=pendingReaderSave;pendingReaderSave=null;unsavedPageTurns=0;lastReaderSave=positionIo.submit(save);}}
   private final Runnable readerSaveCheckpoint=()->flushReaderSave();
   private void queueReaderSave(Runnable save,boolean completed){pendingReaderSave=save;libraryHandler.removeCallbacks(readerSaveCheckpoint);if(completed||++unsavedPageTurns>=8)flushReaderSave();else libraryHandler.postDelayed(readerSaveCheckpoint,5000);}
   private void showPreparedReader(String bid,String cid,Store.Book b,Store.Chapter c,NativeReader.Prepared prepared){
@@ -1416,7 +1418,7 @@ public class MainActivity extends Activity {
     try{applyReaderStyle();nativeReader.prepared(prepared,pos,fraction);}catch(Exception e){message(e.getMessage());}
   }
 
-  private void saveThen(Runnable next){flushReaderSave();if(nativeReader!=null&&readerReady){final String bid=bookId,cid=chapterId;final int p=lastPos;final float f=lastFraction;io.execute(()->store.position(bid,cid,p,f));}next.run();}
+  private void saveThen(Runnable next){flushReaderSave();if(nativeReader!=null&&readerReady){final String bid=bookId,cid=chapterId;final int p=lastPos;final float f=lastFraction;queueReaderSave(()->store.position(bid,cid,p,f),true);}next.run();}
 
   private void adjacent(int delta) {
     final String bid=bookId,cid=chapterId;final String[] next={""};
@@ -1751,7 +1753,7 @@ public class MainActivity extends Activity {
 
   protected void onPause() {
     cancelLockKey();
-    if(nativeReader!=null&&readerReady){final String bid=bookId,cid=chapterId;final int p=lastPos;final float f=lastFraction;io.execute(()->store.position(bid,cid,p,f));}
+    if(nativeReader!=null&&readerReady){final String bid=bookId,cid=chapterId;final int p=lastPos;final float f=lastFraction;queueReaderSave(()->store.position(bid,cid,p,f),true);}
     flushReaderSave();Repository.pocketPaused=true;Diagnostics.background(this);
     super.onPause();
   }
@@ -1767,7 +1769,7 @@ public class MainActivity extends Activity {
     if(networkCallback!=null)getSystemService(android.net.ConnectivityManager.class).unregisterNetworkCallback(networkCallback);
     libraryHandler.removeCallbacksAndMessages(null);
     libraryIo.shutdown();
-    io.shutdown();webIo.shutdown();readerIo.shutdown();transferIo.shutdown();reportIo.shutdown();
+    positionIo.shutdown();io.shutdown();webIo.shutdown();readerIo.shutdown();transferIo.shutdown();reportIo.shutdown();
     super.onDestroy();
   }
 
