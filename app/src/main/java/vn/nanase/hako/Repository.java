@@ -241,8 +241,12 @@ public final class Repository {
   public static void download(Context ctx,Store.Chapter c,boolean force) throws Exception {download(ctx,c,force,false);}
   public static void downloadImages(Context ctx,Store.Chapter c)throws Exception{download(ctx,c,true,true);}
   public static final java.util.concurrent.locks.ReentrantReadWriteLock contentLock=new java.util.concurrent.locks.ReentrantReadWriteLock();
-  private static final Object[] chapterLocks=new Object[64];static{for(int i=0;i<chapterLocks.length;i++)chapterLocks[i]=new Object();}
-  private static void download(Context ctx,Store.Chapter c,boolean force,boolean imagesOnly) throws Exception {contentLock.readLock().lock();try{synchronized(chapterLocks[(c.id.hashCode()&Integer.MAX_VALUE)%chapterLocks.length]){downloadChapter(ctx,c,force,imagesOnly);}}finally{contentLock.readLock().unlock();}}
+  private static final class ChapterOwner {final Object lock=new Object();int users;}
+  private static final Map<String,ChapterOwner> chapterOwners=new HashMap<>();
+  private static void download(Context ctx,Store.Chapter c,boolean force,boolean imagesOnly) throws Exception {
+    if(c==null)throw new IOException("Không tìm thấy chương");ChapterOwner owner;synchronized(chapterOwners){owner=chapterOwners.get(c.id);if(owner==null){owner=new ChapterOwner();chapterOwners.put(c.id,owner);}owner.users++;}
+    contentLock.readLock().lock();try{synchronized(owner.lock){downloadChapter(ctx,c,force,imagesOnly);}}finally{contentLock.readLock().unlock();synchronized(chapterOwners){if(--owner.users==0)chapterOwners.remove(c.id);}}
+  }
   private static void downloadChapter(Context ctx,Store.Chapter c,boolean force,boolean imagesOnly) throws Exception {
     Store s = Store.get(ctx);
     boolean cachedContent=s.readable(c.id);
