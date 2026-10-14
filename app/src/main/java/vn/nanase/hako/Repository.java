@@ -433,7 +433,7 @@ public final class Repository {
         if(b==null)continue;
         int bookMode=requestModes.getOrDefault(b.id,librarySync?MODE_SYNC_LIBRARY:mode);
         boolean readerOnly=bookMode==MODE_READER_NEXT;
-        currentMode=bookMode;scopeReason=bookMode==MODE_BOOK_ALL?"USER_FULL_DOWNLOAD":bookMode==MODE_READER_NEXT||bookMode==MODE_BOOK_NEXT?"BATCH_PREFETCH_15":charging?"BACKGROUND_CHARGE":"USER_LIBRARY_REFRESH";
+        currentMode=bookMode;scopeReason=bookMode==MODE_BOOK_ALL?(charging?"BACKGROUND_FULL_RESUME":"USER_FULL_DOWNLOAD"):bookMode==MODE_READER_NEXT||bookMode==MODE_BOOK_NEXT?"BATCH_PREFETCH_15":charging?"BACKGROUND_CHARGE":"USER_LIBRARY_REFRESH";
         ctx.getSharedPreferences("download_resume",0).edit().putInt(b.id,bookMode).commit();
         if(librarySync&&b!=null&&!inScope(s,b,bookMode)){UpdateReport.log(ctx,b.title+": ngoài phạm vi cập nhật");continue;}
         if (b == null || b.id == null || b.id.isEmpty() || s.downloadsSuppressed(b.id) || !FetchPolicy.allowDownload(b.dropped,(mode==MODE_BOOK_ALL && b.id.equals(book))||(manualOverride&&s.isKeepFull(b.id)))) continue;

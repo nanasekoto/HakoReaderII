@@ -32,7 +32,7 @@ public final class GeckoClient {
  }
  private static final RequestTurn turns=new RequestTurn();private static boolean releaseWanted;
  public static byte[] request(String url,String script,int max)throws Exception{
-  if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");long queued=Diagnostics.now();turns.acquire(RequestTurn.background.get());OperationTrace.Span trace=OperationTrace.begin("net.request",queued);try{Repository.executionStage="NETWORK";Diagnostics.activityEvent();return requestNow(url,script,max);}finally{Repository.executionStage="PREPARING";Diagnostics.activityEvent();OperationTrace.end(trace,"closed",0);synchronized(turns){turns.release();if(releaseWanted||!Repository.busy.get()){releaseWanted=false;releaseNow();}}}
+  if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");long queued=Diagnostics.now();turns.acquire(RequestTurn.background.get());OperationTrace.Span trace=OperationTrace.begin("net.request",queued);String priorStage=Repository.executionStage;try{Repository.executionStage="NETWORK";Diagnostics.activityEvent();return requestNow(url,script,max);}finally{Repository.executionStage=priorStage;Diagnostics.activityEvent();OperationTrace.end(trace,"closed",0);synchronized(turns){turns.release();if(releaseWanted||!Repository.busy.get()){releaseWanted=false;releaseNow();}}}
  }
  private static byte[] requestNow(String url,String script,int max)throws Exception{
   if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");
