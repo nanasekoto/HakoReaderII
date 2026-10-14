@@ -30,7 +30,7 @@ for test in ImageCacheTest ReadingStateTest UnreadStateTest SequentialReadTest L
   timeout 180 adb shell am instrument -w "vn.nanase.hako.tests/vn.nanase.hako.tests.$test" | tee "build/evidence/$test.txt"
   grep -q 'PASS TOTAL' "build/evidence/$test.txt"
   if [ "$test" = FeatureFlowTest ]; then
-    for pic in story-info.png settings.png reader-footer.png; do adb exec-out run-as vn.nanase.hako cat "files/$pic" > "build/evidence/$pic"; done
+    for pic in story-info.png settings.png book-menu.png reader-footer.png; do adb exec-out run-as vn.nanase.hako cat "files/$pic" > "build/evidence/$pic"; done
   fi
 done
 adb shell run-as vn.nanase.hako cat files/main-page.png > build/evidence/main-page.png
