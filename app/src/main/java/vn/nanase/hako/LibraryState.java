@@ -16,11 +16,11 @@ public final class LibraryState {
  private static final ConcurrentHashMap<String,Boolean> dirty=new ConcurrentHashMap<>();
  private static final ScheduledExecutorService writer=Executors.newSingleThreadScheduledExecutor();
  private static final AtomicBoolean scheduled=new AtomicBoolean();
- private static String baseGeneration="";
+ private static String baseGeneration="";private static boolean reconciledPosition;
  private static final Map<String,JSONObject> deltaRecords=new LinkedHashMap<>();
  private static AtomicFile file(Context c){return new AtomicFile(new File(c.getFilesDir(),"library-state.json"));}
  private static AtomicFile deltaFile(Context c){return new AtomicFile(new File(c.getFilesDir(),"library-delta.json"));}
- public static synchronized void resetForImport(){current=null;dirty.clear();positions.clear();baseGeneration="";deltaRecords.clear();}
+ public static synchronized void resetForImport(){current=null;dirty.clear();positions.clear();baseGeneration="";reconciledPosition=false;deltaRecords.clear();}
  private static final ConcurrentHashMap<String,Store.Book> positions=new ConcurrentHashMap<>();
  public static void positionChanged(Store.Book book){positions.put(book.id,book);}
  public static synchronized UiLibrarySnapshot peek(){applyPositions();return current;}
@@ -60,7 +60,7 @@ public final class LibraryState {
   try{return refreshInternal(c);}catch(Exception error){dirty.put("*",true);throw error;}
  }finally{OperationTrace.end(trace,"closed",0);}}
  private static UiLibrarySnapshot refreshInternal(Context c)throws Exception{
-  restore(c);applyPositions();Store store=Store.get(c);SharedPreferences prefs=c.getSharedPreferences("settings",0);
+  restore(c);Store store=Store.get(c);SharedPreferences prefs=c.getSharedPreferences("settings",0);if(!reconciledPosition){String last=prefs.getString("lastBook","");if(!last.isEmpty()){Store.Book latest=store.book(last);if(latest!=null)positionChanged(latest);}reconciledPosition=true;}applyPositions();
   Map<String,Boolean> changes=new HashMap<>();
   for(Map.Entry<String,Boolean> e:dirty.entrySet())if(dirty.remove(e.getKey(),e.getValue()))changes.put(e.getKey(),e.getValue());
   UiLibrarySnapshot previousSnapshot=current;boolean wildcard=changes.containsKey("*");Set<String> changedIds=new HashSet<>(changes.keySet());
