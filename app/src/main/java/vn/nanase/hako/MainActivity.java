@@ -202,8 +202,9 @@ public class MainActivity extends Activity {
             if(i.hasExtra("diagnostic_status")){if(Diagnostics.foreground)Toast.makeText(MainActivity.this,i.getStringExtra("diagnostic_status"),Toast.LENGTH_LONG).show();return;}
             String text = i.getStringExtra("text");
             if(nativeReader!=null&&text!=null&&(text.startsWith("Đã đồng bộ đã đọc")||text.startsWith("Đang chờ gửi")||text.startsWith("Chưa gửi Đọc hết")))nativeReader.setNotice(text);
+            if(i.getBooleanExtra("reading_position",false)){readyLibrary=LibraryState.peek();if(chapterId.isEmpty())refreshLibraryView();}
             if(i.getBooleanExtra("snapshot_changed",false)){readyLibrary=LibraryState.peek();refreshLibraryView();if(nativeReader!=null&&readyLibrary!=null){Store.Book b=displayBook(bookId);if(b!=null&&chapterId.equals(b.current)){int remaining=readyLibrary.summary(b).unread;if(remaining>=0)nativeReader.setRemainingChapters(remaining);}}}
-            else if(i.getBooleanExtra("shelf_changed",false)||i.getBooleanExtra("books_changed",false))reloadLibrary(true,()->refreshLibraryView());
+            else if(i.getBooleanExtra("shelf_changed",false)||(i.getBooleanExtra("books_changed",false)&&LibraryState.hasDirty()))reloadLibrary(true,()->refreshLibraryView());
             if (status != null&&(status!=listLoadStatus||SystemClock.elapsedRealtime()>=libraryActionUntil)&&!String.valueOf(status.getText()).equals(text)) status.setText(text);
             if(i.getBooleanExtra("books_changed",false)&&!bookId.isEmpty()&&chapterId.isEmpty()&&currentList!=null&&currentList.getAdapter() instanceof BaseAdapter)((BaseAdapter)currentList.getAdapter()).notifyDataSetChanged();
             if (syncBadge != null) {

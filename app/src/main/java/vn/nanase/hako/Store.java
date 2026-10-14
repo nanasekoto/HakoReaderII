@@ -440,9 +440,10 @@ public final class Store extends SQLiteOpenHelper {
     if(!ignoredForReading(target)&&!target.id.equals(b.current)){ContentValues values=new ContentValues();values.put("current",target.id);values.put("pos",0);values.put("fraction",0);getWritableDatabase().update("books",values,"id=?",new String[]{id});b.current=target.id;b.pos=0;b.fraction=0;readingRevision.incrementAndGet();displayChanged(id,true);}
     return new Selection(b,target);
   }
-  public synchronized void position(String book, String chapter, int pos, float fraction) {OperationTrace.Span trace=OperationTrace.begin("read.persist");try{displayChanged(book,false);
+  public synchronized void position(String book, String chapter, int pos, float fraction) {OperationTrace.Span trace=OperationTrace.begin("read.persist");try{
     if(ignoredForReading(chapter))return;
     Book previous=book(book);boolean changed=previous!=null&&!chapter.equals(previous.current);
+    int savedPos=Math.max(0,pos);float savedFraction=Math.max(0,Math.min(.999999f,fraction));if(previous!=null&&!changed&&previous.pos==savedPos&&Float.compare(previous.fraction,savedFraction)==0)return;
     ContentValues v = new ContentValues();
     v.put("current", chapter);
     v.put("pos", Math.max(0, pos));
@@ -450,15 +451,15 @@ public final class Store extends SQLiteOpenHelper {
     v.put("stamp", System.currentTimeMillis());
     getWritableDatabase().update("books", v, "id=?", new String[] {book});
     if(!illustration(chapter))context.getSharedPreferences("settings",0).edit().putString("reading_text_"+book,chapter).apply();
-    if(changed)readingRevision.incrementAndGet();
+    if(changed){readingRevision.incrementAndGet();displayChanged(book,true);}else {Book updated=previous;if(updated!=null){updated.current=chapter;updated.pos=savedPos;updated.fraction=savedFraction;updated.stamp=v.getAsLong("stamp");LibraryState.positionChanged(updated);TocState.positionChanged(updated);context.sendBroadcast(new Intent(Repository.EVENT).setPackage(context.getPackageName()).putExtra("reading_position",true));}}
   }finally{OperationTrace.end(trace,"closed",0);}}
 
   public synchronized void state(String id, boolean ready, String error) {
-    Chapter owner=chapterById(id);if(owner!=null)displayChanged(owner.book,true);
+    Chapter owner=chapterById(id);if(owner!=null&&owner.ready==ready&&java.util.Objects.equals(owner.error,error))return;
     ContentValues v = new ContentValues();
     v.put("ready", ready ? 1 : 0);
     v.put("error", error);
-    getWritableDatabase().update("chapters", v, "id=?", new String[] {id});updateCachedState(owner,ready,error);
+    getWritableDatabase().update("chapters", v, "id=?", new String[] {id});updateCachedState(owner,ready,error);if(owner!=null)displayChanged(owner.book,true);
   }
 
   public synchronized void resetDerived(){chapterCache.clear();chapterLookup.clear();chapterTitles.clear();validatedFiles.clear();validatedImages.clear();imageCounts.clear();imageCountStamps.clear();validationLoaded=false;TocState.resetForImport();}

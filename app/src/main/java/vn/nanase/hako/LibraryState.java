@@ -20,8 +20,12 @@ public final class LibraryState {
  private static final Map<String,JSONObject> deltaRecords=new LinkedHashMap<>();
  private static AtomicFile file(Context c){return new AtomicFile(new File(c.getFilesDir(),"library-state.json"));}
  private static AtomicFile deltaFile(Context c){return new AtomicFile(new File(c.getFilesDir(),"library-delta.json"));}
- public static synchronized void resetForImport(){current=null;dirty.clear();baseGeneration="";deltaRecords.clear();}
- public static UiLibrarySnapshot peek(){return current;}
+ public static synchronized void resetForImport(){current=null;dirty.clear();positions.clear();baseGeneration="";deltaRecords.clear();}
+ private static final ConcurrentHashMap<String,Store.Book> positions=new ConcurrentHashMap<>();
+ public static void positionChanged(Store.Book book){positions.put(book.id,book);}
+ public static synchronized UiLibrarySnapshot peek(){applyPositions();return current;}
+ private static void applyPositions(){if(current==null||positions.isEmpty())return;UiLibrarySnapshot prior=current;List<Store.Book> books=new ArrayList<>(prior.books);Set<String> changed=new HashSet<>();for(int n=0;n<books.size();n++){Store.Book old=books.get(n),latest=positions.remove(old.id);if(latest!=null){books.set(n,latest);changed.add(old.id);}}if(changed.isEmpty())return;current=new UiLibrarySnapshot(books,new HashMap<>(prior.summaries),0,prior.lastShelfSync,prior.readingRevision);current.prepareIndices(prior,changed);}
+ public static boolean hasDirty(){return !dirty.isEmpty();}
  public static UiLibrarySnapshot restore(Context c){
   if(current!=null)return current;
   synchronized(restoreLock){if(current==null)try{Diagnostics.count(android.os.Looper.myLooper()==android.os.Looper.getMainLooper()?"snapshot.restore_ui":"snapshot.restore_worker");current=readDisk(c,true);}catch(Exception ignored){}}
@@ -46,17 +50,17 @@ public final class LibraryState {
   return new UiLibrarySnapshot(new ArrayList<>(books.values()),summaries,0,stamp,0);
  }
  public static void changed(Context ctx,String id,boolean recount){
-  dirty.merge(id,recount,(a,b)->a||b);
+  positions.remove(id);dirty.merge(id,recount,(a,b)->a||b);
   if(scheduled.compareAndSet(false,true)){
    Context app=ctx.getApplicationContext();
-   writer.schedule(()->{scheduled.set(false);try{refresh(app);app.sendBroadcast(new Intent(Repository.EVENT).setPackage(app.getPackageName()).putExtra("snapshot_changed",true));}catch(Exception e){android.util.Log.w("LibraryState","Keep previous display state",e);}},150,TimeUnit.MILLISECONDS);
+   writer.schedule(()->{scheduled.set(false);if(dirty.isEmpty())return;try{refresh(app);app.sendBroadcast(new Intent(Repository.EVENT).setPackage(app.getPackageName()).putExtra("snapshot_changed",true));}catch(Exception e){android.util.Log.w("LibraryState","Keep previous display state",e);}},150,TimeUnit.MILLISECONDS);
   }
  }
  public static synchronized UiLibrarySnapshot refresh(Context c)throws Exception{OperationTrace.Span trace=OperationTrace.begin("library.refresh");try{
   try{return refreshInternal(c);}catch(Exception error){dirty.put("*",true);throw error;}
  }finally{OperationTrace.end(trace,"closed",0);}}
  private static UiLibrarySnapshot refreshInternal(Context c)throws Exception{
-  restore(c);Store store=Store.get(c);SharedPreferences prefs=c.getSharedPreferences("settings",0);
+  restore(c);applyPositions();Store store=Store.get(c);SharedPreferences prefs=c.getSharedPreferences("settings",0);
   Map<String,Boolean> changes=new HashMap<>();
   for(Map.Entry<String,Boolean> e:dirty.entrySet())if(dirty.remove(e.getKey(),e.getValue()))changes.put(e.getKey(),e.getValue());
   UiLibrarySnapshot previousSnapshot=current;boolean wildcard=changes.containsKey("*");Set<String> changedIds=new HashSet<>(changes.keySet());

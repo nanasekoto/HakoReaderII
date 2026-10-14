@@ -54,7 +54,7 @@ public final class Repository {
   static int queuedBookMode(){synchronized(bookQueueLock){return pendingBookMode;}}
   private static void clearBook(){synchronized(bookQueueLock){pendingBook="";pendingBookMode=MODE_BOOK_NEXT;}}
   static void discardQueued(String book){synchronized(bookQueueLock){if(pendingBook.equals(book)){pendingBook="";pendingBookMode=MODE_BOOK_NEXT;}}}
-  public static volatile int currentMode = 0;
+  public static volatile int currentMode = 0;public static volatile String scopeReason="NONE",executionStage="IDLE";
   public static volatile int syncTotal = 0, syncDone = 0, syncPct = 100;
   public static volatile boolean isSyncing = false;
   public static volatile String syncState = "IDLE";
@@ -433,7 +433,7 @@ public final class Repository {
         if(b==null)continue;
         int bookMode=requestModes.getOrDefault(b.id,librarySync?MODE_SYNC_LIBRARY:mode);
         boolean readerOnly=bookMode==MODE_READER_NEXT;
-        currentMode=bookMode;
+        currentMode=bookMode;scopeReason=bookMode==MODE_BOOK_ALL?"USER_FULL_DOWNLOAD":bookMode==MODE_READER_NEXT||bookMode==MODE_BOOK_NEXT?"BATCH_PREFETCH_15":charging?"BACKGROUND_CHARGE":"USER_LIBRARY_REFRESH";
         ctx.getSharedPreferences("download_resume",0).edit().putInt(b.id,bookMode).commit();
         if(librarySync&&b!=null&&!inScope(s,b,bookMode)){UpdateReport.log(ctx,b.title+": ngoài phạm vi cập nhật");continue;}
         if (b == null || b.id == null || b.id.isEmpty() || s.downloadsSuppressed(b.id) || !FetchPolicy.allowDownload(b.dropped,(mode==MODE_BOOK_ALL && b.id.equals(book))||(manualOverride&&s.isKeepFull(b.id)))) continue;
@@ -556,7 +556,7 @@ public final class Repository {
       if("CHECKING".equals(syncState)||"SHELF".equals(syncState)||"DOWNLOADING".equals(syncState))syncState="INCOMPLETE";
       if("COMPLETED".equals(syncState))syncPct=100;else syncPct=Math.min(99,DownloadLedger.percent(syncDone,syncTotal));
       ctx.getSharedPreferences("settings",0).edit().putInt("last_download_percent_v2",syncPct).apply();
-      GeckoClient.release();busy.set(false);
+      executionStage="IDLE";Diagnostics.activityEvent();GeckoClient.release();busy.set(false);
       ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}
       if(cancel.get()||syncPaused){clearBook();pendingAll=false;pendingPersonal=false;}
@@ -593,13 +593,13 @@ public final class Repository {
   }
 
   private static boolean waitFor(Context c, long delay, String id, boolean charging) throws Exception {
-    long end = android.os.SystemClock.elapsedRealtime() + delay;
+    executionStage="WAIT_DELAY";Diagnostics.activityEvent();long end = android.os.SystemClock.elapsedRealtime() + delay;
     while (android.os.SystemClock.elapsedRealtime() < end) {
       if (cancel.get() || pauseAutomatic(charging) || pendingAll || pendingPersonal || IllustrationPolicy.shouldYield(id,pendingBook) || !priorityChapterId.isEmpty()) return false;
       if (charging && !ChargeJob.isCharging(c)) return false;
       Thread.sleep(Math.min(500, Math.max(1, end - android.os.SystemClock.elapsedRealtime())));
     }
-    allowed(c);
+    allowed(c);executionStage="PREPARING";Diagnostics.activityEvent();
     return true;
   }
 }

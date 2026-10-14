@@ -38,7 +38,7 @@ public final class UpdateReport {
   public static synchronized void finish(Context c){checkpoint(c,"Kết thúc · "+((System.currentTimeMillis()-started)/1000)+" giây · "+Repository.status);}
   public static synchronized org.json.JSONObject metrics(Context c)throws org.json.JSONException{
     if(app==null)return new org.json.JSONObject(c.getSharedPreferences("sync_report",0).getString("metrics","{}"));
-    return new org.json.JSONObject().put("pages",pages).put("catalogsChecked",checked).put("catalogsSkipped",skipped).put("booksSelected",selected).put("chaptersDone",Repository.syncDone).put("chaptersQueued",Repository.syncTotal).put("phase",Repository.syncState).put("active",Repository.isSyncing).put("percent",Repository.syncPct).put("percentRule","current-request-missing-text-chapters-v2");
+    return new org.json.JSONObject().put("pages",pages).put("catalogsChecked",checked).put("catalogsSkipped",skipped).put("booksSelected",selected).put("chaptersDone",Repository.syncDone).put("chaptersQueued",Repository.syncTotal).put("phase",Repository.syncState).put("active",Repository.isSyncing).put("percent",Repository.syncPct).put("percentRule","current-request-missing-text-chapters-v2").put("mode",Repository.currentMode).put("scopeReason",Repository.scopeReason).put("executionStage",Repository.executionStage).put("chaptersRemaining",Math.max(0,Repository.syncTotal-Repository.syncDone));
   }
   private static void flush(){
     if(app==null)return;
