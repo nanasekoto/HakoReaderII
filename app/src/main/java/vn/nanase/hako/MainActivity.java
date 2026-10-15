@@ -1657,7 +1657,7 @@ public class MainActivity extends Activity {
             return null;
           },
           () -> {
-            fontCache[5]=null;if(fontImportPanel==settingsDialog&&settingsDialog!=null&&settingsDialog.isShowing()&&importedFontDraft!=null)importedFontDraft.run();
+            if(fontImportPanel==settingsDialog&&settingsDialog!=null&&settingsDialog.isShowing()&&importedFontDraft!=null)importedFontDraft.run();
             applyReaderStyle();message("Đã nhập font.");
           });
     }
