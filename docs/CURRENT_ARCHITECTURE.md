@@ -1,3 +1,7 @@
+## Batch 0.7.38 — nối UI và trạng thái xuyên luồng
+
+Xem [UI_UX_LINKS_0738.md](UI_UX_LINKS_0738.md) cho thay đổi, invariants, hot/background path, kiểm tra và giới hạn. Các mục lịch sử bên dưới phải đọc cùng quy tắc mới nhất.
+
 # Current architecture — 0.7.30 UI and bounded automatic download batch
 
 Baseline: 0.7.22 commit 2abfca4a8ab22ef89d66338769039b3786cb9a32. Current operating addendum is this file, SNAPSHOT_STARTUP_0722.md and sequential-progress rules; older README/0.7.15 diagrams are historical.

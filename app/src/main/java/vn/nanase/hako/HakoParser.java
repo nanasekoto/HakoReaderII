@@ -42,6 +42,8 @@ public final class HakoParser {
   public static boolean senderAllowed(String sender,String requested,String selectedOrigin){
     try{return senderOriginAllowed(sender,selectedOrigin)&&pageIdentity(sender).equals(pageIdentity(requested));}catch(Exception ignored){return false;}
   }
+  /** Automatic migration accepts a site host, never arbitrary asset subdomains. */
+  public static boolean autoSiteOrigin(String url,String selected){try{String origin=originOf(url);if(origin.equals(originOf(selected)))return true;String host=URI.create(origin).getHost();return Arrays.asList("docln.sbs","docln.net","www.docln.sbs","www.docln.net","ln.hako.vn","hako.vn","hako.vip").contains(host);}catch(Exception error){return false;}}
   public static boolean senderOriginAllowed(String sender,String selectedOrigin){try{return originOf(sender).equals(originOf(selectedOrigin))||isOrigin(sender);}catch(Exception ignored){return false;}}
   public static String normalize(String input) {
     try {URI u=URI.create(input.startsWith("/")?ORIGIN+input:input);if(!isOrigin(u.toString()))return "";return ORIGIN+u.getRawPath();}catch(Exception ignored){return "";}

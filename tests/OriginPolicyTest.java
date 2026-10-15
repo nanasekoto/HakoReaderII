@@ -16,6 +16,12 @@ public final class OriginPolicyTest {
   check(!HakoParser.isOrigin("https://docln.sbs.evil.example/"),"Lookalike host rejected");
   check(HakoParser.senderAllowed("https://docln.net/truyen/123-new/c4-new","https://docln.sbs/truyen/123-old/c4-old","https://docln.sbs"),"Known mirror preserves chapter identity");
   check(!HakoParser.senderAllowed("https://docln.net/truyen/123-new/c5-new","https://docln.sbs/truyen/123-old/c4-old","https://docln.sbs"),"Next chapter cannot reply to previous request");
+  check(HakoParser.autoSiteOrigin("https://docln.net/login","https://docln.sbs"),"Verified site mirror can migrate origin");
+  check(!HakoParser.autoSiteOrigin("https://i2.hako.vip/a.jpg","https://docln.sbs"),"Image CDN cannot become story origin");
+  check(!HakoParser.autoSiteOrigin("https://images.docln.net/a.jpg","https://docln.sbs"),"Asset subdomain is not a site mirror");
+  check(!HakoParser.autoSiteOrigin("https://docln.sbs.evil.example/","https://docln.sbs"),"Lookalike cannot migrate origin");
+  check(HakoParser.autoSiteOrigin("https://selected.example/login","https://selected.example"),"Explicit selected custom site remains usable");
+  check(!HakoParser.autoSiteOrigin("https://other.example/login","https://selected.example"),"Unapproved custom host cannot migrate automatically");
   System.out.println("PASS "+count+" origin policy checks");
  }
 }

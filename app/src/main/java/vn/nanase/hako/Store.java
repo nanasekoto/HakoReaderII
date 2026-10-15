@@ -64,7 +64,8 @@ public final class Store extends SQLiteOpenHelper {
       d.setTransactionSuccessful();
     }finally{d.endTransaction();}
   }
-  public synchronized void queueIfAllRead(String id){if(!chapters(id).isEmpty()&&unread(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
+  public boolean remoteReadEligible(String id){Book b=book(id);return b!=null&&b.followed&&!id.equals("demo")&&!HakoParser.storyId(HakoParser.storyUrl(b.url)).isEmpty();}
+  public synchronized void queueIfAllRead(String id){if(remoteReadEligible(id)&&!chapters(id).isEmpty()&&unread(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
 
   public synchronized void establishReadBaseline(String id){
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
@@ -151,6 +152,7 @@ public final class Store extends SQLiteOpenHelper {
   public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
   public synchronized void queueCaughtUp(String id){queueCaughtUp(id,false);}
   public synchronized void queueCaughtUp(String id,boolean acceptIllustrations){
+    if(!remoteReadEligible(id))return;
     if(chapters(id).isEmpty()||unread(id)>0)throw new IllegalStateException("Chỉ đồng bộ đọc hết sau khi đã đọc hết các chương offline");
     if(completedTip(id).equals(context.getSharedPreferences("settings",0).getString("read_no_button_tip_"+id,"!")))return;
     context.getSharedPreferences("settings",0).edit().putBoolean("read_baseline_"+id,true).commit();
@@ -534,7 +536,7 @@ public final class Store extends SQLiteOpenHelper {
       }
   }
 
-  public synchronized void followed(String id,boolean value,int rank){Book old=book(id);if(old!=null&&old.followed==value&&old.shelfRank==rank)return;ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});bookMetadataChanged(id);}
+  public synchronized void followed(String id,boolean value,int rank){Book old=book(id);if(old!=null&&old.followed==value&&old.shelfRank==rank)return;ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});bookMetadataChanged(id);if(value&&(old==null||!old.followed)&&!completedTip(id).isEmpty())queueIfAllRead(id);}
   public synchronized void dropped(String id,boolean value){Book old=book(id);if(old!=null&&old.dropped==value)return;ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});bookMetadataChanged(id);}
   // List queries must never read/parse chapter HTML while holding the Store monitor.
   // Content integrity is verified by the worker before queueing and before reuse.

@@ -16,7 +16,7 @@ public class DownloadService extends Service {
     receiver =
         new BroadcastReceiver() {
           public void onReceive(Context c, Intent i) {
-            nm.notify(9, notice(i.getStringExtra("text")));
+            if(!i.hasExtra("read_sync_book")&&i.getStringExtra("text")!=null)nm.notify(9, notice(i.getStringExtra("text")));
           }
         };
     registerReceiver(receiver, new IntentFilter(Repository.EVENT));
@@ -52,7 +52,7 @@ public class DownloadService extends Service {
       stopSelf();
       return START_NOT_STICKY;
     }
-    if(getSharedPreferences("settings",0).getBoolean("sync_paused",false)){stopSelf();return START_NOT_STICKY;}
+    if(getSharedPreferences("settings",0).getBoolean("sync_paused",false)&&i.getIntExtra("mode",0)!=Repository.MODE_BOOK_ALL){stopSelf();return START_NOT_STICKY;}
     Repository.cancel.set(false);
     startForeground(9, notice("Chuẩn bị tải"));
     String book = i.getStringExtra("book");
@@ -76,7 +76,7 @@ public class DownloadService extends Service {
                 Repository.awaitIdle();
                 Repository.run(this, book, finalMode, false);
                 Repository.awaitIdle();
-                while(!Repository.syncPaused&&!Repository.cancel.get()&&(Repository.pendingAll||Repository.pendingPersonal||!Repository.pendingBook.isEmpty())){
+                while(!Repository.cancel.get()&&(!Repository.syncPaused||(!Repository.pendingAll&&!Repository.pendingPersonal&&!Repository.pendingBook.isEmpty()&&Repository.queuedBookMode()==Repository.MODE_BOOK_ALL))&&(Repository.pendingAll||Repository.pendingPersonal||!Repository.pendingBook.isEmpty())){
                   boolean shelf=Repository.pendingAll;boolean personal=!shelf&&Repository.pendingPersonal;
                   Repository.BookRequest request=(shelf||personal)?null:Repository.takeBook();
                   if(shelf)Repository.pendingAll=false;else if(personal)Repository.pendingPersonal=false;

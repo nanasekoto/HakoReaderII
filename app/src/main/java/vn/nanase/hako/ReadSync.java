@@ -14,7 +14,7 @@ public final class ReadSync extends JobService {
   static JobInfo.Builder wifiJob(Context c,int id,Class<?> service){JobInfo.Builder b=new JobInfo.Builder(id,new ComponentName(c,service));if(Build.VERSION.SDK_INT>=28)b.setRequiredNetwork(new NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build());else b.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);return b;}
   public static void schedule(Context c){if(c.getSharedPreferences("settings",0).getBoolean("sync_paused",false)||Store.get(c).queuedBooks().isEmpty())return;JobScheduler jobs=c.getSystemService(JobScheduler.class);if(jobs.getPendingJob(42)==null)jobs.schedule(new JobInfo.Builder(42,new ComponentName(c,ReadSync.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());}
   private static final Object mutex=new Object();
-  private static String label(String state){switch(state){case "WAIT_NETWORK":return "Đã đọc hết · Chờ mạng để gửi HAKO";case "WAIT_VERIFY":return "Đã đọc hết · Đang chờ kiểm tra HAKO";case "NO_BUTTON":return "Đã đọc hết trên máy · HAKO không có nút Đọc hết";case "NEW_UNREAD":return "HAKO có chương mới · Chưa gửi Đọc hết";case "SENDING":return "Đang gửi Đọc hết lên HAKO";case "SENT":return "Đã đồng bộ đã đọc lên HAKO";default:return "Chờ gửi Đọc hết · Mở Tài khoản nếu cần đăng nhập/xác minh";}}
+  private static String label(String state){switch(state){case "LOCAL_ONLY":return "Đã đọc hết trên máy · Chưa theo dõi trên tủ sách HAKO";case "WAIT_NETWORK":return "Đã đọc hết · Chờ mạng để gửi HAKO";case "WAIT_VERIFY":return "Đã đọc hết · Đang chờ kiểm tra HAKO";case "NO_BUTTON":return "Đã đọc hết trên máy · HAKO không có nút Đọc hết";case "NEW_UNREAD":return "HAKO có chương mới · Chưa gửi Đọc hết";case "SENDING":return "Đang gửi Đọc hết lên HAKO";case "SENT":return "Đã đồng bộ đã đọc lên HAKO";default:return "Chờ gửi Đọc hết · Mở Tài khoản nếu cần đăng nhập/xác minh";}}
   public static void publish(Context c,String id,String state,String reason){
     // Bounded durable business state, no titles, credentials or exception messages.
     try{synchronized(ReadSync.class){SharedPreferences p=c.getSharedPreferences("read_sync_status",0);JSONObject all=new JSONObject(p.getString("rows","{}"));JSONObject old=all.optJSONObject(id);Store.ReadRequest request=Store.get(c).readRequest(id);String generation=request==null?"":request.generation;
@@ -38,7 +38,7 @@ public final class ReadSync extends JobService {
   }
   public static boolean process(Context c){OperationTrace.Span trace=OperationTrace.begin("read.sync");boolean previous=RequestTurn.background.get();RequestTurn.background.set(true);String outcome="no_request";try{
     synchronized(mutex){Repository.init(c);if(Repository.syncPaused){outcome="paused";return false;}Store s=Store.get(c);boolean eligible=false;
-      for(String id:s.queuedBooks())if(s.canSubmit(id)){eligible=true;break;}
+      for(String id:s.queuedBooks()){Store.Book candidate=s.book(id);if(candidate==null||id.equals("demo")){s.retireReadRequest(s.readRequest(id),false);continue;}if(s.canSubmit(id))eligible=true;}
       if(!eligible)return false;
       if(!connected(c)){for(String id:s.queuedBooks())publish(c,id,"WAIT_NETWORK","network_unavailable");outcome="wait_network";return true;}
       if(!Repository.busy.compareAndSet(false,true)){outcome="wait_owner";return true;}
@@ -52,7 +52,7 @@ public final class ReadSync extends JobService {
   public static boolean processQueued(Context c){
     Store s=Store.get(c);boolean retry=false;
     for(Store.ReadRequest q:s.readRequests().values()){
-      Store.Book b=s.book(q.id);if(b==null||q.id.equals("demo")||!s.sameReadRequest(q))continue;
+      Store.Book b=s.book(q.id);if(b==null||q.id.equals("demo")){s.retireReadRequest(q,false);continue;}if(!s.sameReadRequest(q))continue;
       if(!connected(c)){publish(c,q.id,"WAIT_NETWORK","network_unavailable");retry=true;continue;}
       if(!s.canSubmit(q.id)){if(s.unread(q.id)>0&&s.retireReadRequest(q,false))publish(c,q.id,"NEW_UNREAD","local_watermark_behind");continue;}
       try{

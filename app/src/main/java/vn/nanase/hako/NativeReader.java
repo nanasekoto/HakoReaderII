@@ -214,7 +214,7 @@ public final class NativeReader extends View {
   float headerY=(int)(11.5f*getResources().getDisplayMetrics().density);
   statusPaint.setTextAlign(Paint.Align.LEFT);
   if(!bookTitle.isEmpty()||!chapterTitle.isEmpty()){
-   String lockPrefix=touchLocked?"🔒 ":"";
+   String lockPrefix=touchLocked?"[Khóa] ":"";
    String headerText=!notice.isEmpty()?notice:lockPrefix+(bookTitle.isEmpty()?chapterTitle:(chapterTitle.isEmpty()?bookTitle:bookTitle+" · "+chapterTitle));
    float textW=statusPaint.measureText(headerText);
    if(textW>availW){
@@ -248,7 +248,7 @@ public final class NativeReader extends View {
   c.drawText(pageStr,margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.CENTER);
-  String centerStatus=(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ Xong":"Ⅱ"));
+  String centerStatus=(touchLocked?"[Khóa] ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ Xong":"Ⅱ"));
   String remaining=remainingChapterText();float room=Math.max(0,getWidth()-2*(margin+Math.max(statusPaint.measureText(pageStr),statusPaint.measureText(remaining))+8*getResources().getDisplayMetrics().density));centerStatus=android.text.TextUtils.ellipsize(centerStatus,statusPaint,room,android.text.TextUtils.TruncateAt.END).toString();c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.RIGHT);
@@ -301,5 +301,4 @@ public final class NativeReader extends View {
  }
  public boolean performClick(){super.performClick();return true;}
 }
-
 

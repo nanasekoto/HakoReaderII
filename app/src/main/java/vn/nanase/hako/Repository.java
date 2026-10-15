@@ -19,15 +19,28 @@ public final class Repository {
   public static void awaitIdle() throws InterruptedException {
     synchronized(busy){while(busy.get())busy.wait();}
   }
+  private static final ThreadLocal<Boolean> explicitFull=ThreadLocal.withInitial(()->false);
+  private static volatile String currentDownloadBook="";
+  static boolean pausedRequestAllowed(int mode,boolean charging){return mode==MODE_BOOK_ALL&&!charging;}
   private static boolean pauseAutomatic(boolean charging){
-    return syncPaused || (pocketPaused && !charging && !manualOverride);
+    return (syncPaused&&!explicitFull.get()) || (pocketPaused && !charging && !manualOverride);
   }
   public static void setSyncPaused(Context c,boolean paused){
     syncPaused=paused;c.getSharedPreferences("settings",0).edit().putBoolean("sync_paused",paused).commit();
-    if(paused){cancel.set(true);pendingAll=false;pendingPersonal=false;clearBook();c.getSystemService(android.app.job.JobScheduler.class).cancel(42);}
+    if(paused){savePausedRequests(c);cancel.set(true);pendingAll=false;pendingPersonal=false;clearBook();c.getSystemService(android.app.job.JobScheduler.class).cancel(42);}
     ChargeJob.schedule(c,!paused&&c.getSharedPreferences("settings",0).getBoolean("charging",true));
     if(!paused)ReadSync.schedule(c);
     notify(c,paused?"Đã tạm dừng đồng bộ · Dữ liệu tải được giữ nguyên":"Đã tiếp tục đồng bộ");
+  }
+  private static void savePausedRequests(Context c){android.content.SharedPreferences.Editor saved=c.getSharedPreferences("paused_requests",0).edit();
+    if(isSyncing){if(currentMode==MODE_SYNC_LIBRARY)saved.putBoolean("shelf",true);else if(currentMode==MODE_SYNC_PERSONAL)saved.putBoolean("personal",true);else if(!currentDownloadBook.isEmpty())saved.putInt("book:"+currentDownloadBook,currentMode);}
+    if(pendingAll)saved.putBoolean("shelf",true);if(pendingPersonal)saved.putBoolean("personal",true);BookRequest pending=peekBook();if(!pending.book.isEmpty())saved.putInt("book:"+pending.book,pending.mode);saved.commit();
+  }
+  public static void restorePausedRequests(Context c){if(syncPaused||c.getSharedPreferences("settings",0).getBoolean("sync_paused",false))return;cancel.set(false);android.content.SharedPreferences saved=c.getSharedPreferences("paused_requests",0);Map<String,?> requests=saved.getAll();
+    if(Boolean.TRUE.equals(requests.get("shelf")))pendingAll=true;if(Boolean.TRUE.equals(requests.get("personal")))pendingPersonal=true;
+    // The existing runtime queue holds one prioritized book. Keep other saved books until consumed.
+    for(Map.Entry<String,?> entry:requests.entrySet())if(entry.getKey().startsWith("book:")&&entry.getValue() instanceof Number&&pendingBook.isEmpty()){queueBook(entry.getKey().substring(5),((Number)entry.getValue()).intValue());saved.edit().remove(entry.getKey()).commit();}
+    saved.edit().remove("shelf").remove("personal").commit();resumePending(c);if(requests.isEmpty())notify(c,"Đã tiếp tục · Không có tác vụ đang dở");
   }
   private static long lastNetwork=0;
   public static void cooldown(Context c,long ms){c.getSharedPreferences("settings",0).edit().remove("cooldownUntil").apply();}
@@ -148,8 +161,7 @@ public final class Repository {
       notify(ctx,"Đã nhận trang "+done.size()+" · "+count+" truyện · đang kiểm tra phần còn lại");
       ctx.sendBroadcast(new Intent(EVENT).setPackage(ctx.getPackageName()).putExtra("shelf_changed",true).putExtra("text",status));
       List<String> following=HakoParser.shelfPages(html,next);
-      boolean orderSafe=true;
-      for(Element option:Jsoup.parse(html).select("select option[selected]")){String v=(option.text()+" "+option.attr("value")).toLowerCase(Locale.ROOT);if(v.matches(".*(a-z|z-a|title|tên truyện|cũ nhất|_asc).*"))orderSafe=false;}
+      boolean orderSafe=HakoParser.shelfUpdateOrder(html);
       boolean stop=!following.isEmpty()&&ShelfAnchor.canStopAtUnchanged(anchorRows,previousKeys,anchorKnown&&orderSafe&&(audit||canUseAnchor));
       if(stop&&quickObserved==null){quickObserved=new HashSet<>(shelfKeys.keySet());UpdateReport.log(ctx,"Gặp chương mới nhất không đổi: "+anchorTitle+" · trang "+done.size());}
       if(stop&&!full){Diagnostics.count("shelf.anchor_stop");partial=true;UpdateReport.log(ctx,"Dừng quét nhanh ở trang "+done.size()+"; giữ các trang phía sau trong bộ nhớ");break;}
@@ -356,15 +368,16 @@ public final class Repository {
   public static void run(Context ctx, String book, int mode, boolean charging) throws Exception {OperationTrace.Span trace=OperationTrace.begin("download.run");boolean previousBackground=RequestTurn.background.get();RequestTurn.background.set(true);try{
     if(pocketPaused && !charging && (mode==MODE_BOOK_NEXT||mode==MODE_READER_NEXT))return;
     init(ctx);
-    if(syncPaused)return;
+    if(syncPaused&&!pausedRequestAllowed(mode,charging))return;
     if (!busy.compareAndSet(false, true)) {
       if (mode == MODE_SYNC_LIBRARY) pendingAll = true;
       else if(mode==MODE_SYNC_PERSONAL)pendingPersonal=true;
       else if (book != null && !book.isEmpty()) {if(mode==MODE_BOOK_ALL)Store.get(ctx).setKeepFull(book,true);queueBook(book,mode);}
       return;
     }
+    explicitFull.set(pausedRequestAllowed(mode,charging));
     cancel.set(false);
-    currentMode = mode;
+    currentDownloadBook=book==null?"":book;currentMode = mode;
     boolean librarySync=mode==MODE_SYNC_LIBRARY||mode==MODE_SYNC_PERSONAL;
     manualOverride = !charging && (mode == MODE_BOOK_ALL || mode == MODE_SYNC_LIBRARY || mode==MODE_SYNC_PERSONAL);
     isSyncing = true;
@@ -435,7 +448,7 @@ public final class Repository {
         if(b==null)continue;
         int bookMode=requestModes.getOrDefault(b.id,librarySync?MODE_SYNC_LIBRARY:mode);
         boolean readerOnly=bookMode==MODE_READER_NEXT;
-        currentMode=bookMode;scopeReason=bookMode==MODE_BOOK_ALL?(charging?"BACKGROUND_FULL_RESUME":"USER_FULL_DOWNLOAD"):bookMode==MODE_READER_NEXT||bookMode==MODE_BOOK_NEXT?"BATCH_PREFETCH_15":charging?"BACKGROUND_CHARGE":"USER_LIBRARY_REFRESH";
+        currentDownloadBook=b.id;currentMode=bookMode;scopeReason=bookMode==MODE_BOOK_ALL?(charging?"BACKGROUND_FULL_RESUME":"USER_FULL_DOWNLOAD"):bookMode==MODE_READER_NEXT||bookMode==MODE_BOOK_NEXT?"BATCH_PREFETCH_15":charging?"BACKGROUND_CHARGE":"USER_LIBRARY_REFRESH";
         ctx.getSharedPreferences("download_resume",0).edit().putInt(b.id,bookMode).commit();
         if(librarySync&&b!=null&&!inScope(s,b,bookMode)){UpdateReport.log(ctx,b.title+": ngoài phạm vi cập nhật");continue;}
         if (b == null || b.id == null || b.id.isEmpty() || s.downloadsSuppressed(b.id) || !FetchPolicy.allowDownload(b.dropped,(mode==MODE_BOOK_ALL && b.id.equals(book))||(manualOverride&&s.isKeepFull(b.id)))) continue;
@@ -561,12 +574,12 @@ public final class Repository {
       executionStage="IDLE";Diagnostics.activityEvent();GeckoClient.release();busy.set(false);
       ReadSync.schedule(ctx);
       synchronized(busy){busy.notifyAll();}
-      if(cancel.get()||syncPaused){clearBook();pendingAll=false;pendingPersonal=false;}
-      manualOverride = false;
+      if(cancel.get()){clearBook();pendingAll=false;pendingPersonal=false;}else if(syncPaused&&!explicitFull.get()){if(queuedBookMode()!=MODE_BOOK_ALL)clearBook();pendingAll=false;pendingPersonal=false;}
+      explicitFull.remove();currentDownloadBook="";manualOverride = false;
       isSyncing = false;
-      notify(ctx,syncPaused?"Đã tạm dừng lượt cập nhật":!"COMPLETED".equals(syncState)?"Lượt cập nhật chưa hoàn tất · Xem Chi tiết cập nhật":"Đã hoàn tất lượt cập nhật · Ảnh thiếu xem riêng");
+      notify(ctx,syncPaused?(mode==MODE_BOOK_ALL&&"COMPLETED".equals(syncState)?"Đã tải full · Tác vụ nền vẫn tạm dừng":"Đã tạm dừng lượt cập nhật"):!"COMPLETED".equals(syncState)?"Lượt cập nhật chưa hoàn tất · Xem Chi tiết cập nhật":"Đã hoàn tất lượt cập nhật · Ảnh thiếu xem riêng");
       UpdateReport.finish(ctx);
-      resumePending(ctx);
+      if(!syncPaused&&!cancel.get()){if(!ctx.getSharedPreferences("paused_requests",0).getAll().isEmpty())restorePausedRequests(ctx);else resumePending(ctx);}
     }
   }finally{RequestTurn.background.set(previousBackground);OperationTrace.end(trace,"closed",0);}}
 
