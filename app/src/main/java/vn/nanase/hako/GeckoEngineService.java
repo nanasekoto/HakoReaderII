@@ -7,9 +7,10 @@ import org.json.*;
 import org.mozilla.geckoview.*;
 /** One native request at a time, no renderer remains after unbinding. */
 public final class GeckoEngineService extends Service {
- private Message current;private GeckoSession session;private WebExtension extension;private InputStream activeBody;private Runnable deadline;
+ private Message current;private GeckoSession session;private String sessionPath="";private WebExtension extension;private InputStream activeBody;private Runnable deadline;
  private final Handler ui=new Handler(Looper.getMainLooper());
  private final Messenger endpoint=new Messenger(new Handler(Looper.getMainLooper()){public void handleMessage(Message m){
+  if(m.what==2){if(current!=null&&current.arg1==m.arg1)finish("Đã dừng yêu cầu");return;}
   if(m.what!=1)return;
   if(current!=null){respond(m,"Gecko đang xử lý yêu cầu khác");return;}
   current=Message.obtain(m);begin();
@@ -17,7 +18,7 @@ public final class GeckoEngineService extends Service {
  public IBinder onBind(Intent i){GeckoHost.bound=true;GeckoHost.active();return endpoint.getBinder();}
  public boolean onUnbind(Intent i){GeckoHost.bound=false;finish("Đã dừng phiên tải");GeckoHost.idle();return false;}
  private void respond(Message request,String error){try{Message reply=Message.obtain(null,2);reply.arg1=request.arg1;Bundle b=new Bundle();if(error!=null)b.putString("error",error);reply.setData(b);request.replyTo.send(reply);}catch(Exception ignored){}}
- private void finish(String error){if(current!=null)android.util.Log.i("HakoGecko",error==null?"Request completed":"Request stopped");if(deadline!=null){ui.removeCallbacks(deadline);deadline=null;}if(session!=null){session.close();session=null;}if(activeBody!=null){try{activeBody.close();}catch(Exception ignored){}activeBody=null;}Message m=current;current=null;if(m!=null)respond(m,error);}
+ private void finish(String error){if(current!=null)android.util.Log.i("HakoGecko",error==null?"Request completed":"Request stopped");if(deadline!=null){ui.removeCallbacks(deadline);deadline=null;}if(session!=null){if(error!=null){session.close();session=null;}else session.setActive(false);}if(activeBody!=null){try{activeBody.close();}catch(Exception ignored){}activeBody=null;}Message m=current;current=null;if(m!=null)respond(m,error);}
  private void begin(){
   final Message job=current;final Bundle b=job.getData();String url=b.getString("url","");
   if(!url.startsWith("https://")){finish("Chỉ hỗ trợ HTTPS");return;}
@@ -38,7 +39,7 @@ public final class GeckoEngineService extends Service {
   else render(job);
  }
  private void render(Message job){
-  Bundle b=job.getData();session=new GeckoSession();final GeckoSession target=session;
+  Bundle b=job.getData();String path=HakoParser.pageIdentity(b.getString("url"));if(session!=null&&path.equals(sessionPath)){session.close();session=null;}boolean fresh=session==null;if(fresh)session=new GeckoSession();sessionPath=path;final GeckoSession target=session;
   android.util.Log.i("HakoGecko","Renderer opened; extension flags="+extension.flags);
   target.setProgressDelegate(new GeckoSession.ProgressDelegate(){public void onPageStart(GeckoSession s,String uri){android.util.Log.i("HakoGecko","Page started");}public void onPageStop(GeckoSession s,boolean success){android.util.Log.i("HakoGecko","Page stopped: "+success);}});
   target.setNavigationDelegate(new GeckoSession.NavigationDelegate(){public GeckoResult<String> onLoadError(GeckoSession s,String uri,WebRequestError error){if(current==job)finish("Không tải được trang; kiểm tra mạng hoặc mở Đăng nhập.");return null;}});
@@ -46,6 +47,9 @@ public final class GeckoEngineService extends Service {
    public GeckoResult<Object> onMessage(String app,Object message,WebExtension.MessageSender sender){
     android.util.Log.i("HakoGecko","Bridge message; current job="+(current==job)+" same session="+(sender.session==target)+" type="+(message==null?"null":message.getClass().getSimpleName()));
     if(current!=job||sender.session!=target||!(message instanceof JSONObject))return null;
+    if(!HakoParser.isOrigin(sender.url)&&!sender.url.equals(b.getString("url")))return null;
+    String senderPath=java.net.URI.create(sender.url).getPath();if("/login".equals(senderPath)||senderPath.startsWith("/login/")){finish("Hãy đăng nhập HAKO trước.");return null;}
+    if(!HakoParser.pageIdentity(sender.url).equals(HakoParser.pageIdentity(b.getString("url"))))return null;
     JSONObject msg=(JSONObject)message;
     if(msg.has("phase")){android.util.Log.i("HakoGecko","Bridge phase: "+msg.optString("phase")+" ready="+msg.optString("ready")+" hasScript="+msg.optBoolean("hasScript"));return null;}
     if(msg.optBoolean("hello")){
@@ -61,6 +65,7 @@ public final class GeckoEngineService extends Service {
     }catch(Exception e){finish("Không lưu được nội dung Gecko");}return null;
    }
   },"hako");
-  target.open(GeckoHost.get(this));target.setActive(true);target.loadUri(b.getString("url"));
+  if(fresh)target.open(GeckoHost.get(this));target.setActive(true);target.loadUri(b.getString("url"));
  }
 }
+

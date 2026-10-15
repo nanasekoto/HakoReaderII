@@ -12,7 +12,8 @@ public final class UpdateReport {
   public static synchronized void begin(Context c){
     app=c.getApplicationContext();shelf.clear();download.clear();
     pages=checked=skipped=selected=buffered=0;started=System.currentTimeMillis();
-    log(c,"Bắt đầu cập nhật · 0.7.15-Gecko · "+Build.MODEL+" · Android "+Build.VERSION.RELEASE);flush();
+    String version="unknown";try{version=c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName;}catch(Exception ignored){}
+    log(c,"Bắt đầu cập nhật · "+version+" · "+Build.MODEL+" · Android "+Build.VERSION.RELEASE);flush();
   }
   public static synchronized void log(Context c,String text){
     app=c.getApplicationContext();
@@ -35,10 +36,18 @@ public final class UpdateReport {
   }
   public static synchronized void checkpoint(Context c,String text){log(c,text);flush();}
   public static synchronized void finish(Context c){checkpoint(c,"Kết thúc · "+((System.currentTimeMillis()-started)/1000)+" giây · "+Repository.status);}
+  private static String modeName(int mode){if(mode==Repository.MODE_BOOK_ALL)return "MODE_BOOK_ALL";if(mode==Repository.MODE_BOOK_NEXT)return "MODE_BOOK_NEXT";if(mode==Repository.MODE_READER_NEXT)return "MODE_READER_NEXT";if(mode==Repository.MODE_SYNC_LIBRARY)return "MODE_SYNC_LIBRARY";if(mode==Repository.MODE_SYNC_PERSONAL)return "MODE_SYNC_PERSONAL";return "NONE";}
+  public static synchronized org.json.JSONObject metrics(Context c)throws org.json.JSONException{
+    if(app==null)return new org.json.JSONObject().put("previousWorkflow",new org.json.JSONObject(c.getSharedPreferences("sync_report",0).getString("metrics","{}"))).put("phase",Repository.syncState).put("active",Repository.isSyncing).put("mode",modeName(Repository.currentMode)).put("modeCode",Repository.currentMode).put("scopeReason",Repository.scopeReason).put("executionStage",Repository.executionStage).put("chaptersDone",Repository.syncDone).put("chaptersQueued",Repository.syncTotal).put("source","no_current_run");
+    return new org.json.JSONObject().put("pages",pages).put("catalogsChecked",checked).put("catalogsSkipped",skipped).put("booksSelected",selected).put("chaptersDone",Repository.syncDone).put("chaptersQueued",Repository.syncTotal).put("phase",Repository.syncState).put("active",Repository.isSyncing).put("percent",Repository.syncPct).put("percentRule","current-request-missing-text-chapters-v2").put("mode",modeName(Repository.currentMode)).put("modeCode",Repository.currentMode).put("scopeReason",Repository.scopeReason).put("executionStage",Repository.executionStage).put("chaptersRemaining",Math.max(0,Repository.syncTotal-Repository.syncDone));
+  }
   private static void flush(){
     if(app==null)return;
     app.getSharedPreferences("sync_report",0).edit().putString("last",text(app))
       .putString("last_shelf_sync",section(shelf)).putString("last_download",section(download)).apply();
+    try{app.getSharedPreferences("sync_report",0).edit().putString("metrics",metrics(app).toString()).apply();}catch(Exception ignored){}
     lastFlush=System.currentTimeMillis();buffered=0;
   }
 }
+
+

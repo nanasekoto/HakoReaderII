@@ -22,16 +22,20 @@ public final class NativeReader extends View {
  private final ArrayList<Integer> anchors=new ArrayList<>(),pages=new ArrayList<>();
  private final Map<String,String> notes=new HashMap<>();
  private final Map<Drawable,int[]> imageSizes=new IdentityHashMap<>();
- private StaticLayout layout;
+ private Bitmap activeImage;private String activeImagePath="";
+ private StaticLayout layout;private final OperationTrace.Span openOperation=OperationTrace.current();private boolean layoutLinked;
  private int page=0,margin=10,pendingParagraph=0;private float pendingFraction=0,line=1.30f;private int paraSpaceDp=8,indentDp=9;private String rawHtml="";
  private boolean taps=true,swiped=false,openAtEnd=false,touchLocked=false;private float downX,downY;
  
  public void setTouchLocked(boolean locked){this.touchLocked=locked;invalidate();}
  public boolean isTouchLocked(){return touchLocked;} public void setOpenAtEnd(boolean end){this.openAtEnd=end;} 
  private String bookTitle="",chapterTitle="",notice="";
- public void setNotice(String value){notice=value;invalidate();}
- private final Paint statusPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
- private int headerHeight=0,footerHeight=0;
+ private long noticeRevision;
+ public void setNotice(String value){if(java.util.Objects.equals(notice,value))return;notice=value;long revision=++noticeRevision;invalidate();if(!value.isEmpty())postDelayed(()->{if(revision==noticeRevision){notice="";invalidate();}},7000);}
+ private final TextPaint statusPaint=new TextPaint(Paint.ANTI_ALIAS_FLAG);
+ private int headerHeight=0,footerHeight=0,remainingChapters=-1;
+ public void setRemainingChapters(int value){if(remainingChapters!=value){remainingChapters=value;invalidate();}}
+ public String remainingChapterText(){return remainingChapters<0?"Còn ? ch":"Còn "+remainingChapters+" ch";}
  public void setTitles(String book,String chapter){this.bookTitle=book==null?"":book.trim();this.chapterTitle=chapter==null?"":chapter.trim();invalidate();}
  private boolean isSyncing=false;private int syncPct=100;
  public void setSyncStatus(boolean syncing,int pct){
@@ -50,18 +54,34 @@ public final class NativeReader extends View {
   headerHeight=(int)(16*getResources().getDisplayMetrics().density);
   footerHeight=(int)(16*getResources().getDisplayMetrics().density);
  }
- public void content(String html,int paragraph,float fraction){
-  rawHtml=html;pendingParagraph=paragraph;pendingFraction=fraction;anchors.clear();notes.clear();imageSizes.clear();
+ public static final class Prepared {
+  final String html;final SpannableStringBuilder text;final ArrayList<Integer> anchors;final int para,indent;
+  Prepared(String h,SpannableStringBuilder t,ArrayList<Integer>a,int p,int i){html=h;text=t;anchors=a;para=p;indent=i;}
+ }
+ private static final class PreparedImage extends Drawable {
+  final File file;PreparedImage(File f){file=f;}public void draw(Canvas c){}public void setAlpha(int a){}public void setColorFilter(ColorFilter f){}public int getOpacity(){return PixelFormat.OPAQUE;}
+ }
+ private static Drawable preparedImage(File dir,String source,int screenWidth,int screenHeight){
+  try{String name=android.net.Uri.parse(source).getLastPathSegment();if(name==null||!name.matches("image-[a-f0-9]+\\.bin"))return null;
+   File file=new File(dir,name);BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(file.getPath(),o);if(o.outWidth<=0||o.outHeight<=0)return null;
+   PreparedImage image=new PreparedImage(file);float scale=Math.min(1f,Math.min((float)Math.max(80,screenWidth-40)/o.outWidth,(float)Math.max(80,screenHeight-180)/o.outHeight));image.setBounds(0,0,Math.max(1,(int)(o.outWidth*scale)),Math.max(1,(int)(o.outHeight*scale)));return image;
+  }catch(Exception error){return null;}
+ }
+ public static Prepared prepare(String html,File dir,float density,int screenWidth,int screenHeight,int paraSpaceDp,int indentDp){OperationTrace.Span trace=OperationTrace.begin("read.prepare");try{
+  long begun=Diagnostics.now();Diagnostics.count("reader.parse");
+  Diagnostics.count(android.os.Looper.myLooper()==android.os.Looper.getMainLooper()?"reader.parse_ui":"reader.parse_worker");
+  SpannableStringBuilder text=new SpannableStringBuilder();ArrayList<Integer> anchors=new ArrayList<>();Map<String,String> notes=new HashMap<>();
   Element body=Jsoup.parseBodyFragment(html).body();int note=0;
   for(Element e:new ArrayList<Element>(body.select("details"))){String key="hako-note:"+(note++);Element summary=e.selectFirst("summary");if(summary!=null)summary.remove();notes.put(key,e.text());e.replaceWith(new Element("a").attr("href",key).text(" [✎] "));}
   // Stable block anchors are rebuilt from the same sanitized chapter on each opening.
   // Html offsets differ from markup offsets: convert block by block to retain actual character anchors.
   anchors.clear();text.clear();
-  int paraSpacePx = (int)(paraSpaceDp * getResources().getDisplayMetrics().density);
-  int indentPx = (int)(indentDp * getResources().getDisplayMetrics().density);
+  int paraSpacePx = (int)(paraSpaceDp * density);
+  int indentPx = (int)(indentDp * density);
   boolean lastWasEmpty=true;
   for(Element e:body.children()){
-   CharSequence parsed=Html.fromHtml(e.outerHtml(),Html.FROM_HTML_MODE_LEGACY,source->image(source),null);
+   if(Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException();
+   CharSequence parsed=Html.fromHtml(e.outerHtml(),Html.FROM_HTML_MODE_LEGACY,source->preparedImage(dir,source,screenWidth,screenHeight),null);
    int len=parsed.length();
    while(len>0&&(parsed.charAt(len-1)=='\n'||parsed.charAt(len-1)=='\r'||parsed.charAt(len-1)==' '))len--;
    int start=0;
@@ -111,7 +131,21 @@ public final class NativeReader extends View {
   }
   if(anchors.isEmpty()){anchors.add(0);text.append(body.text().trim().isEmpty()?"Chương chưa có nội dung hoặc đang tải...":body.text());}
   for(URLSpan span:text.getSpans(0,text.length(),URLSpan.class)){String n=notes.get(span.getURL());if(n!=null){int a=text.getSpanStart(span),b=text.getSpanEnd(span);text.removeSpan(span);text.setSpan(new Note(n),a,b,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);}}
+  Diagnostics.elapsed("reader.prepare",begun);return new Prepared(html,text,anchors,paraSpaceDp,indentDp);
+ }finally{OperationTrace.end(trace,"complete",0);}}
+ private int formatRequest;private java.util.concurrent.Future<?> formatWork;
+ private static final java.util.concurrent.ExecutorService formatPool=java.util.concurrent.Executors.newSingleThreadExecutor();
+ public void prepared(Prepared data,int paragraph,float fraction){
+  formatRequest++;releaseImage();rawHtml=data.html;pendingParagraph=paragraph;pendingFraction=fraction;paraSpaceDp=data.para;indentDp=data.indent;
+  text=new SpannableStringBuilder(data.text);anchors.clear();anchors.addAll(data.anchors);imageSizes.clear();notes.clear();
+  for(ImageSpan span:text.getSpans(0,text.length(),ImageSpan.class))if(span.getDrawable() instanceof PreparedImage){PreparedImage original=(PreparedImage)span.getDrawable();Drawable image=new LocalImage(original.file);image.setBounds(original.getBounds());int a=text.getSpanStart(span),b=text.getSpanEnd(span),flags=text.getSpanFlags(span);text.removeSpan(span);text.setSpan(new ImageSpan(image,span.getSource(),span.getVerticalAlignment()),a,b,flags);}
   if(getWidth()>0&&getHeight()>0)reflow();else requestLayout();
+ }
+ public void content(String html,int paragraph,float fraction){prepared(prepare(html,chapterDir,getResources().getDisplayMetrics().density,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels,paraSpaceDp,indentDp),paragraph,fraction);}
+ private void reformatAsync(){
+  final int request=++formatRequest,p=pendingParagraph,para=paraSpaceDp,indent=indentDp;final float f=pendingFraction,density=getResources().getDisplayMetrics().density;final int width=getResources().getDisplayMetrics().widthPixels,height=getResources().getDisplayMetrics().heightPixels;final String html=rawHtml;
+  if(formatWork!=null)formatWork.cancel(true);
+  formatWork=formatPool.submit(()->{try{Prepared result=prepare(html,chapterDir,density,width,height,para,indent);post(()->{if(request==formatRequest)prepared(result,p,f);});}catch(java.util.concurrent.CancellationException ignored){}});
  }
  private static final class SoftEmphasis extends MetricAffectingSpan {
   private final boolean italic;
@@ -124,24 +158,44 @@ public final class NativeReader extends View {
   public void updateDrawState(android.text.TextPaint p){apply(p);}
   public void updateMeasureState(android.text.TextPaint p){apply(p);}
  }
+ private void releaseImage(){if(activeImage!=null){activeImage.recycle();activeImage=null;}activeImagePath="";}
+ protected void onDetachedFromWindow(){formatRequest++;if(formatWork!=null)formatWork.cancel(true);releaseImage();super.onDetachedFromWindow();}
+ private Bitmap visibleImage(File f){
+  if(activeImage!=null&&activeImagePath.equals(f.getPath()))return activeImage;
+  releaseImage();BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(f.getPath(),o);
+  o.inSampleSize=1;while(o.outWidth/o.inSampleSize>480||o.outHeight/o.inSampleSize>800)o.inSampleSize*=2;
+  o.inJustDecodeBounds=false;o.inPreferredConfig=Bitmap.Config.RGB_565;
+  activeImage=BitmapFactory.decodeFile(f.getPath(),o);activeImagePath=f.getPath();return activeImage;
+ }
+ private final class LocalImage extends Drawable {
+  private final File file;private final Paint imagePaint=new Paint(Paint.FILTER_BITMAP_FLAG);
+  LocalImage(File f){file=f;}
+  public void draw(Canvas canvas){Bitmap bitmap=visibleImage(file);if(bitmap!=null)canvas.drawBitmap(bitmap,null,getBounds(),imagePaint);}
+  public void setAlpha(int alpha){imagePaint.setAlpha(alpha);}
+  public void setColorFilter(ColorFilter filter){imagePaint.setColorFilter(filter);}
+  public int getOpacity(){return PixelFormat.OPAQUE;}
+ }
  private Drawable image(String source){
   try{String name=android.net.Uri.parse(source).getLastPathSegment();if(name==null||!name.matches("image-[a-f0-9]+\\.bin"))return null;
-   File f=new File(chapterDir,name);android.graphics.BitmapFactory.Options o=new android.graphics.BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(f.getPath(),o);o.inSampleSize=1;while(o.outWidth/o.inSampleSize>1000||o.outHeight/o.inSampleSize>1600)o.inSampleSize*=2;o.inJustDecodeBounds=false;Bitmap b=BitmapFactory.decodeFile(f.getPath(),o);if(b==null)return null;
-   Drawable d=new android.graphics.drawable.BitmapDrawable(getResources(),b);int w=Math.max(80,getResources().getDisplayMetrics().widthPixels-40),h=Math.max(80,getResources().getDisplayMetrics().heightPixels-180);float scale=Math.min(1f,Math.min((float)w/b.getWidth(),(float)h/b.getHeight()));d.setBounds(0,0,(int)(b.getWidth()*scale),(int)(b.getHeight()*scale));return d;
+   File f=new File(chapterDir,name);BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(f.getPath(),o);
+   if(o.outWidth<=0||o.outHeight<=0)return null;
+   Drawable d=new LocalImage(f);int w=Math.max(80,getResources().getDisplayMetrics().widthPixels-40),h=Math.max(80,getResources().getDisplayMetrics().heightPixels-180);
+   float scale=Math.min(1f,Math.min((float)w/o.outWidth,(float)h/o.outHeight));d.setBounds(0,0,Math.max(1,(int)(o.outWidth*scale)),Math.max(1,(int)(o.outHeight*scale)));return d;
   }catch(Exception e){return null;}
  }
  private static class Note extends CharacterStyle {final String value;Note(String s){value=s;}public void updateDrawState(TextPaint p){p.setUnderlineText(true);}}
- public void style(float sp,int marginDp,float spacing,int pSpaceDp,int indDp,Typeface face,boolean tap){capture();paint.setTextSize(sp*getResources().getDisplayMetrics().scaledDensity);paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;boolean reformat=(paraSpaceDp!=pSpaceDp)||(indentDp!=indDp);paraSpaceDp=pSpaceDp;indentDp=indDp;taps=tap;if(reformat&&!rawHtml.isEmpty()){content(rawHtml,pendingParagraph,pendingFraction);reflow();}else{reflow();}}
+ public void style(float sp,int marginDp,float spacing,int pSpaceDp,int indDp,Typeface face,boolean tap){capture();paint.setTextSize(sp*getResources().getDisplayMetrics().scaledDensity);paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;boolean reformat=(paraSpaceDp!=pSpaceDp)||(indentDp!=indDp);paraSpaceDp=pSpaceDp;indentDp=indDp;taps=tap;if(reformat&&!rawHtml.isEmpty()){reformatAsync();}else{reflow();}}
  public void taps(boolean on){taps=on;}public int getPageCount(){return pages.size();}
  private int offset(){return layout==null||pages.isEmpty()?0:layout.getLineStart(pages.get(page));}
- private void capture(){if(layout==null||pages.isEmpty())return;int off=offset(),p=0;for(int i=0;i<anchors.size();i++)if(anchors.get(i)<=off)p=i;pendingParagraph=p;int end=p+1<anchors.size()?anchors.get(p+1):text.length();pendingFraction=(float)(off-anchors.get(p))/Math.max(1,end-anchors.get(p));}
+ private void capture(){if(layout==null||pages.isEmpty())return;int off=offset(),p=0;int found=Collections.binarySearch(anchors,off);p=Math.max(0,found>=0?found:-found-2);pendingParagraph=p;int end=p+1<anchors.size()?anchors.get(p+1):text.length();pendingFraction=(float)(off-anchors.get(p))/Math.max(1,end-anchors.get(p));}
  private void publish(){capture();listener.position(pendingParagraph,pendingFraction,page,pages.size());}
  protected void onSizeChanged(int w,int h,int ow,int oh){if(w!=ow||h!=oh){capture();reflow();}}
  private void reflow(){
+  long begun=Diagnostics.now();Diagnostics.count("reader.reflow");
   int width=getWidth()-2*margin;
   int textTop=headerHeight,textBottom=getHeight()-footerHeight;
   int height=textBottom-textTop;
-  if(width<=0||height<=0||text.length()==0)return;
+  if(width<=0||height<=0||text.length()==0)return;OperationTrace.Span trace=OperationTrace.begin("read.layout",android.os.SystemClock.elapsedRealtime(),OperationTrace.current()!=null?OperationTrace.current():!layoutLinked?openOperation:null);layoutLinked=true;try{
   for(ImageSpan span:text.getSpans(0,text.length(),ImageSpan.class)){Drawable d=span.getDrawable();int[] original=imageSizes.get(d);if(original==null){original=new int[]{Math.max(1,d.getBounds().width()),Math.max(1,d.getBounds().height())};imageSizes.put(d,original);}float scale=Math.min(1f,Math.min((float)width/original[0],Math.max(1,height-2*paint.getTextSize())/original[1]));d.setBounds(0,0,Math.max(1,(int)(original[0]*scale)),Math.max(1,(int)(original[1]*scale)));}
   layout=StaticLayout.Builder.obtain(text,0,text.length(),paint,width).setIncludePad(true).setLineSpacing(0,line).setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE).build();
   int p=Math.min(Math.max(0,pendingParagraph),anchors.size()-1),a=anchors.get(p),b=p+1<anchors.size()?anchors.get(p+1):text.length();int target=a+Math.round(pendingFraction*(b-a));int targetLine=layout.getLineForOffset(Math.min(text.length(),target));
@@ -149,10 +203,10 @@ public final class NativeReader extends View {
   pages.clear();for(int start:PageBreaks.split(top,bottom,height,targetLine))pages.add(start);
   if(openAtEnd&&!pages.isEmpty()){page=pages.size()-1;openAtEnd=false;}
   else{page=pages.indexOf(targetLine);if(page<0)page=0;}
-  invalidate();publish();
+  Diagnostics.elapsed("reader.layout",begun);invalidate();publish();}finally{OperationTrace.end(trace,"closed",0);}
  }
  protected void onDraw(Canvas c){
-  super.onDraw(c);if(layout==null||pages.isEmpty())return;
+  super.onDraw(c);if(layout==null||pages.isEmpty())return;long cpuDraw=Diagnostics.cpuBegin();
   int textTop=headerHeight,textBottom=getHeight()-footerHeight;
   int availW=getWidth()-2*margin;
 
@@ -161,7 +215,7 @@ public final class NativeReader extends View {
   statusPaint.setTextAlign(Paint.Align.LEFT);
   if(!bookTitle.isEmpty()||!chapterTitle.isEmpty()){
    String lockPrefix=touchLocked?"🔒 ":"";
-   String headerText=lockPrefix+(bookTitle.isEmpty()?chapterTitle:(chapterTitle.isEmpty()?bookTitle:bookTitle+" · "+chapterTitle));
+   String headerText=!notice.isEmpty()?notice:lockPrefix+(bookTitle.isEmpty()?chapterTitle:(chapterTitle.isEmpty()?bookTitle:bookTitle+" · "+chapterTitle));
    float textW=statusPaint.measureText(headerText);
    if(textW>availW){
     while(headerText.length()>3&&statusPaint.measureText(headerText+"…")>availW){
@@ -194,17 +248,17 @@ public final class NativeReader extends View {
   c.drawText(pageStr,margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.CENTER);
-  String centerStatus=notice.isEmpty()?(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ 100%":(syncPct+"%"))):notice;
-  c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
+  String centerStatus=(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ Xong":"Ⅱ"));
+  String remaining=remainingChapterText();float room=Math.max(0,getWidth()-2*(margin+Math.max(statusPaint.measureText(pageStr),statusPaint.measureText(remaining))+8*getResources().getDisplayMetrics().density));centerStatus=android.text.TextUtils.ellipsize(centerStatus,statusPaint,room,android.text.TextUtils.TruncateAt.END).toString();c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.RIGHT);
-  int pct=Math.round((page+1)*100f/pages.size());
-  String pctStr=pct+"%";
+  String pctStr=remaining;
   c.drawText(pctStr,getWidth()-margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.LEFT);
+  Diagnostics.cpuEnd("reader.draw",cpuDraw);
  }
- public void turn(int direction){if(layout==null||pages.isEmpty())return;listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();}
+ public void turn(int direction){if(layout==null||pages.isEmpty())return;Diagnostics.readerInput();long cpuTurn=Diagnostics.cpuBegin();long turnStarted=Diagnostics.now();listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();long elapsed=Math.max(0,Diagnostics.now()-turnStarted);OperationTrace.pageTurn(elapsed);Diagnostics.pageTurn(turnStarted);Diagnostics.cpuEnd("reader.turn",cpuTurn);}
  public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
  public boolean onTouchEvent(MotionEvent e){
    if(touchLocked){
@@ -247,4 +301,5 @@ public final class NativeReader extends View {
  }
  public boolean performClick(){super.performClick();return true;}
 }
+
 

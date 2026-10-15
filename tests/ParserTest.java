@@ -80,6 +80,45 @@ public class ParserTest {
     check(!HakoParser.validContent("<h1>503 Service Unavailable</h1>"),"HTTP error cache rejected");
     check(!HakoParser.validContent("<script>bad()</script>"),"Script-only cache rejected");
     check(!HakoParser.validContent("<p style='display:none'>hidden</p>"),"Hidden-only cache rejected");
+
+    for(String host:Arrays.asList("i.docln.net","i2.docln.net","i.hako.re","I.DOCLN.NET")){
+      check(HakoParser.imageAllowed("https://"+host+"/image.jpg"),"Allow "+host);
+      check(HakoParser.imageAllowed("http://"+host+"/image.jpg"),"Legacy HTTP URL "+host);
+    }
+    check(!HakoParser.imageAllowed("https://i.docln.net.evil.test/image.jpg"),"Reject Docln suffix spoof");
+    check(!HakoParser.imageAllowed("https://evilhako.re/image.jpg"),"Reject Hako prefix spoof");
+    check(!HakoParser.imageAllowed("file:///image.jpg"),"Reject file source");
+    check(!HakoParser.imageAllowed("https://evil@i.docln.net/image.jpg"),"Reject URL credentials");
+    check(HakoParser.imageFetchUrl("http://i.docln.net/a.jpg").equals("https://i.docln.net/a.jpg"),"Upgrade legacy image to HTTPS");
+    String imageOnly=HakoParser.content("<div id='chapter-content'><img data-src='http://i.docln.net/a.jpg'></div>",base);
+    check(imageOnly.contains("http://i.docln.net/a.jpg"),"Preserve HTTP image through sanitizer");
+    check(HakoParser.content("<div id='chapter-content'><div id='chapter-c-protected' data-s='x'><img src='https://i.docln.net/a.jpg'></div></div>",base).contains("i.docln.net/a.jpg"),"Protected image-only DOM is valid without text");
+    String local="https://offline.hako.invalid/book-1/image-0123456789abcdef01234567.bin";
+    check(HakoParser.offlineImageName("book-1",local).equals("image-0123456789abcdef01234567.bin"),"Recognize local image filename");
+    check(HakoParser.offlineImageName("book-2",local).isEmpty(),"Reject another chapter cache");
+    check(HakoParser.offlineImageName("book-1","https://offline.hako.invalid/book-1/../outside.bin").isEmpty(),"Reject traversal");
+    HakoParser.OfflineContent images=HakoParser.offlineContent("<img src='"+local+"'><img src='second'>");
+    check(!images.readable(src->src.equals(local)),"Partial image-only chapter is incomplete");
+    check(images.readable(src->true),"All image files make image-only chapter readable");
+    check(!HakoParser.offlineContent("<img src='https://i.docln.net/a.jpg'>").readable(src->false),"Remote image markup alone is not offline");
+    check(HakoParser.offlineContent("<p>Nội dung chữ</p><img src='missing'>").readable(src->false),"Keep text despite missing illustration");
+    check(!HakoParser.offlineContent("<p>[Ảnh ngoài máy chủ HAKO — xem trên web]</p>").readable(src->true),"Repair legacy placeholder-only cache");
+    check(!HakoParser.offlineContent("<p>[Ảnh chưa tải được — thử tải lại khi có mạng]</p>").readable(src->true),"Missing-image message is not content");
+    check(!HakoParser.offlineContent("<p style='display:none'>hidden</p><img src='missing'>").readable(src->false),"Hidden text cannot complete image chapter");
+    check(!HakoParser.offlineContent("<h1>503 Service Unavailable</h1>").readable(src->true),"Never accept error page as offline content");
+    String shortcut="<section><a href='/truyen/123-fixture/c2-real'>Đọc tiếp</a></section><section class='volume-list'><header>Tập 1</header><a href='/truyen/123-fixture/c1-old'>Chương 1</a><a href='/truyen/123-fixture/c2-real'>Chương 2</a></section>";
+    List<HakoParser.Link> filtered=HakoParser.chapters(shortcut,HakoParser.ORIGIN+"/truyen/123-fixture");
+    check(filtered.size()==2&&filtered.get(1).title.equals("Tập 1 · Chương 2"),"Resume shortcut cannot steal actual chapter identity or create Other volume");
+    check(HakoParser.readingShortcutTitle("Tập khác · Đọc tiếp"),"Recognize cached resume shortcut");
+    String discovery="<aside><a href='/truyen/91-popular'>Popular</a></aside><main><article class='thumb-item-flow'><a href='/truyen/92-real'>Real novel</a><a href='/truyen/92-real/c3-new'>Latest chapter</a></article><div id='series-comments'><article class='thumb-item-flow'><a href='/truyen/93-comment'>Comment novel</a></article></div><section class='ranking'><a href='/truyen/94-ranked'>Ranked novel</a></section></main>";
+    List<HakoParser.Link> novels=HakoParser.storyList(discovery,HakoParser.ORIGIN);
+    check(novels.size()==1&&novels.get(0).id.equals("truyen-92"),"Discovery ignores comment ranking and sidebar story links");
+    check(novels.get(0).latestKey.equals("truyen-92-3|Latest chapter"),"Discovery records latest chapter identity without treating it as a novel");
+    check(HakoParser.pageIdentity("https://docln.sbs/truyen/123-old/c456-old").equals(HakoParser.pageIdentity("https://docln.net/truyen/123-renamed/c456-new")),"Same chapter remains identifiable through canonical slug/domain redirect");
+    check(!HakoParser.pageIdentity("https://docln.sbs/truyen/123-old/c456-old").equals(HakoParser.pageIdentity("https://docln.sbs/truyen/123-old/c457-next")),"Stale different chapter document is rejected");
+    check(!HakoParser.pageIdentity("https://docln.sbs/truyen/123-old").equals(HakoParser.pageIdentity("https://docln.sbs/truyen/123-old/c456-ch")),"Story metadata is not a chapter document");
+    check(HakoParser.pageIdentity("https://docln.sbs/ke-sach?page=1").equals(HakoParser.pageIdentity("https://docln.sbs/ke-sach?page=2")),"Read-all action can traverse shelf pagination within its request");
     System.out.println("PASS " + passed + " parser assertions");
   }
 }
+

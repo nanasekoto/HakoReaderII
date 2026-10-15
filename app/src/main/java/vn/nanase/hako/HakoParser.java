@@ -17,7 +17,7 @@ public final class HakoParser {
   public static class Link {
     public String id, title, url;
     public String info="", latestKey="";
-    public long updatedAt;
+    public long updatedAt;public boolean readButtonAvailable;
 
     public Link(String i, String t, String u) {
       id = i;
@@ -70,6 +70,9 @@ public final class HakoParser {
     }
   }
 
+  /** Content identity only; callers still validate the sender's origin separately. */
+  public static String pageIdentity(String url){String path=URI.create(url).getPath();if(path==null||path.isEmpty())path="/";Matcher chapter=CHAPTER.matcher(path);if(chapter.matches())return "chapter:"+chapter.group(1)+":"+chapter.group(2)+":"+chapter.group(3);Matcher story=STORY.matcher(path);if(story.matches())return "story:"+story.group(1)+":"+story.group(2);return path;}
+
   public static String storyUrl(String u) {
     u = normalize(u);
     return chapterId(u).isEmpty() ? u : u.substring(0, u.lastIndexOf('/'));
@@ -79,7 +82,9 @@ public final class HakoParser {
     Document d = Jsoup.parse(html, base);
     List<Link> out = new ArrayList<>();
     Set<String> seen = new HashSet<>();
-    for (Element a : d.select("a[href]")) {
+    d.select("aside, #series-comments, #chapter-comments, .comment-list, .comment-section, .comment-item, .recent-comments, .top-comments, .ranking").remove();
+    org.jsoup.select.Elements anchors=d.select(".thumb-item-flow a[href], .search-item a[href], .listall_item a[href], .novel-item a[href]");if(anchors.isEmpty()){Element main=d.selectFirst("main, #mainpart, #main");anchors=(main==null?d:main).select("a[href]");}
+    for (Element a : anchors) {
       String href = a.attr("href");
       String id = storyId(href);
       if (id.isEmpty()) continue;
@@ -92,7 +97,7 @@ public final class HakoParser {
       if (container != null) {
         Element ch = container.selectFirst("a[href*='/c']");
         if (ch != null && !ch.text().trim().isEmpty() && !ch.equals(a)) {
-          l.info = ch.text().trim();
+          l.info = ch.text().trim();String cid=chapterId(ch.absUrl("href"));if(!cid.isEmpty())l.latestKey=cid+"|"+l.info;
         }
       }
       out.add(l);
@@ -106,7 +111,7 @@ public final class HakoParser {
     Set<String> seen = new HashSet<>();
     for (Element a : d.select("table a[href]")) {
       String u = normalize(a.absUrl("href")), id = storyId(u);
-      if (!id.isEmpty() && seen.add(id)) {Link l=new Link(id,a.text(),u);Element row=a.closest("tr");if(row!=null){Element marker=row.selectFirst(".mark-read[data-unread]");if(marker!=null)l.info=marker.attr("data-unread")+" chương mới";else {Element count=row.selectFirst(".update-status");l.info=count==null?"Chưa rõ số chương mới":count.text();}}if(row!=null){
+      if (!id.isEmpty() && seen.add(id)) {Link l=new Link(id,a.text(),u);Element row=a.closest("tr");if(row!=null){l.readButtonAvailable=row.selectFirst(".mark-read[data-series]")!=null;Element marker=row.selectFirst(".mark-read[data-unread]");if(marker!=null)l.info=marker.attr("data-unread")+" chương mới";else {Element count=row.selectFirst(".update-status");l.info=count==null?"Chưa rõ số chương mới":count.text();}}if(row!=null){
         Element chapter=row.selectFirst("a[href*='/c']");
         if(chapter!=null&&!chapterId(chapter.absUrl("href")).isEmpty())l.latestKey=chapterId(chapter.absUrl("href"))+"|"+chapter.text().trim();
         Element time=row.selectFirst("time[datetime], [data-timestamp], .timeago[title]");
@@ -141,6 +146,7 @@ public final class HakoParser {
 
   public static List<Link> chapters(String html, String base) {
     Document d = Jsoup.parse(html, base);
+    for(Element a:new ArrayList<Element>(d.select("a[href]")))if(readingShortcutTitle(a.text()))a.remove();
     d.select("#series-comments,#chapter-comments,.comment-section,nav,.navbar").remove();
     Element scope = d.selectFirst("#chapters");
     if (scope == null) scope = d;
@@ -171,6 +177,11 @@ public final class HakoParser {
     return new ArrayList<>(out.values());
   }
 
+  public static boolean readingShortcutTitle(String title){
+    String t=title==null?"":title.trim();int dot=t.lastIndexOf(" · ");if(dot>=0)t=t.substring(dot+3).trim();
+    return t.matches("(?iu)^(đọc tiếp|đọc từ đầu|bắt đầu đọc|tiếp tục đọc)$");
+  }
+
   public static String title(String html, String base) {
     Document d = Jsoup.parse(html, base);
     Element e = d.selectFirst(".series-name,.series-title");
@@ -186,7 +197,7 @@ public final class HakoParser {
     if (c == null)
       throw new Exception(
           "Không tìm thấy nội dung chương. Có thể cần đăng nhập hoặc HAKO đã đổi cấu trúc.");
-    if(c.selectFirst("#chapter-c-protected[data-s]")!=null && c.selectFirst("#chapter-c-protected[data-s]").text().trim().isEmpty()) throw new Exception("Nội dung chưa được trang hiển thị");
+    if(c.selectFirst("#chapter-c-protected[data-s]")!=null && c.selectFirst("#chapter-c-protected[data-s]").text().trim().isEmpty() && c.selectFirst("#chapter-c-protected[data-s] img[src],#chapter-c-protected[data-s] img[data-src]")==null) throw new Exception("Nội dung chưa được trang hiển thị");
     c.select("script,style,iframe,form,input,button,video,audio,object,embed").remove();
     for (Element e : new ArrayList<Element>(c.getAllElements())) {
       if (e == c) continue;
@@ -269,7 +280,7 @@ public final class HakoParser {
             .addAttributes(":all", "id", "class")
             .addAttributes("img", "src", "alt")
             .addAttributes("a", "href")
-            .addProtocols("img", "src", "https")
+            .addProtocols("img", "src", "https", "http")
             .addProtocols("a", "href", "https", "#")
             .preserveRelativeLinks(true);
     String clean =
@@ -301,13 +312,61 @@ public final class HakoParser {
     return false;
   }
 
+
+  /** Text tolerates missing illustrations; an image-only chapter needs every image. */
+  public static final class OfflineContent {
+    public final boolean text;
+    public final List<String> images;
+    private OfflineContent(boolean text,List<String> images){this.text=text;this.images=images;}
+    public boolean readable(java.util.function.Predicate<String> imageAvailable){
+      if(text)return true;
+      if(images.isEmpty())return false;
+      for(String image:images)if(!imageAvailable.test(image))return false;
+      return true;
+    }
+  }
+  public static OfflineContent offlineContent(String html){
+    List<String> images=new ArrayList<>();
+    if(!validContent(html))return new OfflineContent(false,images);
+    Document d=Jsoup.parseBodyFragment(html);
+    d.select("script,style,iframe,form,[hidden]").remove();
+    for(Element el:d.select("[style]"))if(el.attr("style").matches("(?is).*(display\\s*:\\s*none|visibility\\s*:\\s*hidden).*"))el.remove();
+    // Old releases replaced failed images with these paragraphs. They are not chapter text.
+    for(Element el:d.select("p"))if(el.text().equals("[Ảnh ngoài máy chủ HAKO — xem trên web]")||
+        el.text().equals("[Ảnh chưa tải được — thử tải lại khi có mạng]"))el.remove();
+    for(Element img:d.select("img[src]"))if(!img.attr("src").trim().isEmpty())images.add(img.attr("src"));
+    return new OfflineContent(!d.body().text().trim().isEmpty(),images);
+  }
+  public static String offlineImageName(String chapterId,String src){
+    try{
+      URI uri=URI.create(src);
+      if(!"https".equals(uri.getScheme())||!"offline.hako.invalid".equals(uri.getHost())||
+          uri.getUserInfo()!=null||uri.getPort()!=-1||uri.getQuery()!=null||uri.getFragment()!=null)return "";
+      String prefix="/"+chapterId+"/",path=uri.getPath();
+      if(path==null||!path.startsWith(prefix))return "";
+      String name=path.substring(prefix.length());
+      return name.matches("image-[a-f0-9]{24}\\.bin")?name:"";
+    }catch(Exception e){return "";}
+  }
+
+  public static String imageFetchUrl(String url){
+    if(!imageAllowed(url))return url;
+    return url.regionMatches(true,0,"http:",0,5)?"https:"+url.substring(5):url;
+  }
+
   public static boolean imageAllowed(String url) {
     try {
       URI u = URI.create(url);
       String h = u.getHost();
-      return "https".equals(u.getScheme())
+      if(h != null) h = h.toLowerCase(Locale.ROOT);
+      return ("https".equalsIgnoreCase(u.getScheme()) || "http".equalsIgnoreCase(u.getScheme()))
           && h != null
-          && (h.equals(URI.create(ORIGIN).getHost())
+          && u.getUserInfo() == null
+          && (h.equals(URI.create(ORIGIN).getHost().toLowerCase(Locale.ROOT))
+              || h.equals("docln.net")
+              || h.endsWith(".docln.net")
+              || h.equals("hako.re")
+              || h.endsWith(".hako.re")
               || h.equals("hako.vip")
               || h.endsWith(".hako.vip")
               || h.equals("hako.vn")
@@ -317,3 +376,4 @@ public final class HakoParser {
     }
   }
 }
+

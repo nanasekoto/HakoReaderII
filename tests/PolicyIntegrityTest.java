@@ -18,5 +18,10 @@ public final class PolicyIntegrityTest {
     check(!ReadPolicy.canSubmit(Arrays.asList("a"),set("a"),set("a"),false),"Unverified catalog blocked");
     check(ReadPolicy.canSubmit(Arrays.asList("a","b"),set("a","b"),set("a","b"),true),"Verified read IDs can submit");
     System.out.println("PolicyIntegrityTest passed");
+    check(ReadPolicy.canSubmitAtTip(Arrays.asList("a","b"),"b","b",true),"Unchanged latest text can send queued completion");
+    check(!ReadPolicy.canSubmitAtTip(Arrays.asList("a","b","c"),"b","b",true),"Newer text blocks queued completion");
+    check(!ReadPolicy.canSubmitAtTip(Arrays.asList("a","b"),"a","b",true),"Old queued tip cannot claim newer completion");
+    check(!ReadPolicy.canSubmitAtTip(Arrays.asList("a","a"),"a","a",true),"Duplicate server IDs blocked");
+    check(!ReadPolicy.canSubmitAtTip(Arrays.asList("a"),"a","a",false),"Failed server verification blocked");
   }
 }

@@ -1,6 +1,12 @@
 # Quy tắc vận hành hiện hành
 
-Áp dụng cho 0.7.15 Gecko trên main. Đây là quy tắc đã chốt với người dùng; tài liệu lịch sử không được dùng để thay thế bảng dưới.
+## Điều chỉnh người dùng chốt cho 0.7.30
+
+Quy tắc tải tự động bên dưới được thay bằng **từng đợt tối đa 15 chương chữ**, gồm chương bắt đầu; tới chương chữ thứ 14 mới chuẩn bị đợt tiếp. Minh họa không tính. Theo dõi/yêu thích/giữ full không tự yêu cầu tải đến cuối nữa. Chủ động Tải full vẫn tải toàn bộ và giữ toàn bộ; chính sách giữ nội dung, Pause, Wi-Fi/sạc, đăng nhập và xác minh Đọc hết không đổi. Hoàn thành đợt thì nghỉ; tiếp tục đợt lỗi từ các chương còn thiếu, không tải lại phần hợp lệ.
+
+Thông tin truyện bỏ nút Đọc tiếp/Xem tiếp; phím âm lượng cuộn trang thông tin và Cài đặt, các nút −/+ chỉnh số. Sắp xếp đảo chiều trực tiếp một lần bấm, chỉ ảnh hưởng hiển thị. Footer giữ ba thông số cố định; thông báo ở header riêng, không thay % tải. Chi tiết hiện hành ở CURRENT_ARCHITECTURE.md.
+
+Quy tắc nền 0.7.15 và bản vá chương ảnh 0.7.16. Đây là quy tắc đã chốt với người dùng; tài liệu lịch sử không được dùng để thay thế bảng dưới.
 
 ## 1. Phân biệt các danh sách
 
@@ -64,7 +70,7 @@ Chỉ đến cuối phần đã tải, ví dụ chương 70 trong bộ 100 chư�
 
 ## 5. Cache và an toàn dữ liệu
 
-- Chương có chữ hợp lệ được coi là đọc offline được, kể cả thiếu ảnh.
+- Chương có chữ thật hợp lệ được coi là đọc offline được, kể cả thiếu minh họa. Chương chỉ có ảnh cần đủ file ảnh local giải mã được; thông báo lỗi ảnh không phải nội dung. Xem [bản vá 0.7.16](IMAGE_CHAPTER_FIX_0716.md).
 - File không rỗng chưa đủ: phải nhận diện nội dung truyện, loại trang lỗi và challenge.
 - Cùng ID chương dùng cùng file; hàng đợi không trùng ID và kiểm tra cache trước request.
 - Mục lục thay đổi không được xóa chương cũ hoặc vị trí đọc. Chương cũ thiếu trên web được giữ và đánh dấu ẩn, không tự tải lại.
@@ -77,3 +83,35 @@ Giao diện báo giai đoạn: chuẩn bị cache, quét trang, kiểm tra/bỏ 
 Vùng trạng thái dành sẵn chỗ, không thêm/bỏ gạch chân làm thẻ nhảy. Không chen thẻ ra ngoài màn hình hoặc cắt góc bo tròn. Khoảng sáu thẻ ở cỡ chữ mặc định; giảm số thẻ nếu font lớn hoặc vùng nhìn hẹp. Giữ tên dài để xem đầy đủ.
 
 Tạm dừng/Tiếp tục điều khiển đồng bộ. Mở Tài khoản dừng tải nền để đăng nhập; đọc offline không cần engine chạy liên tục.
+
+
+## Bổ sung 0.7.17 (thay thế quy tắc tiến độ ảnh gộp của 0.7.16)
+
+Xem [quy tắc minh họa và hàng chờ](READING_ILLUSTRATIONS_0717.md). Truyện đang đọc có ưu tiên trước bốn nhóm tải nền. Minh họa vẫn cần ảnh thật để xem; tiến độ chữ không tính minh họa. Xác nhận bỏ qua minh họa khi gửi Đọc hết không tạo lịch sử đã đọc chữ.
+
+
+## Bổ sung 0.7.18
+
+[Nhận diện minh họa và kiểm tra cache](ILLUSTRATION_CACHE_0718.md) thay thế cách nhận diện chỉ từ đầu tựa chương. Ứng viên minh họa không được tự coi là đã đọc. Khung minh họa hợp lệ đã lưu không tự tải lại; ảnh thiếu vẫn phải báo riêng.
+
+## Bổ sung 0.7.19
+
+[Vị trí đọc và tải ngoài ý muốn](READING_STATE_0719.md): đọc tiếp lấy vị trí mới nhất, chỉ bỏ qua minh họa đã xác nhận. Mở đọc chỉ xét tải từ chương hiện tại về sau, không tự tải bù phần cũ dù đang giữ full; Cập nhật/Tải full vẫn dùng phạm vi đầy đủ đã chọn. Tạm dừng không bị mở đọc ghi đè. Phần trăm chữ offline không phụ thuộc việc xác minh thư viện trên web.
+
+## Bổ sung 0.7.20
+
+[Số chương chưa đọc](UNREAD_DISPLAY_0720.md): phân loại cache trước khi đếm, đếm từng tập độc lập, minh họa chưa xem và chương cần kiểm tra có số riêng. Tới trang cuối lưu đã đọc và làm mới thư viện ngay; dữ liệu hiển thị cũ không được ghi đè trạng thái mới. Không tự đánh dấu chương chữ chưa đọc khi gửi Đọc hết.
+
+## Quy tắc thay thế từ 0.7.21
+
+[Tiến độ theo mốc đọc](SEQUENTIAL_PROGRESS_0721.md) thay thế quy tắc đọc của các phiên bản trước: minh họa không tính; tới cuối chương chữ thì mọi chương chữ tới mốc đó mặc định đã đọc. Đọc hết phần mới nhất tự lưu hàng chờ Hako; chỉ gửi sau kiểm tra tủ sách/mục lục mới khi chưa có chương chữ mới hơn. Giữ tại chương hiện tại khi kiểm tra/tải chương tiếp theo. Mục lục có nút sắp xếp thật và không lấy liên kết Đọc tiếp làm chương.
+
+## 0.7.22 — Khởi động từ bản trạng thái
+Quy trình mới được chốt tại docs/SNAPSHOT_STARTUP_0722.md: mở các danh sách từ thông tin lưu riêng; cập nhật màn hình chính chỉ kiểm tra Vừa đọc/Yêu thích; cập nhật Tủ sách chỉ kiểm tra kệ. Dừng trang kệ dựa vào chương mới nhất không đổi, không dựa vào chưa đọc. Không quét HTML và ảnh để dựng danh sách. Nội dung được kiểm tra khi chọn đọc hoặc tải.
+
+## Bổ sung 0.7.23
+Xem CURRENT_ARCHITECTURE.md: một worker chuẩn bị chương được chọn; danh sách dùng index có cập nhật theo thay đổi; nhập kệ chỉ ghi hàng/rank thay đổi. Mở chương chưa lưu sẽ tự mở sau khi tải xong theo yêu cầu, giảm một lần chọn lại. Nút Báo cáo ở cạnh Hako Pocket; tự gửi chỉ khi đã cấu hình dịch vụ, ở nền và có Wi-Fi. Không thay phạm vi tải, mốc đọc hoặc bằng chứng gửi đọc hết Hako.
+
+
+0.7.30 bổ sung: Khi kệ sách hợp lệ không có nút Đọc hết cho truyện, bỏ yêu cầu đang chờ và không tạo lại cho cùng mốc đã đọc. Chỉ xét lại khi có mốc mới hoặc thấy nút trở lại. Trang đăng nhập/lỗi không được coi là bằng chứng thiếu nút. Bỏ khóa cập nhật 30 phút; lỗi hiện tại vẫn được báo, nhưng người dùng có thể thử lại ngay sau đăng nhập. Không tự lặp liên tục qua các chương khi bị chặn truy cập.
+

@@ -64,8 +64,9 @@ public class DownloadService extends Service {
     final int finalMode = mode;
     if (worker != null && worker.isAlive()) {
       if (finalMode == Repository.MODE_SYNC_LIBRARY) Repository.pendingAll = true;
-      else if (book != null) {if(finalMode==Repository.MODE_BOOK_ALL)Store.get(this).setKeepFull(book,true);Repository.pendingBook = book;}
-      if(finalMode==Repository.MODE_BOOK_ALL || finalMode==Repository.MODE_SYNC_LIBRARY)Repository.manualOverride=true;
+      else if(finalMode==Repository.MODE_SYNC_PERSONAL)Repository.pendingPersonal=true;
+      else if (book != null) {if(finalMode==Repository.MODE_BOOK_ALL)Store.get(this).setKeepFull(book,true);Repository.queueBook(book,finalMode);}
+      if(finalMode==Repository.MODE_BOOK_ALL || finalMode==Repository.MODE_SYNC_LIBRARY||finalMode==Repository.MODE_SYNC_PERSONAL)Repository.manualOverride=true;
       return START_NOT_STICKY;
     }
     worker =
@@ -75,11 +76,11 @@ public class DownloadService extends Service {
                 Repository.awaitIdle();
                 Repository.run(this, book, finalMode, false);
                 Repository.awaitIdle();
-                while(!Repository.syncPaused&&!Repository.cancel.get()&&(Repository.pendingAll||!Repository.pendingBook.isEmpty())){
-                  boolean shelf=Repository.pendingAll;
-                  String queued=Repository.pendingBook;
-                  if(shelf)Repository.pendingAll=false;else Repository.pendingBook="";
-                  Repository.run(this,shelf?"":queued,shelf?Repository.MODE_SYNC_LIBRARY:Repository.MODE_BOOK_NEXT,false);
+                while(!Repository.syncPaused&&!Repository.cancel.get()&&(Repository.pendingAll||Repository.pendingPersonal||!Repository.pendingBook.isEmpty())){
+                  boolean shelf=Repository.pendingAll;boolean personal=!shelf&&Repository.pendingPersonal;
+                  Repository.BookRequest request=(shelf||personal)?null:Repository.takeBook();
+                  if(shelf)Repository.pendingAll=false;else if(personal)Repository.pendingPersonal=false;
+                  Repository.run(this,(shelf||personal)?"":request.book,shelf?Repository.MODE_SYNC_LIBRARY:personal?Repository.MODE_SYNC_PERSONAL:request.mode,false);
                   Repository.awaitIdle();
                 }
               } catch (Exception e) {

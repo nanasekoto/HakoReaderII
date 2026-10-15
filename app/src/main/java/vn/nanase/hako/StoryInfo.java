@@ -1,0 +1,20 @@
+package vn.nanase.hako;
+import android.content.Context;
+import android.util.AtomicFile;
+import java.io.*;
+import org.json.*;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.*;
+public final class StoryInfo {
+ public String id="",title="",url="",summary="",status="Chưa rõ",updatedText="Chưa rõ",latestKey="",author="",artist="";public int chapters;public long updatedAt,fetchedAt;
+ public static StoryInfo parse(String html,String url){Document d=Jsoup.parse(html,url);StoryInfo info=new StoryInfo();info.url=HakoParser.storyUrl(url);info.id=HakoParser.storyId(info.url);info.title=HakoParser.title(html,info.url);info.fetchedAt=System.currentTimeMillis();java.util.List<HakoParser.Link> links=HakoParser.chapters(html,info.url);info.chapters=links.size();if(!links.isEmpty()){HakoParser.Link last=links.get(links.size()-1);info.latestKey=last.id+"|"+last.title;}
+  Element summary=d.selectFirst(".summary-content, .series-summary, .summary-wrapper .summary");if(summary!=null){StringBuilder paragraphs=new StringBuilder();for(Element part:summary.select("p")){if(paragraphs.length()>0)paragraphs.append("\n\n");paragraphs.append(part.text());}info.summary=paragraphs.length()>0?paragraphs.toString():summary.text().trim();}if(info.summary.length()>6000)info.summary=info.summary.substring(0,6000);
+  for(Element row:d.select(".series-information .info-item, .series-information-block .info-item, .series-overview .info-item")){String text=row.text(),lower=text.toLowerCase(java.util.Locale.ROOT);Element value=row.selectFirst(".info-value, .value");String content=value==null?text.substring(Math.max(0,text.indexOf(':')+1)).trim():value.text();if(lower.contains("tác giả"))info.author=content;if(lower.contains("họa sĩ")||lower.contains("hoạ sĩ"))info.artist=content;if(lower.contains("tình trạng")||lower.contains("trạng thái")||lower.startsWith("status"))info.status=content;if(lower.contains("cập nhật")||lower.contains("lần cuối")||lower.contains("last update"))info.updatedText=content;}
+  for(Element time:d.select(".statistic-item .timeago[datetime], .statistic-item .timeago[title], .series-information time[datetime], .series-information [data-timestamp], .series-information .timeago[title], .series-information-block time[datetime]")){String date=time.hasAttr("datetime")?time.attr("datetime"):time.hasAttr("data-timestamp")?time.attr("data-timestamp"):time.attr("title");long stamp=ShelfPolicy.timestamp(date);if(stamp>info.updatedAt){info.updatedAt=stamp;info.updatedText=time.text().isEmpty()?date:time.text();}}
+  if(info.updatedAt==0)info.updatedAt=ShelfPolicy.timestamp(info.updatedText);return info;
+ }
+ private static AtomicFile file(Context c,String id){if(!id.matches("[a-z0-9-]+"))throw new IllegalArgumentException();return new AtomicFile(new File(new File(c.getFilesDir(),"story-info"),id+".json"));}
+ public void save(Context c)throws Exception{JSONObject j=new JSONObject().put("id",id).put("author",author).put("artist",artist).put("title",title).put("url",url).put("summary",summary).put("status",status).put("updatedText",updatedText).put("updatedAt",updatedAt).put("chapters",chapters).put("fetchedAt",fetchedAt).put("latestKey",latestKey);AtomicFile f=file(c,id);FileOutputStream stream=null;try{stream=f.startWrite();stream.write(j.toString().getBytes("UTF-8"));f.finishWrite(stream);}catch(Exception e){if(stream!=null)f.failWrite(stream);throw e;}}
+ public static StoryInfo load(Context c,String id)throws Exception{JSONObject j=new JSONObject(new String(file(c,id).readFully(),"UTF-8"));StoryInfo i=new StoryInfo();i.id=j.getString("id");if(!id.equals(i.id))throw new IOException("Wrong story");i.author=j.optString("author");i.artist=j.optString("artist");i.title=j.optString("title");i.url=j.optString("url");i.summary=j.optString("summary");i.status=j.optString("status","Chưa rõ");i.updatedText=j.optString("updatedText","Chưa rõ");i.updatedAt=j.optLong("updatedAt");i.chapters=j.optInt("chapters");i.fetchedAt=j.optLong("fetchedAt");i.latestKey=j.optString("latestKey");return i;}
+}
+
