@@ -75,7 +75,7 @@ public final class ImageCacheTest extends Instrumentation {
       store.queueCaughtUp("demo",true);
       check(!store.wasRead("demo-1"),"Ignored illustrations keep no fabricated local reading");
       getTargetContext().getSharedPreferences("settings",0).edit().putBoolean("catalog_failed_demo",false).commit();
-      check(store.canSubmitServer("demo"),"Fresh matching catalog permits explicitly accepted illustrations");
+      check(!store.queued("demo")&&!store.canSubmitServer("demo"),"Local demo never creates a remote read-all request");
       chapters.add(new HakoParser.Link("demo-5","Unread text chapter",""));
       store.catalog("demo",chapters);
       check(!store.canSubmitServer("demo"),"New unread chapter blocks old read-all snapshot");

@@ -5,7 +5,7 @@ import android.content.*;
 import android.os.*;
 
 public class DownloadService extends Service {
-  private Thread worker;
+  private volatile Thread worker;
   private BroadcastReceiver receiver;
 
   public void onCreate() {
@@ -16,7 +16,7 @@ public class DownloadService extends Service {
     receiver =
         new BroadcastReceiver() {
           public void onReceive(Context c, Intent i) {
-            nm.notify(9, notice(i.getStringExtra("text")));
+            if(!i.hasExtra("read_sync_book")&&i.getStringExtra("text")!=null)nm.notify(9, notice(i.getStringExtra("text")));
           }
         };
     registerReceiver(receiver, new IntentFilter(Repository.EVENT));
@@ -48,11 +48,11 @@ public class DownloadService extends Service {
       return START_NOT_STICKY;
     }
     if ("STOP".equals(i.getAction())) {
-      Repository.cancel.set(true);
+      Repository.stopDownloads(this);
       stopSelf();
       return START_NOT_STICKY;
     }
-    if(getSharedPreferences("settings",0).getBoolean("sync_paused",false)){stopSelf();return START_NOT_STICKY;}
+    if(getSharedPreferences("settings",0).getBoolean("sync_paused",false)&&i.getIntExtra("mode",0)!=Repository.MODE_BOOK_ALL){stopSelf();return START_NOT_STICKY;}
     Repository.cancel.set(false);
     startForeground(9, notice("Chuẩn bị tải"));
     String book = i.getStringExtra("book");
@@ -61,7 +61,7 @@ public class DownloadService extends Service {
       boolean all = i.getBooleanExtra("all", false);
       mode = all ? Repository.MODE_SYNC_LIBRARY : Repository.MODE_BOOK_NEXT;
     }
-    final int finalMode = mode;
+    final int finalMode = mode,acceptedStop=Repository.stopEpoch();
     if (worker != null && worker.isAlive()) {
       if (finalMode == Repository.MODE_SYNC_LIBRARY) Repository.pendingAll = true;
       else if(finalMode==Repository.MODE_SYNC_PERSONAL)Repository.pendingPersonal=true;
@@ -74,20 +74,20 @@ public class DownloadService extends Service {
             () -> {
               try {
                 Repository.awaitIdle();
-                Repository.run(this, book, finalMode, false);
+                Repository.run(this, book, finalMode, false,acceptedStop);
                 Repository.awaitIdle();
-                while(!Repository.syncPaused&&!Repository.cancel.get()&&(Repository.pendingAll||Repository.pendingPersonal||!Repository.pendingBook.isEmpty())){
+                while(acceptedStop==Repository.stopEpoch()&&!Repository.cancel.get()&&(!Repository.syncPaused||(!Repository.pendingAll&&!Repository.pendingPersonal&&!Repository.pendingBook.isEmpty()&&Repository.queuedBookMode()==Repository.MODE_BOOK_ALL))&&(Repository.pendingAll||Repository.pendingPersonal||!Repository.pendingBook.isEmpty())){
                   boolean shelf=Repository.pendingAll;boolean personal=!shelf&&Repository.pendingPersonal;
                   Repository.BookRequest request=(shelf||personal)?null:Repository.takeBook();
                   if(shelf)Repository.pendingAll=false;else if(personal)Repository.pendingPersonal=false;
-                  Repository.run(this,(shelf||personal)?"":request.book,shelf?Repository.MODE_SYNC_LIBRARY:personal?Repository.MODE_SYNC_PERSONAL:request.mode,false);
+                  Repository.run(this,(shelf||personal)?"":request.book,shelf?Repository.MODE_SYNC_LIBRARY:personal?Repository.MODE_SYNC_PERSONAL:request.mode,false,acceptedStop);
                   Repository.awaitIdle();
                 }
               } catch (Exception e) {
                 Repository.notify(this, "Tạm dừng: " + e.getMessage());
               } finally {
                 stopForeground(true);
-                stopSelf();
+                stopSelf(id);worker=null;Repository.resumePending(this);
               }
             },
             "Hako downloads");

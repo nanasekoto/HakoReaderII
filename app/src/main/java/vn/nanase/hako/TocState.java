@@ -16,12 +16,14 @@ public final class TocState {
  private static final LinkedHashMap<String,Entry> entries=new LinkedHashMap<>(8,.75f,true);
  private static final Map<String,List<Store.Chapter>> baseChapters=new HashMap<>();
  private static final java.util.concurrent.ConcurrentHashMap<String,Store.Book> positions=new java.util.concurrent.ConcurrentHashMap<>();
+ public static synchronized void metadataChanged(Store.Book book){if(book!=null&&entries.containsKey(book.id))positions.put(book.id,book);}
  public static void positionChanged(Store.Book book){positions.put(book.id,book);}
  private static final Map<String,Entry> diskEntries=new HashMap<>();private static final Map<String,String> diskGenerations=new HashMap<>();
  private static final Set<String> dirty=new HashSet<>(),scheduled=new HashSet<>();
  private static final Object persistLock=new Object();
  private static final ScheduledExecutorService writer=Executors.newSingleThreadScheduledExecutor();
  private static synchronized void remember(String id,Entry e){entries.put(id,e);int total=0;for(Entry entry:entries.values())total+=entry.chapters.size();while(entries.size()>4||(total>16000&&entries.size()>1)){String first=entries.keySet().iterator().next();total-=entries.remove(first).chapters.size();diskEntries.remove(first);diskGenerations.remove(first);baseChapters.remove(first);positions.remove(first);}}
+ public static void invalidateDisk(Context c){synchronized(persistLock){resetForImport();Store.delete(new File(c.getFilesDir(),"toc-state"));}}
  public static synchronized void resetForImport(){entries.clear();diskEntries.clear();diskGenerations.clear();dirty.clear();positions.clear();baseChapters.clear();}
  public static synchronized Entry peek(String id){if(dirty.contains(id))return null;Entry entry=entries.get(id);Store.Book latest=positions.get(id);return entry==null?null:latest==null?entry:new Entry(latest,entry.chapters,entry.read);}
  public static void changed(Context c,String id){
@@ -38,7 +40,7 @@ public final class TocState {
  public static Entry load(Context c,String id)throws Exception{
   Entry warm=peek(id);if(warm!=null){Diagnostics.count("toc.memory_hit");return warm;}
   synchronized(TocState.class){if(dirty.contains(id))return null;}
-  try{Entry saved=readSaved(c,id);remember(id,saved);Diagnostics.count("toc.disk_hit");return saved;}catch(Exception missing){return null;}
+  try{Entry saved=readSaved(c,id);Store.Book latest=Store.get(c).book(id);if(latest!=null)saved=new Entry(latest,saved.chapters,saved.read);remember(id,saved);Diagnostics.count("toc.disk_hit");return saved;}catch(Exception missing){return null;}
  }
  private static AtomicFile file(Context c,String id){if(!id.matches("[a-z0-9-]+"))throw new IllegalArgumentException();return new AtomicFile(new File(new File(c.getFilesDir(),"toc-state"),id+".json"));}
  static JSONObject object(Object value)throws Exception{JSONObject out=new JSONObject();for(Field f:value.getClass().getFields())if(!Modifier.isStatic(f.getModifiers()))out.put(f.getName(),f.get(value));return out;}
@@ -57,4 +59,3 @@ public final class TocState {
   else {if(!progressSame){write(new AtomicFile(new File(base.getBaseFile()+".progress")),new JSONObject().put("generation",generation).put("book",object(e.book)).put("read",new JSONArray(e.read)));Diagnostics.count("toc.progress_write");}if(!stateSame){List<Store.Chapter> original=baseChapters.get(id);if(original==null){original=prior.chapters;baseChapters.put(id,original);}JSONArray rows=new JSONArray();for(int n=0;n<e.chapters.size();n++){Store.Chapter ch=e.chapters.get(n),old=original.get(n);if(ch.ready!=old.ready||!Objects.equals(ch.error,old.error))rows.put(new JSONObject().put("id",ch.id).put("ready",ch.ready).put("error",ch.error));}write(new AtomicFile(new File(base.getBaseFile()+".states")),new JSONObject().put("generation",generation).put("rows",rows));Diagnostics.count("toc.state_write");}}
   synchronized(TocState.class){if(entries.containsKey(id)){diskEntries.put(id,e);diskGenerations.put(id,generation);}}Diagnostics.count("toc.persist");}}
 }
-
