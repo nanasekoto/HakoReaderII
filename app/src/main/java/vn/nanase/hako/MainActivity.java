@@ -201,7 +201,7 @@ public class MainActivity extends Activity {
           public void onReceive(Context c, Intent i) {
             if(i.hasExtra("diagnostic_status")){if(Diagnostics.foreground)Toast.makeText(MainActivity.this,i.getStringExtra("diagnostic_status"),Toast.LENGTH_LONG).show();return;}
             String text = i.getStringExtra("text");
-            if(nativeReader!=null&&text!=null&&(text.startsWith("Đã đồng bộ đã đọc")||text.startsWith("Đang chờ gửi")||text.startsWith("Chưa gửi Đọc hết")))nativeReader.setNotice(text);
+            if(nativeReader!=null&&text!=null&&bookId.equals(i.getStringExtra("read_sync_book")))nativeReader.setNotice(text);
             if(i.getBooleanExtra("reading_position",false)){readyLibrary=LibraryState.peek();if(chapterId.isEmpty())refreshLibraryView();}
             if(i.getBooleanExtra("snapshot_changed",false)){readyLibrary=LibraryState.peek();refreshLibraryView();if(nativeReader!=null&&readyLibrary!=null){Store.Book b=displayBook(bookId);if(b!=null&&chapterId.equals(b.current)){int remaining=readyLibrary.summary(b).unread;if(remaining>=0)nativeReader.setRemainingChapters(remaining);}}}
             else if(i.getBooleanExtra("shelf_changed",false)||(i.getBooleanExtra("books_changed",false)&&LibraryState.hasDirty()))reloadLibrary(true,()->refreshLibraryView());
@@ -657,24 +657,7 @@ public class MainActivity extends Activity {
 
         int unread=summary.remaining;
 
-        StringBuilder sub = new StringBuilder();
-        if (b.stamp > 0 && !summary.currentTitle.isEmpty()) {
-          sub.append(summary.currentRead?"Đã đọc tới: ":"Đang đọc: ").append(summary.currentTitle);
-          if (unread > 0) sub.append(" · còn ").append(unread).append(" ch");
-          sub.append(" · ").append(formatVnDate(b.stamp, "dd/MM"));
-        } else if (summary.total>0) {
-          sub.append(summary.total).append(" chương · Chưa đọc");
-        } else if (!b.shelfInfo.isEmpty()) {
-          sub.append(b.shelfInfo);
-        } else {
-          sub.append("Chưa mở đọc · Chạm để xem mục lục");
-        }
-        if (b.dropped) {
-          sub.append(" · Tạm ngưng");
-        }
-
         TextView subView = new TextView(MainActivity.this);
-        subView.setText(sub.toString());
         subView.setTextSize(13f);
         subView.setTextColor(MUTED);
         subView.setMaxLines(1);
@@ -788,19 +771,7 @@ public class MainActivity extends Activity {
         int totalChs=summary.total;
         boolean fullMode=summary.full;
         int newChsTotal=totalChs,newChsDownloaded=summary.stored;
-        int downloadPct=totalChs==0?0:Math.min(summary.stored==totalChs?100:99,Math.round(summary.stored*100f/totalChs));
-
         TextView badge = new TextView(MainActivity.this);
-        if (totalChs == 0) {
-          badge.setText("CHƯA TẢI");
-          badge.setBackgroundColor(Color.GRAY);
-        } else if (newChsTotal == 0 || newChsDownloaded >= newChsTotal) {
-          badge.setText(fullMode?"FULL 100%":"✓ 100%");
-          badge.setBackgroundColor(Color.BLACK);
-        } else {
-          badge.setText((fullMode?"FULL ":"TẢI ") + downloadPct + "%");
-          badge.setBackgroundColor(Color.BLACK);
-        }
         badge.setTextSize(10f);
         badge.setTextColor(Color.WHITE);
         badge.setTypeface(UI_MEDIUM);
@@ -824,7 +795,6 @@ public class MainActivity extends Activity {
         }
 
         TextView subView = new TextView(MainActivity.this);
-        subView.setText(sub.toString());
         subView.setTextSize(13f);
         subView.setTextColor(MUTED);
         subView.setMaxLines(1);
@@ -904,14 +874,14 @@ public class MainActivity extends Activity {
   }
 
   private void addUrl(String u) {
-    task(
+    final Store.Book[] added={null};task(
         "Đang lấy mục lục…",
         () -> {
-          Repository.add(this, u);
+          Repository.add(this, u);added[0]=store.book(HakoParser.storyId(HakoParser.storyUrl(u)));
           return null;
         },
         () -> {
-          Store.Book b = store.book(HakoParser.storyId(HakoParser.storyUrl(u)));
+          Store.Book b = added[0];
           if (b != null) openBook(b);
         });
   }
@@ -934,8 +904,8 @@ public class MainActivity extends Activity {
     String updated=info.updatedText;if(info.updatedAt>0&&info.updatedAt<=System.currentTimeMillis()){long age=System.currentTimeMillis()-info.updatedAt;updated=age<3600000?(age/60000)+" phút trước":age<86400000?(age/3600000)+" giờ trước":(age/86400000)+" ngày trước";}
     root.addView(text("Cập nhật: "+updated+" · "+info.chapters+" chương",12));
     ScrollView summary=new ScrollView(this);TextView body=text(info.summary.isEmpty()?"Chưa có giới thiệu đã lưu.":info.summary,14);body.setPadding(dp(6),dp(4),dp(6),dp(4));summary.addView(body);root.addView(summary,new LinearLayout.LayoutParams(-1,dp(128)));currentScroll=summary;summary.setContentDescription("Giới thiệu truyện");
-    LinearLayout tools=new LinearLayout(this);Button order=button("↑↓",()->{prefs.edit().putBoolean("chapter_desc_"+info.id,!prefs.getBoolean("chapter_desc_"+info.id,false)).apply();renderStoryInfo(info,b);});tools.addView(order,new LinearLayout.LayoutParams(0,dp(40),1));tools.addView(button("Làm mới",()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),true)),new LinearLayout.LayoutParams(dp(100),dp(40)));root.addView(tools);
-    if(b!=null&&tocEntry!=null&&info.id.equals(tocEntry.book.id)){List<VolumeGroup> groups=new ArrayList<>(tocGroups);if(prefs.getBoolean("chapter_desc_"+info.id,false))Collections.reverse(groups);PagedBookList list=new PagedBookList(this);currentList=list;list.setAdapter(new BaseAdapter(){public int getCount(){return groups.size();}public Object getItem(int n){return groups.get(n);}public long getItemId(int n){return n;}public View getView(int n,View old,ViewGroup parent){VolumeGroup group=groups.get(n);TextView row=text(group.name+"\n"+group.chapters.size()+" chương · "+group.readSummary,14);row.setPadding(dp(8),dp(10),dp(8),dp(10));return row;}});list.setOnItemClickListener((parent,view,n,id)->{tocSection=groups.get(n).name;volumeChapters(b,groups.get(n));});root.addView(list,new LinearLayout.LayoutParams(-1,0,1));}
+    LinearLayout tools=new LinearLayout(this);IconButton order=new IconButton(this,21,"Đổi thứ tự chương",()->{prefs.edit().putBoolean("chapter_desc_"+info.id,!prefs.getBoolean("chapter_desc_"+info.id,false)).apply();renderStoryInfo(info,b);});tools.addView(order,new LinearLayout.LayoutParams(0,dp(40),1));tools.addView(button("Làm mới",()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),true)),new LinearLayout.LayoutParams(dp(100),dp(40)));root.addView(tools);
+    if(b!=null&&tocEntry!=null&&info.id.equals(tocEntry.book.id)){List<VolumeGroup> groups=new ArrayList<>(tocGroups);if(prefs.getBoolean("chapter_desc_"+info.id,false))Collections.reverse(groups);PagedBookList list=new PagedBookList(this);currentList=list;list.setAdapter(new BaseAdapter(){public int getCount(){return groups.size();}public Object getItem(int n){return groups.get(n);}public long getItemId(int n){return n;}public View getView(int n,View old,ViewGroup parent){VolumeGroup group=groups.get(n);TextView row=text(group.name+"\n"+group.chapters.size()+" chương · "+group.readSummary,14);row.setPadding(dp(8),dp(10),dp(8),dp(10));return row;}});list.setOnItemClickListener((parent,view,n,id)->{final TocState.Entry previousEntry=tocEntry;final List<VolumeGroup> previousGroups=new ArrayList<>(tocGroups);navStack.push(()->{tocEntry=previousEntry;tocGroups=previousGroups;renderStoryInfo(info,b);});tocSection=groups.get(n).name;volumeChapters(b,groups.get(n));});root.addView(list,new LinearLayout.LayoutParams(-1,0,1));}
     else root.addView(text("Chưa có mục lục đã lưu.",13));
     summary.setOnTouchListener((view,event)->{if(event.getAction()==android.view.MotionEvent.ACTION_DOWN)summary.requestFocus();return false;});summary.setFocusableInTouchMode(true);status();
   }
@@ -1302,18 +1272,17 @@ public class MainActivity extends Activity {
         if(changed)queueReaderSave(()->{
           if(store.ignoredForReading(c))return;
           store.position(bid,cid,p,f);
-          if(finish){store.completeThrough(bid,cid);ReadSync.schedule(MainActivity.this);
-            boolean waiting=store.queued(bid)&&store.unread(bid)==0;
-            if(waiting)runOnUiThread(()->{if(bid.equals(bookId)&&cid.equals(chapterId)&&nativeReader!=null)nativeReader.setNotice("Đã đọc hết · Đang chờ gửi HAKO");});
+          if(finish){store.completeThrough(bid,cid);
+            if(store.unread(bid)==0)ReadSync.publish(MainActivity.this,bid,store.queued(bid)?(ReadSync.connected(MainActivity.this)?"WAIT_VERIFY":"WAIT_NETWORK"):"NO_BUTTON","final_page");ReadSync.schedule(MainActivity.this);
           }
         },finish);
         if(title!=null)title.setText(c.title+" · "+(page+1)+"/"+count);
-        if(!readerReady){readerReady=true;io.execute(()->{
+        if(!readerReady){readerReady=true;io.execute(()->{OperationTrace.Span housekeeping=OperationTrace.begin("read.housekeep");try{
           store.prune(store.book(bid));
           if(!bid.equals("demo")&&store.needsReadingDownload(bid))runOnUiThread(()->{
             if(bid.equals(bookId)&&cid.equals(chapterId)&&nativeReader!=null)startDownloads(bid,Repository.MODE_READER_NEXT);
           });
-        });}
+        }finally{OperationTrace.end(housekeeping,"closed",0);}});}
       }
       public void boundary(int dir){
         if(!readerReady)return;
@@ -1485,7 +1454,18 @@ public class MainActivity extends Activity {
   }
 
   private String readerFont(){int n=prefs.getInt("font2",0);return n==1?"DejaVu,serif":n==2?"sans-serif":n==3?"ReaderCustom,serif":"Tinos,serif";}
-  private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setView(input).setPositiveButton("Kiểm tra",(d,w)->{String value=input.getText().toString().trim();if(!value.startsWith("https://"))value="https://"+value;final String origin=value.replaceAll("/+$","");try{java.net.URI u=java.net.URI.create(origin);if(u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443)||!u.getPath().isEmpty())throw new Exception();}catch(Exception e){message("Chỉ nhập tên miền HTTPS, không có đường dẫn.");return;}task("Kiểm tra tên miền…",()->{String h=Repository.page(origin,false);if(!h.contains("Light Novel")&&!h.contains("HAKO"))throw new Exception("Không nhận diện trang HAKO");return null;},()->{Repository.cancel.set(true);HakoParser.ORIGIN=origin;prefs.edit().putString("origin",origin).apply();store.rebase(origin);message("Đã đổi tên miền. Đăng nhập lại nếu cần.");});}).setNegativeButton("Hủy",null).show();}
+  private void applyOrigin(String raw,boolean verify){
+    final String origin;try{origin=HakoParser.sanitizeOrigin(raw);}catch(Exception error){message("Tên miền HTTPS không hợp lệ.");return;}
+    taskOp("settings.domain","Đang áp dụng tên miền…",()->{
+      if(Repository.busy.get())throw new IOException("Đang có tác vụ HAKO. Tạm dừng tác vụ rồi đổi tên miền.");
+      Repository.init(this);
+      if(verify){try{String html=Repository.pageAt(origin,origin);if(!html.contains("Light Novel")&&!html.contains("HAKO"))throw new IOException("Không nhận diện HAKO. Có thể chọn Lưu và mở xác minh để kiểm tra trực tiếp.");}finally{GeckoClient.release();}}
+      if(!Repository.busy.compareAndSet(false,true))throw new IOException("Tác vụ HAKO vừa bắt đầu. Tạm dừng rồi thử lại.");
+      try{prefs.edit().putString("pending_origin",origin).commit();store.rebase(origin);LibraryState.refresh(this);}finally{Repository.busy.set(false);synchronized(Repository.busy){Repository.busy.notifyAll();}}
+      return null;
+    },()->{readyLibrary=LibraryState.peek();if(verify)message("Đã lưu tên miền. Mở Tài khoản để đăng nhập nếu cần.");else browse(origin+"/login");});
+  }
+  private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setMessage("Giữ miền hiện tại nếu vẫn dùng được. Nếu cần đăng nhập ở miền khác, lưu và mở xác minh trực tiếp; không cần miền cũ hoạt động.").setView(input).setPositiveButton("Kiểm tra và lưu",(d,w)->applyOrigin(input.getText().toString(),true)).setNeutralButton("Lưu và mở xác minh",(d,w)->applyOrigin(input.getText().toString(),false)).setNegativeButton("Hủy",null).show();}
   private void webViewInfo(){
     android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
     String info="Engine của app: GeckoView · "+appVersion()+"\nWebView hệ thống (app không dùng đăng nhập):\n"+
@@ -1683,7 +1663,7 @@ public class MainActivity extends Activity {
     if(req==91){GeckoClient.authenticating=false;GeckoClient.release();Repository.cancel.set(false);if(result==RESULT_OK&&data!=null){
       if(HakoParser.isOrigin(data.getStringExtra("url")))prefs.edit().remove("cooldownUntil").apply();
       final Intent returned=data;
-      task("Đang nhập lịch sử đọc…",()->{try{JSONArray list=new JSONArray(returned.getStringExtra("history"));for(int n=0;n<list.length();n++){JSONObject h=list.getJSONObject(n);String u=HakoParser.normalize(h.optString("series_url")),id=HakoParser.storyId(u),cid=HakoParser.chapterId(h.optString("chapter_url"));if(!id.isEmpty()&&!cid.isEmpty()){store.putBook(new HakoParser.Link(id,h.optString("series_title","Truyện"),u));store.importHistory(id,cid,h.optLong("read_time")*1000);}}}catch(Exception error){Diagnostics.failure("history.import",error);}return null;},()->{if(returned.getBooleanExtra("read",false)){String u=returned.getStringExtra("url");if(u!=null&&!HakoParser.storyId(HakoParser.storyUrl(u)).isEmpty())addUrl(u);else message("Mở truyện hoặc chương trước khi chọn Đọc offline.");}});
+      task("Đang nhập lịch sử đọc…",()->{String effective=returned.getStringExtra("url");if(effective!=null&&HakoParser.isOrigin(effective)){String origin=HakoParser.originOf(effective);if(!origin.equals(HakoParser.ORIGIN)){prefs.edit().putString("pending_origin",origin).commit();store.rebase(origin);}}try{JSONArray list=new JSONArray(returned.getStringExtra("history"));for(int n=0;n<list.length();n++){JSONObject h=list.getJSONObject(n);String u=HakoParser.normalize(h.optString("series_url")),id=HakoParser.storyId(u),cid=HakoParser.chapterId(h.optString("chapter_url"));if(!id.isEmpty()&&!cid.isEmpty()){store.putBook(new HakoParser.Link(id,h.optString("series_title","Truyện"),u));store.importHistory(id,cid,h.optLong("read_time")*1000);}}}catch(Exception error){Diagnostics.failure("history.import",error);}return null;},()->{if(returned.getBooleanExtra("read",false)){String u=returned.getStringExtra("url");if(u!=null&&!HakoParser.storyId(HakoParser.storyUrl(u)).isEmpty())addUrl(u);else message("Mở truyện hoặc chương trước khi chọn Đọc offline.");}});
     }return;}
 
     if (req == 88 && result == RESULT_OK && data != null) {
@@ -1990,4 +1970,3 @@ public class MainActivity extends Activity {
     return super.onKeyDown(key, event);
   }
 }
-

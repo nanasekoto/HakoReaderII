@@ -10,7 +10,7 @@ import org.jsoup.nodes.*;
 
 public final class Repository {
   private static Context app;
-  public static void init(Context c){app=c.getApplicationContext();syncPaused=c.getSharedPreferences("settings",0).getBoolean("sync_paused",false);GeckoClient.init(c);HakoParser.ORIGIN=c.getSharedPreferences("settings",0).getString("origin","https://docln.sbs");}
+  public static void init(Context c){String pending=c.getSharedPreferences("settings",0).getString("pending_origin","");if(!pending.isEmpty()&&android.os.Looper.myLooper()!=android.os.Looper.getMainLooper())Store.get(c).rebase(pending);app=c.getApplicationContext();syncPaused=c.getSharedPreferences("settings",0).getBoolean("sync_paused",false);GeckoClient.init(c);HakoParser.ORIGIN=c.getSharedPreferences("settings",0).getString("origin","https://docln.sbs");}
   public static volatile String activeBook="";
   private static final AtomicInteger requestedShelfScan=new AtomicInteger();
   public static void requestShelfScan(int mode){requestedShelfScan.set(mode);}
@@ -79,10 +79,11 @@ public final class Repository {
     return GeckoClient.request(url,null,max);
   }
 
-  public static String page(String u, boolean auth) throws Exception {
+  public static String page(String u, boolean auth) throws Exception {return pageAt(u,HakoParser.ORIGIN);}
+  public static String pageAt(String u,String origin) throws Exception {
     if(app==null)throw new IOException("Chưa khởi tạo app");
     String script="(function(){var t=document.title||'';if(/^(just a moment|attention required|access denied|503 service unavailable|too many requests)[.!… ]*$/i.test(t.trim())||document.querySelector('#challenge-form,.cf-browser-verification'))return JSON.stringify({error:'Trang yêu cầu xác minh hoặc đang giới hạn truy cập. Mở HAKO để kiểm tra.'});if(!document.body||!document.body.innerHTML.trim())return JSON.stringify({});return JSON.stringify({html:document.documentElement.outerHTML});})()";
-    return new String(GeckoClient.request(u,script,8*1024*1024),"UTF-8");
+    return new String(GeckoClient.request(u,script,8*1024*1024,origin),"UTF-8");
   }
 
   public static void importShelf(Context ctx) throws Exception {
@@ -119,11 +120,12 @@ public final class Repository {
       if(cancel.get()||syncPaused)throw new IOException("Đã tạm dừng cập nhật tủ sách");
       notify(ctx, "Đang nhập kệ sách • trang " + (done.size() + 1));
       UpdateReport.page(ctx);UpdateReport.log(ctx,"Kiểm tra trang "+(done.size()+1)+" tủ sách");
-      allowed(ctx);String html = page(next, true);
+      allowed(ctx);Map<String,Store.ReadRequest> readObservation=Store.get(ctx).readRequests();
+      String html = page(next, true);
       done.add(next);
       if (Jsoup.parse(html).selectFirst("input[type=password]") != null)
         throw new IOException("Hãy đăng nhập HAKO trước khi nhập kệ sách.");
-      List<HakoParser.Link> links = HakoParser.shelf(html, next);ReadSync.observeShelf(ctx,html);Diagnostics.count("shelf.page_parsed");for(HakoParser.Link ignored:links)Diagnostics.count("shelf.row_seen");
+      List<HakoParser.Link> links = HakoParser.shelf(html, next);ReadSync.observeShelf(ctx,html,readObservation);Diagnostics.count("shelf.page_parsed");for(HakoParser.Link ignored:links)Diagnostics.count("shelf.row_seen");
       if(links.isEmpty()&&!previousKeys.isEmpty())throw new IOException("Không đọc được danh sách tủ sách; đã giữ dữ liệu cũ");
       List<ShelfAnchor.Row> anchorRows=new ArrayList<>();
       for (HakoParser.Link l : links) {
@@ -603,4 +605,3 @@ public final class Repository {
     return true;
   }
 }
-

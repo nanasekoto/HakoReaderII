@@ -111,3 +111,7 @@ Shelf import observes real authenticated table rows: absent .mark-read retires t
 
 Canonical document identity uses series/chapter IDs rather than mutable slugs. Approved Hako redirects to a renamed slug/domain remain valid; stale different chapter replies are ignored. Same-identity reloading still uses a fresh session to prevent an old document reply. A redirected /login produces an immediate login error instead of waiting out extraction timeout. Sender origin validation remains separate; shelf pagination stays within the same action request. Parser tests cover identity/redirect boundaries.
 
+
+## 0.7.37 read-all/domain correction
+
+See [READ_SYNC_DOMAIN_0737](READ_SYNC_DOMAIN_0737.md) for current state transitions, source ownership, changed-ID metadata overlay, origin verification/rebase and rollback. Keep docln.sbs by default; no assumed outage. New readQueue report is bounded and manual-only.
