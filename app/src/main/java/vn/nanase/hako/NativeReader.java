@@ -259,7 +259,7 @@ public final class NativeReader extends View {
   Diagnostics.cpuEnd("reader.draw",cpuDraw);
  }
  public void turn(int direction){if(layout==null||pages.isEmpty())return;Diagnostics.readerInput();long cpuTurn=Diagnostics.cpuBegin();long turnStarted=Diagnostics.now();listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();long elapsed=Math.max(0,Diagnostics.now()-turnStarted);OperationTrace.pageTurn(elapsed);Diagnostics.pageTurn(turnStarted);Diagnostics.cpuEnd("reader.turn",cpuTurn);}
- public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
+ public void jump(boolean end){if(pages.isEmpty())return;listener.dismissToolbar();page=end?pages.size()-1:0;invalidate();publish();}
  public boolean onTouchEvent(MotionEvent e){
    if(touchLocked){
      // 100% IGNORE ALL TOUCH! Pure physical button reading

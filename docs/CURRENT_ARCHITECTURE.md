@@ -1,3 +1,7 @@
+## Hoàn thiện .38 theo kiểm toán Gemini
+
+Xem [GEMINI_REVIEW_IMPLEMENTATION_0738.md](GEMINI_REVIEW_IMPLEMENTATION_0738.md) cho state/feedback/navigation/offline/STOP và gate hiện hành.
+
 ## Batch 0.7.38 — nối UI và trạng thái xuyên luồng
 
 Xem [UI_UX_LINKS_0738.md](UI_UX_LINKS_0738.md) cho thay đổi, invariants, hot/background path, kiểm tra và giới hạn. Các mục lịch sử bên dưới phải đọc cùng quy tắc mới nhất.
