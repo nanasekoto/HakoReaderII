@@ -14,7 +14,7 @@ public final class ReadSync extends JobService {
   static JobInfo.Builder wifiJob(Context c,int id,Class<?> service){JobInfo.Builder b=new JobInfo.Builder(id,new ComponentName(c,service));if(Build.VERSION.SDK_INT>=28)b.setRequiredNetwork(new NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build());else b.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED);return b;}
   // Events wake one worker immediately; Job 42 is only the durable OS fallback.
   private static final Object gate=new Object();
-  private static boolean workerActive,demand;
+  private static boolean workerActive,demand,recheckRequested;
   interface Web {boolean connected(Context c);void catalog(Context c,Store.Book b)throws Exception;String action(Context c,String id)throws Exception;}
   static volatile Web web=new Web(){public boolean connected(Context c){return ReadSync.connected(c);}public void catalog(Context c,Store.Book b)throws Exception{Repository.catalog(c,b,true);}public String action(Context c,String id)throws Exception{return RenderedPage.action(c,HakoParser.ORIGIN+"/ke-sach","read:"+id.substring(id.lastIndexOf('-')+1));}};
   private static final ThreadLocal<java.util.concurrent.atomic.AtomicBoolean> stopped=new ThreadLocal<>();
@@ -22,14 +22,14 @@ public final class ReadSync extends JobService {
   public static void schedule(Context c){kick(c,"event");}
   public static void kick(Context context,String reason){
     Context c=context.getApplicationContext();
-    synchronized(gate){demand=true;if(workerActive)return;workerActive=true;}
+    synchronized(gate){demand=true;if("manual_caught_up".equals(reason)||"auth_return".equals(reason))recheckRequested=true;if(workerActive)return;workerActive=true;}
     new Thread(()->drain(c,null,"event:"+reason),"Hako read queue").start();
   }
   public static void ownerReleased(Context c,String reason){kick(c,reason);}
   private static void metric(Context c,String key,String value){c.getSharedPreferences("read_sync_status",0).edit().putString(key,value).apply();}
   private static void fallback(Context c,boolean retry){
     JobScheduler scheduler=c.getSystemService(JobScheduler.class);if(scheduler==null)return;
-    if(c.getSharedPreferences("settings",0).getBoolean("sync_paused",false)||Store.get(c).queuedBooks().isEmpty()){
+    if(c.getSharedPreferences("settings",0).getBoolean("sync_paused",false)||!hasRunnable(c)){
       if(stopped.get()==null)scheduler.cancel(42);return;
     }
     if(retry&&scheduler.getPendingJob(42)==null)scheduler.schedule(new JobInfo.Builder(42,new ComponentName(c,ReadSync.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setMinimumLatency(60000).setPersisted(true).setBackoffCriteria(60000,JobInfo.BACKOFF_POLICY_LINEAR).build());
@@ -38,7 +38,8 @@ public final class ReadSync extends JobService {
     if(token!=null)stopped.set(token);boolean retry=true;
     try{
       do{
-        synchronized(gate){demand=false;}
+        boolean recheck;synchronized(gate){demand=false;recheck=recheckRequested;recheckRequested=false;}
+        if(recheck)c.getSharedPreferences("read_sync_holds",0).edit().clear().apply();
         c.getSharedPreferences("read_sync_status",0).edit().putLong("lastScheduleAt",System.currentTimeMillis()).putString("lastScheduleReason",reason).putString("lastScheduleOutcome","kicked_worker").apply();
         fallback(c,true);retry=processPass(c);fallback(c,retry);
         synchronized(gate){if(!demand||isStopped())return retry;}
@@ -54,7 +55,7 @@ public final class ReadSync extends JobService {
   private static boolean isPaused(Context c){return c.getSharedPreferences("settings",0).getBoolean("sync_paused",false);}
   private static boolean isStopped(){java.util.concurrent.atomic.AtomicBoolean token=stopped.get();return token!=null&&token.get();}
   public static boolean process(Context c){synchronized(gate){if(workerActive){demand=true;return true;}workerActive=true;}return drain(c,null,"direct");}
-  private static String label(String state){switch(state){case "QUEUED":return "Đã đọc hết · Đã xếp hàng gửi HAKO";case "PAUSED":return "Đã đọc hết · Đồng bộ đang tạm dừng";case "WAIT_BUSY":return "Đã đọc hết · Chờ tác vụ HAKO kết thúc";case "LOCAL_ONLY":return "Đã đọc hết trên máy · Chưa theo dõi trên tủ sách HAKO";case "WAIT_NETWORK":return "Đã đọc hết · Chờ mạng để gửi HAKO";case "WAIT_VERIFY":return "Đã đọc hết · Đang chờ kiểm tra HAKO";case "NO_BUTTON":return "Đã đọc hết trên máy · HAKO không có nút Đọc hết";case "NEW_UNREAD":return "HAKO có chương mới · Chưa gửi Đọc hết";case "SENDING":return "Đang gửi Đọc hết lên HAKO";case "SENT":return "Đã đồng bộ đã đọc lên HAKO";default:return "Chờ gửi Đọc hết · Mở Tài khoản nếu cần đăng nhập/xác minh";}}
+  private static String label(String state){switch(state){case "WAIT_DATA":return "Đã đọc hết · Chờ đối chiếu dữ liệu (không tự tải lại)";case "QUEUED":return "Đã đọc hết · Đã xếp hàng gửi HAKO";case "PAUSED":return "Đã đọc hết · Đồng bộ đang tạm dừng";case "WAIT_BUSY":return "Đã đọc hết · Chờ tác vụ HAKO kết thúc";case "LOCAL_ONLY":return "Đã đọc hết trên máy · Chưa theo dõi trên tủ sách HAKO";case "WAIT_NETWORK":return "Đã đọc hết · Chờ mạng để gửi HAKO";case "WAIT_VERIFY":return "Đã đọc hết · Đang chờ kiểm tra HAKO";case "NO_BUTTON":return "Đã đọc hết trên máy · HAKO không có nút Đọc hết";case "NEW_UNREAD":return "HAKO có chương mới · Chưa gửi Đọc hết";case "SENDING":return "Đang gửi Đọc hết lên HAKO";case "SENT":return "Đã đồng bộ đã đọc lên HAKO";default:return "Chờ gửi Đọc hết · Mở Tài khoản nếu cần đăng nhập/xác minh";}}
   public static void publish(Context c,String id,String state,String reason){
     // Bounded durable business state, no titles, credentials or exception messages.
     Store.ReadRequest request=Store.get(c).readRequest(id);
@@ -91,20 +92,25 @@ public final class ReadSync extends JobService {
       else if(s.retireReadRequest(observed.get(row.id),true))publish(c,row.id,"NO_BUTTON","verified_shelf_row");
     }
   }
+  private static boolean held(Context c,Store.ReadRequest q){String expected=c.getSharedPreferences("read_sync_holds",0).getString(q.id,"");return !expected.isEmpty()&&expected.equals(Store.get(c).readSubmissionKey(q));}
+  private static boolean hasRunnable(Context c){for(Store.ReadRequest q:Store.get(c).readRequests().values())if(!held(c,q))return true;return false;}
+  private static void hold(Context c,Store.ReadRequest q,String reason){if(Store.get(c).sameReadRequest(q)){c.getSharedPreferences("read_sync_holds",0).edit().putString(q.id,Store.get(c).readSubmissionKey(q)).apply();publish(c,q.id,"WAIT_DATA",reason);}}
   private static boolean processPass(Context c){
     OperationTrace.Span trace=OperationTrace.begin("read.sync");boolean previous=RequestTurn.background.get();RequestTurn.background.set(true);String outcome="no_request";
     c.getSharedPreferences("read_sync_status",0).edit().putLong("lastProcessStartAt",System.currentTimeMillis()).apply();
     try{
-      Repository.init(c);Store s=Store.get(c);
+      Store s=Store.get(c);
       for(Store.ReadRequest q:s.readRequests().values())reconcile(c,q);
       if(s.queuedBooks().isEmpty()){outcome="no_eligible_after_reconcile";metric(c,"lastScheduleOutcome","skipped_empty");return false;}
+      if(!hasRunnable(c)){outcome="wait_data";return false;}
+      Repository.init(c);
       if(isPaused(c)){publishPending(c,"PAUSED","sync_paused");outcome="paused";metric(c,"lastScheduleOutcome","skipped_paused");return false;}
       if(isStopped()){outcome="stopped_by_os";return true;}
       if(GeckoClient.authenticating){publishPending(c,"WAIT_BUSY","interactive_login");outcome="wait_busy";return true;}
       if(!web.connected(c)){publishPending(c,"WAIT_NETWORK","network_unavailable");outcome="wait_network";return true;}
       synchronized(gate){if(!Repository.busy.compareAndSet(false,true)){publishPending(c,"WAIT_BUSY","repository_owner");outcome="wait_busy";metric(c,"lastScheduleOutcome","deferred_busy");return true;}}
       boolean finished=false;
-      try{Repository.cancel.set(false);boolean retry=processQueued(c);finished=!retry;outcome=isStopped()?"stopped_by_os":retry?"retry_io":"sent_all";return retry;}
+      try{Repository.cancel.set(false);boolean retry=processQueued(c);finished=!retry&&s.queuedBooks().isEmpty();outcome=isStopped()?"stopped_by_os":retry?"retry_pending":s.queuedBooks().isEmpty()?"sent_all":"wait_data";return retry;}
       finally{GeckoClient.release();Repository.syncState=finished?"COMPLETED":"WAITING";Repository.executionStage="IDLE";Repository.busy.set(false);synchronized(Repository.busy){Repository.busy.notifyAll();}Repository.resumePending(c);}
     }finally{
       c.getSharedPreferences("read_sync_status",0).edit().putLong("lastProcessEndAt",System.currentTimeMillis()).putString("lastProcessOutcome",outcome).apply();
@@ -118,14 +124,18 @@ public final class ReadSync extends JobService {
     for(Store.ReadRequest q:s.readRequests().values()){
       if(isStopped()||isPaused(c)||Repository.cancel.get()){retry=true;break;}
       String reconciled=reconcile(c,q);if("GONE".equals(reconciled)||"NEW_UNREAD".equals(reconciled)||"LOCAL_ONLY".equals(reconciled))continue;
-      q=s.readRequest(q.id);if(q==null)continue;Store.Book b=s.book(q.id);
+      q=s.readRequest(q.id);if(q==null||held(c,q))continue;Store.Book b=s.book(q.id);
       if(!web.connected(c)){publish(c,q.id,"WAIT_NETWORK","network_unavailable");retry=true;continue;}
       try{
         Repository.allowed(c);publish(c,q.id,"WAIT_VERIFY","fresh_catalog");attempt(c,q);web.catalog(c,b);
         if(isPaused(c)||Repository.cancel.get()||isStopped()){retry=true;break;}if(!s.sameReadRequest(q))continue;
-        if(!s.canSubmitServer(q.id)){
-          if(s.unread(q.id)>0&&s.retireReadRequest(q,false))publish(c,q.id,"NEW_UNREAD","fresh_catalog_has_new_text");
-          else {publish(c,q.id,"WAIT_RETRY","server_tip_unverified");retry=true;}continue;
+        String verification=s.verifyServerSubmission(q);
+        if(!"OK".equals(verification)){
+          if("REQUEST_CHANGED".equals(verification))continue;
+          if("NEW_UNREAD".equals(verification)){if(s.retireReadRequest(q,false))publish(c,q.id,"NEW_UNREAD","fresh_catalog_has_new_text");}
+          else if("CATALOG_FAILED".equals(verification)){publish(c,q.id,"WAIT_RETRY",verification);retry=true;}
+          else hold(c,q,verification);
+          continue;
         }
         if(isStopped()||isPaused(c)||Repository.cancel.get()){retry=true;break;}
         publish(c,q.id,"SENDING","verified_tip");
@@ -138,7 +148,7 @@ public final class ReadSync extends JobService {
         if(retired&&s.unread(q.id)>0)publish(c,q.id,"NEW_UNREAD","post_action_new_text");
       }catch(Exception e){retry|=s.sameReadRequest(q);if(s.sameReadRequest(q))publish(c,q.id,"WAIT_RETRY",e.getClass().getSimpleName());Diagnostics.failure("read.sync",e);}
     }
-    return retry||!s.queuedBooks().isEmpty();
+    return retry||hasRunnable(c);
   }
   public boolean onStartJob(JobParameters p){
     java.util.concurrent.atomic.AtomicBoolean token=new java.util.concurrent.atomic.AtomicBoolean();

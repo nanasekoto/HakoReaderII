@@ -65,7 +65,7 @@ public final class Store extends SQLiteOpenHelper {
     }finally{d.endTransaction();}
   }
   public boolean remoteReadEligible(String id){Book b=book(id);return b!=null&&b.followed&&!id.equals("demo")&&!HakoParser.storyId(HakoParser.storyUrl(b.url)).isEmpty();}
-  public synchronized void queueIfAllRead(String id){if(remoteReadEligible(id)&&!chapters(id).isEmpty()&&unread(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
+  public synchronized void queueIfAllRead(String id){if(remoteReadEligible(id)&&!chapters(id).isEmpty()&&unread(id)==0){queueCaughtUp(id);}}
 
   public synchronized void establishReadBaseline(String id){
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
@@ -206,7 +206,7 @@ public final class Store extends SQLiteOpenHelper {
     return completedTip(id).equals(queuedTip(id));
   }
   public void extendQueueIfCaughtUp(String id){if(queued(id)&&!canSubmit(id)&&unread(id)==0)queueCaughtUp(id);}
-  public void clearQueue(String id){context.getSharedPreferences("read_queue",0).edit().remove(id).commit();}
+  public void clearQueue(String id){context.getSharedPreferences("read_queue",0).edit().remove(id).commit();context.getSharedPreferences("read_sync_holds",0).edit().remove(id).apply();}
   public int totalOfflinePercent(){int total=0,done=0;boolean unknown=false;for(Book b:books())if(syncTarget(b)){BookProgress p=progress(b);if(p.totalChs==0)unknown=true;total+=p.newChsTotal;done+=p.newChsDownloaded;}return unknown?0:total==0?100:Math.min(done==total?100:99,Math.round(done*100f/total));}
   public static class BookProgress {
     public final int totalChs;
@@ -414,14 +414,28 @@ public final class Store extends SQLiteOpenHelper {
   public boolean isHidden(String book,String chapter){
     return context.getSharedPreferences("settings",0).getStringSet("hidden_chapters_"+book,Collections.emptySet()).contains(chapter);
   }
-  public boolean canSubmitServer(String book){
+  public boolean canSubmitServer(String book){return "OK".equals(verifyServerSubmission(readRequest(book)));}
+  public synchronized String verifyServerSubmission(ReadRequest q){
+    if(!sameReadRequest(q))return "REQUEST_CHANGED";
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
+    if(prefs.getBoolean("catalog_failed_"+q.id,true))return "CATALOG_FAILED";
     try{
-      org.json.JSONArray serverJson=new org.json.JSONArray(prefs.getString("server_catalog_"+book,"[]"));
-      List<String> server=new ArrayList<>();Set<String> seen=new HashSet<>();Map<String,Chapter> known=new HashMap<>();for(Chapter ch:chapters(book))known.put(ch.id,ch);
-      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);if(id.isEmpty()||!seen.add(id))return false;Chapter ch=known.get(id);if(ch==null||!book.equals(ch.book))return false;if(!ignoredForReading(ch))server.add(id);}
-      return ReadPolicy.canSubmitAtTip(server,queuedTip(book),completedTip(book),!prefs.getBoolean("catalog_failed_"+book,true));
-    }catch(Exception e){return false;}
+      List<Chapter> all=chapters(q.id);Map<String,Chapter> known=new HashMap<>();for(Chapter ch:all)known.put(ch.id,ch);
+      org.json.JSONArray serverJson=new org.json.JSONArray(prefs.getString("server_catalog_"+q.id,"[]"));
+      List<String> text=new ArrayList<>();Set<String> seen=new HashSet<>();
+      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);if(id.isEmpty()||!seen.add(id))return "INVALID_SERVER_IDS";Chapter ch=known.get(id);if(ch==null||!q.id.equals(ch.book))return "UNKNOWN_SERVER_CHAPTER";if(!ignoredForReading(ch))text.add(id);}
+      org.json.JSONArray queued=new org.json.JSONArray(q.payload);Set<String> snapshot=new HashSet<>();for(int i=0;i<queued.length();i++){String id=queued.getString(i);if(id.isEmpty()||!snapshot.add(id))return "INVALID_SNAPSHOT";}
+      return ReadPolicy.verifySubmission(text,readingIds(q.id,all),snapshot,q.tip,completedTip(q.id),true);
+    }catch(org.json.JSONException e){return "INVALID_CATALOG_OR_SNAPSHOT";}
+  }
+  /** Only event-time metadata is hashed; never reads chapter HTML or scans files. */
+  public synchronized String readSubmissionKey(ReadRequest q){
+    if(q==null||!sameReadRequest(q))return "gone";
+    android.content.SharedPreferences p=context.getSharedPreferences("settings",0);List<Chapter> all=chapters(q.id);
+    StringBuilder data=new StringBuilder(q.generation).append('|').append(q.tip).append('|').append(q.payload).append('|').append(completedTip(q.id)).append('|').append(p.getString("server_catalog_"+q.id,"[]")).append('|').append(p.getBoolean("catalog_failed_"+q.id,true));
+    for(String id:new TreeSet<>(readingIds(q.id,all)))data.append('|').append(id);
+    for(Chapter ch:all)data.append('|').append(ch.id).append(':').append(ignoredForReading(ch)?1:0);
+    try{byte[] bytes=java.security.MessageDigest.getInstance("SHA-256").digest(data.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));StringBuilder hex=new StringBuilder();String digits="0123456789abcdef";for(byte value:bytes){hex.append(digits.charAt((value&255)>>>4));hex.append(digits.charAt(value&15));}return hex.toString();}catch(java.security.NoSuchAlgorithmException e){throw new IllegalStateException(e);}
   }
 
   public synchronized List<Chapter> chapters(String book) {

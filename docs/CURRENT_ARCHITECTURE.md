@@ -1,3 +1,6 @@
+# Read-all verification update 0.7.40
+Current proof and retry invalidation: [READ_PROOF_0740.md](READ_PROOF_0740.md). This supersedes .39 last-element tip verification; event handoff and other workflows remain.
+
 # Read-all queue update 0.7.39
 Current queue ownership, events, telemetry and invariants: [READ_QUEUE_0739.md](READ_QUEUE_0739.md). Other workflows below remain unchanged.
 
