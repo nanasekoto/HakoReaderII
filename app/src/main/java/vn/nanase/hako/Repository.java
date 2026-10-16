@@ -29,7 +29,7 @@ public final class Repository {
     syncPaused=paused;c.getSharedPreferences("settings",0).edit().putBoolean("sync_paused",paused).commit();
     if(paused){savePausedRequests(c);cancel.set(true);pendingAll=false;pendingPersonal=false;clearBook();c.getSystemService(android.app.job.JobScheduler.class).cancel(42);}
     ChargeJob.schedule(c,!paused&&c.getSharedPreferences("settings",0).getBoolean("charging",true));
-    if(!paused)ReadSync.schedule(c);
+    ReadSync.kick(c,paused?"pause":"resume");
     notify(c,paused?"Đã tạm dừng đồng bộ · Dữ liệu tải được giữ nguyên":"Đã tiếp tục đồng bộ");
   }
   private static void savePausedRequests(Context c){android.content.SharedPreferences.Editor saved=c.getSharedPreferences("paused_requests",0).edit();
@@ -220,10 +220,16 @@ public final class Repository {
     return s.book(id);
   }
 
+  /** Shelf failure must not suppress per-title read verification; preserve the shelf exception. */
+  private static void importShelfWithReadQueue(Context c)throws Exception{
+    try{importShelf(c);}finally{
+      if(!syncPaused&&!cancel.get())try{ReadSync.processQueued(c);}catch(Exception e){Diagnostics.failure("read.sync.after_shelf",e);}
+    }
+  }
   public static void refreshForReading(Context c,Store.Book b)throws Exception{
     while(true){awaitIdle();if(busy.compareAndSet(false,true))break;}
     try{init(c);allowed(c);catalog(c,b,true);}
-    finally{GeckoClient.release();busy.set(false);synchronized(busy){busy.notifyAll();}resumePending(c);}
+    finally{GeckoClient.release();busy.set(false);synchronized(busy){busy.notifyAll();}resumePending(c);ReadSync.ownerReleased(c,"after_refresh_for_reading");}
   }
 
   private static int shelfCount(String value){try{return Integer.parseInt(value.trim().split("\\s+")[0]);}catch(Exception e){return -1;}}
@@ -398,7 +404,7 @@ public final class Repository {
     try {
       allowed(ctx);
       Store s = Store.get(ctx);
-      if(mode==MODE_SYNC_LIBRARY){importShelf(ctx);ReadSync.processQueued(ctx);}
+      if(mode==MODE_SYNC_LIBRARY){importShelfWithReadQueue(ctx);}
       ArrayList<Store.Book> todo = new ArrayList<>();
       Map<String,Integer> requestModes=new HashMap<>();
 
@@ -428,7 +434,7 @@ public final class Repository {
           int requested=pendingAll?MODE_SYNC_LIBRARY:MODE_SYNC_PERSONAL;
           if(pendingAll)pendingAll=false;else pendingPersonal=false;librarySync=true;currentMode=requested;
           // A refresh request preempts the bulk queue after the current chapter.
-          if(requested==MODE_SYNC_LIBRARY){importShelf(ctx);ReadSync.processQueued(ctx);}refreshedCatalogs.clear();todo.clear();requestModes.clear();ledger.clear();syncTotal=0;syncDone=0;
+          if(requested==MODE_SYNC_LIBRARY){importShelfWithReadQueue(ctx);}refreshedCatalogs.clear();todo.clear();requestModes.clear();ledger.clear();syncTotal=0;syncDone=0;
           for(Store.Book candidate:LibraryState.refresh(ctx).books){
             if(candidate.id.equals("demo")||candidate.dropped)continue;
             if(inScope(s,candidate,requested)&&(requested==MODE_SYNC_PERSONAL||s.syncTarget(candidate)||candidate.id.equals(activeBook))){todo.add(candidate);requestModes.put(candidate.id,requested);}
@@ -577,14 +583,14 @@ public final class Repository {
       if("CHECKING".equals(syncState)||"SHELF".equals(syncState)||"DOWNLOADING".equals(syncState))syncState="INCOMPLETE";
       if("COMPLETED".equals(syncState))syncPct=100;else syncPct=Math.min(99,DownloadLedger.percent(syncDone,syncTotal));
       ctx.getSharedPreferences("settings",0).edit().putInt("last_download_percent_v2",syncPct).apply();
-      executionStage="IDLE";Diagnostics.activityEvent();GeckoClient.release();busy.set(false);
-      ReadSync.schedule(ctx);
-      synchronized(busy){busy.notifyAll();}
+      executionStage="IDLE";Diagnostics.activityEvent();GeckoClient.release();
       if(cancel.get()){clearBook();pendingAll=false;pendingPersonal=false;}else if(syncPaused&&!explicitFull.get()){if(queuedBookMode()!=MODE_BOOK_ALL)clearBook();pendingAll=false;pendingPersonal=false;}
       runStopRevision.remove();explicitFull.remove();currentDownloadBook="";manualOverride = false;
       isSyncing = false;
       notify(ctx,acceptedStop!=stopRevision.get()?"Đã dừng tải theo yêu cầu":syncPaused?(mode==MODE_BOOK_ALL&&"COMPLETED".equals(syncState)?"Đã tải full · Tác vụ nền vẫn tạm dừng":"Đã tạm dừng lượt cập nhật"):!"COMPLETED".equals(syncState)?"Lượt cập nhật chưa hoàn tất · Xem Chi tiết cập nhật":"Đã hoàn tất lượt cập nhật · Ảnh thiếu xem riêng");
       UpdateReport.finish(ctx);
+      busy.set(false);synchronized(busy){busy.notifyAll();}
+      ReadSync.ownerReleased(ctx,mode==MODE_SYNC_LIBRARY?"after_shelf_update":"after_repository_run");
       if(!syncPaused&&!downloadCancelled()){if(!ctx.getSharedPreferences("paused_requests",0).getAll().isEmpty())restorePausedRequests(ctx);else resumePending(ctx);}
     }
   }finally{RequestTurn.background.set(previousBackground);OperationTrace.end(trace,"closed",0);}}

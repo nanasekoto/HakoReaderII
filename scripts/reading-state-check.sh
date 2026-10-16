@@ -25,12 +25,13 @@ adb install -r build/test-android/tests.apk
 adb shell svc wifi disable
 adb shell svc data disable
 for phase in targeted remaining; do
-  if [ "$phase" = targeted ]; then suites="UxLinkTest TocWorkflowTest FeatureFlowTest"; else suites="ImageCacheTest ReadingStateTest UnreadStateTest SequentialReadTest LibraryStateTest QueueResponsivenessTest BatchWorkflowTest WorkflowDiagnosticsTest SyncDomainTest"; fi
+  if [ "$phase" = targeted ]; then suites="ReadQueueWorkflowTest UxLinkTest TocWorkflowTest FeatureFlowTest"; else suites="ImageCacheTest ReadingStateTest UnreadStateTest SequentialReadTest LibraryStateTest QueueResponsivenessTest BatchWorkflowTest WorkflowDiagnosticsTest SyncDomainTest"; fi
   echo "Validation phase: $phase"
   for test in $suites; do
   adb shell am force-stop vn.nanase.hako
   adb shell pm clear vn.nanase.hako
-  timeout 180 adb shell am instrument -w "vn.nanase.hako.tests/vn.nanase.hako.tests.$test" | tee "build/evidence/$test.txt"
+  class="vn.nanase.hako.tests.$test"; if [ "$test" = ReadQueueWorkflowTest ]; then class="vn.nanase.hako.$test"; fi
+  timeout 180 adb shell am instrument -w "vn.nanase.hako.tests/$class" | tee "build/evidence/$test.txt"
   grep -q 'PASS TOTAL' "build/evidence/$test.txt"
   if [ "$test" = WorkflowDiagnosticsTest ]; then adb exec-out run-as vn.nanase.hako cat files/main-page.png > build/evidence/main-page.png; fi
   if [ "$test" = FeatureFlowTest ]; then

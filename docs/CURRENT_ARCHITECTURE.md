@@ -1,3 +1,6 @@
+# Read-all queue update 0.7.39
+Current queue ownership, events, telemetry and invariants: [READ_QUEUE_0739.md](READ_QUEUE_0739.md). Other workflows below remain unchanged.
+
 ## Hoàn thiện .38 theo kiểm toán Gemini
 
 Xem [GEMINI_REVIEW_IMPLEMENTATION_0738.md](GEMINI_REVIEW_IMPLEMENTATION_0738.md) cho state/feedback/navigation/offline/STOP và gate hiện hành.

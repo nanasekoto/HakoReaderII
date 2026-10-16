@@ -174,6 +174,20 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized Map<String,ReadRequest> readRequests(){Map<String,ReadRequest> all=new HashMap<>();for(String id:queuedBooks())all.put(id,readRequest(id));return all;}
   public synchronized boolean sameReadRequest(ReadRequest request){if(request==null)return false;ReadRequest now=readRequest(request.id);return now!=null&&request.payload.equals(now.payload)&&request.tip.equals(now.tip)&&request.generation.equals(now.generation);}
   public synchronized boolean retireReadRequest(ReadRequest request,boolean noButton){if(!sameReadRequest(request))return false;if(noButton)context.getSharedPreferences("settings",0).edit().putString("read_no_button_tip_"+request.id,request.tip).commit();clearQueue(request.id);return true;}
+  /** Local cleanup is generation-guarded and never treats stale membership as server evidence. */
+  public synchronized String reconcileReadRequest(ReadRequest q){
+    if(!sameReadRequest(q))return "GONE";
+    Book b=book(q.id);
+    if(b==null||"demo".equals(q.id)||HakoParser.storyId(HakoParser.storyUrl(b.url)).isEmpty()){retireReadRequest(q,false);return "LOCAL_ONLY";}
+    if(chapters(q.id).isEmpty())return "WAIT_CATALOG";
+    if(unread(q.id)>0){retireReadRequest(q,false);return "NEW_UNREAD";}
+    if(!canSubmit(q.id)&&remoteReadEligible(q.id)){
+      String tip=completedTip(q.id);int old=-1,now=-1,i=0;
+      for(Chapter ch:chapters(q.id)){if(ch.id.equals(q.tip))old=i;if(ch.id.equals(tip))now=i;i++;}
+      if(old>=0&&now>old){queueCaughtUp(q.id);return sameReadRequest(q)?"WAIT_CATALOG":"EXTENDED";}
+    }
+    return canSubmit(q.id)?"ELIGIBLE":"WAIT_CATALOG";
+  }
   public synchronized void noReadButton(String id){retireReadRequest(readRequest(id),true);}
   public synchronized void readButtonReturned(String id){
     android.content.SharedPreferences p=context.getSharedPreferences("settings",0);
