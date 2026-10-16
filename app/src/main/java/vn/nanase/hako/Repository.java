@@ -254,8 +254,13 @@ public final class Repository {
     if (ls.isEmpty()) throw new IOException("Mục lục trống: " + b.title);
     Store.get(c).catalog(b.id, ls);
     Store.get(c).establishReadBaseline(b.id);
-    c.getSharedPreferences("settings",0).edit().putLong("catalog-"+b.id,System.currentTimeMillis()).putString("catalog_shelf_key_"+b.id,shelfKey).remove("shelf_changed_"+b.id).remove("catalog_failed_"+b.id).commit();
+    catalogVerified(c,b.id,shelfKey);
     LibraryState.changed(c,b.id,true);
+  }
+
+  /** Explicit success: absent flag means unverified, never successful by omission. */
+  static void catalogVerified(Context c,String book,String shelfKey){
+    c.getSharedPreferences("settings",0).edit().putLong("catalog-"+book,System.currentTimeMillis()).putString("catalog_shelf_key_"+book,shelfKey).remove("shelf_changed_"+book).putBoolean("catalog_failed_"+book,false).commit();
   }
 
   public static void download(Context ctx, Store.Chapter c) throws Exception {

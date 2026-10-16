@@ -2,6 +2,10 @@
 
 Baseline: dc30111acfe5668886fe91b69d3e14d9ada7e6b2 (.39/code55). Version .40/code56. Input: TONG_HOP_LOI_0.7.39_GUI_GPT.md. No UI layout or download-scope change.
 
+## Real catalog-success contract corrected
+
+Repository.catalog used to remove catalog_failed after success, while Store defaulted absent catalog_failed to true. Thus real successful web fetches could never pass verification; the .39 fake transport masked this by explicitly writing false. Repository.catalog now calls catalogVerified, which persists catalog_failed=false (along with existing catalog timestamp/shelf key). Missing and failed markers remain conservatively unverified. The integration transport now uses this same production success writer, with explicit failed->success->absent regression checks. This fixes a concrete producer/consumer mismatch in addition to catalog-order proof, not just test expectations.
+
 ## Current send path
 
 Existing event admission/Repository.busy/Job42 handoff retained. Reconcile queue -> skip unchanged held request -> fresh per-title catalog -> verifyServerSubmission(captured request) -> recheck generation/pause/stop -> verified web action -> generation-guarded retirement. No button retains same-tip suppression. Same-signature no-button/real network evidence remains required; no invented SENT.
