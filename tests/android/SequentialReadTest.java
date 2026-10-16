@@ -20,7 +20,7 @@ public final class SequentialReadTest extends Instrumentation {
     Context ctx=getTargetContext();Store s=Store.get(ctx);android.content.SharedPreferences prefs=ctx.getSharedPreferences("settings",0);
     prefs.edit().putString("origin","https://invalid.example").putBoolean("charging",false).putBoolean("sync_paused",true).commit();HakoParser.ORIGIN="https://invalid.example";
     String book="truyen-999003",base="https://invalid.example/truyen/999003-fixture";
-    s.putBook(new HakoParser.Link(book,"Sequential fixture",base));s.visited(book);s.setKeepFull(book,true);
+    s.putBook(new HakoParser.Link(book,"Sequential fixture",base));s.visited(book);s.followed(book,true,0);s.setKeepFull(book,true);
     List<HakoParser.Link> links=new ArrayList<>();
     for(int n=1;n<=5;n++)links.add(new HakoParser.Link(book+"-"+n,n==1||n==4?"Tập 1 · Minh họa":"Tập 1 · Chương "+(n==2?1:n==3?2:3),base+"/c"+n));
     s.catalog(book,links);
@@ -60,4 +60,3 @@ public final class SequentialReadTest extends Instrumentation {
     result.putString("stream","PASS TOTAL "+checks+" sequential reading checks\n");finish(0,result);
   }catch(Throwable e){result.putString("stream","FAIL "+e+"\n");finish(1,result);}}
 }
-
