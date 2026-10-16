@@ -1,3 +1,17 @@
+# Read-all verification update 0.7.40
+Current proof and retry invalidation: [READ_PROOF_0740.md](READ_PROOF_0740.md). This supersedes .39 last-element tip verification; event handoff and other workflows remain.
+
+# Read-all queue update 0.7.39
+Current queue ownership, events, telemetry and invariants: [READ_QUEUE_0739.md](READ_QUEUE_0739.md). Other workflows below remain unchanged.
+
+## Hoàn thiện .38 theo kiểm toán Gemini
+
+Xem [GEMINI_REVIEW_IMPLEMENTATION_0738.md](GEMINI_REVIEW_IMPLEMENTATION_0738.md) cho state/feedback/navigation/offline/STOP và gate hiện hành.
+
+## Batch 0.7.38 — nối UI và trạng thái xuyên luồng
+
+Xem [UI_UX_LINKS_0738.md](UI_UX_LINKS_0738.md) cho thay đổi, invariants, hot/background path, kiểm tra và giới hạn. Các mục lịch sử bên dưới phải đọc cùng quy tắc mới nhất.
+
 # Current architecture — 0.7.30 UI and bounded automatic download batch
 
 Baseline: 0.7.22 commit 2abfca4a8ab22ef89d66338769039b3786cb9a32. Current operating addendum is this file, SNAPSHOT_STARTUP_0722.md and sequential-progress rules; older README/0.7.15 diagrams are historical.
@@ -111,3 +125,7 @@ Shelf import observes real authenticated table rows: absent .mark-read retires t
 
 Canonical document identity uses series/chapter IDs rather than mutable slugs. Approved Hako redirects to a renamed slug/domain remain valid; stale different chapter replies are ignored. Same-identity reloading still uses a fresh session to prevent an old document reply. A redirected /login produces an immediate login error instead of waiting out extraction timeout. Sender origin validation remains separate; shelf pagination stays within the same action request. Parser tests cover identity/redirect boundaries.
 
+
+## 0.7.37 read-all/domain correction
+
+See [READ_SYNC_DOMAIN_0737](READ_SYNC_DOMAIN_0737.md) for current state transitions, source ownership, changed-ID metadata overlay, origin verification/rebase and rollback. Keep docln.sbs by default; no assumed outage. New readQueue report is bounded and manual-only.

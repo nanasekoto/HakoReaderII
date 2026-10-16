@@ -10,9 +10,8 @@ classpath="libs/jsoup.jar:$classes"
 for test in ParserTest FixTest ShelfFeatureTest; do
   java -cp "$classpath" "$test"
 done
-for test in ReadingNavigationTest CachePolicyTest DownloadLedgerTest DownloadScopeTest DownloadPriorityTest ShelfAnchorTest ReadingRangeTest ShelfPagePolicyTest HoldKeyTest PolicyIntegrityTest IllustrationPolicyTest BatchWindowTest RequestTurnTest; do
+for test in ReadingNavigationTest CachePolicyTest DownloadLedgerTest DownloadScopeTest DownloadPriorityTest ShelfAnchorTest ReadingRangeTest ShelfPagePolicyTest HoldKeyTest PolicyIntegrityTest OriginPolicyTest IllustrationPolicyTest BatchWindowTest RequestTurnTest; do
   java -cp "$classpath" "vn.nanase.hako.$test"
 done
 node --check app/src/main/assets/extract.js
 node --check app/src/main/assets/gecko-bridge/bridge.js
-

@@ -25,6 +25,7 @@ public final class Store extends SQLiteOpenHelper {
   private final java.util.concurrent.ConcurrentHashMap<String,String> chapterTitles=new java.util.concurrent.ConcurrentHashMap<>();
   private final java.util.concurrent.atomic.AtomicLong readingRevision=new java.util.concurrent.atomic.AtomicLong();
   public long readingRevision(){return readingRevision.get();}
+  private void bookMetadataChanged(String id){LibraryState.changed(context,id,false);TocState.metadataChanged(book(id));}
   private void displayChanged(String id,boolean recount){LibraryState.changed(context,id,recount);TocState.changed(context,id);}
 
   private Store(Context c) {
@@ -63,7 +64,8 @@ public final class Store extends SQLiteOpenHelper {
       d.setTransactionSuccessful();
     }finally{d.endTransaction();}
   }
-  public synchronized void queueIfAllRead(String id){if(!chapters(id).isEmpty()&&unread(id)==0){if(!canSubmit(id))queueCaughtUp(id);}}
+  public boolean remoteReadEligible(String id){Book b=book(id);return b!=null&&b.followed&&!id.equals("demo")&&!HakoParser.storyId(HakoParser.storyUrl(b.url)).isEmpty();}
+  public synchronized void queueIfAllRead(String id){if(remoteReadEligible(id)&&!chapters(id).isEmpty()&&unread(id)==0){queueCaughtUp(id);}}
 
   public synchronized void establishReadBaseline(String id){
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
@@ -150,6 +152,7 @@ public final class Store extends SQLiteOpenHelper {
   public boolean queued(String id){return context.getSharedPreferences("read_queue",0).contains(id);}
   public synchronized void queueCaughtUp(String id){queueCaughtUp(id,false);}
   public synchronized void queueCaughtUp(String id,boolean acceptIllustrations){
+    if(!remoteReadEligible(id))return;
     if(chapters(id).isEmpty()||unread(id)>0)throw new IllegalStateException("Chỉ đồng bộ đọc hết sau khi đã đọc hết các chương offline");
     if(completedTip(id).equals(context.getSharedPreferences("settings",0).getString("read_no_button_tip_"+id,"!")))return;
     context.getSharedPreferences("settings",0).edit().putBoolean("read_baseline_"+id,true).commit();
@@ -157,11 +160,41 @@ public final class Store extends SQLiteOpenHelper {
     SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{for(Chapter c:chapters(id)){ids.put(c.id);}d.setTransactionSuccessful();}finally{d.endTransaction();}
     if(ids.length()==0)throw new IllegalStateException("Chưa có mục lục để xác nhận đã đọc");
     String tip=completedTip(id);if(tip.isEmpty())throw new IllegalStateException("Chưa có mốc chương đã đọc hết");
-    context.getSharedPreferences("settings",0).edit().putString("read_queue_tip_"+id,tip).commit();
-    if(!context.getSharedPreferences("read_queue",0).edit().putString(id,ids.toString()).commit())throw new IllegalStateException("Không lưu được hàng chờ");
+    String payload=ids.toString();
+    android.content.SharedPreferences queues=context.getSharedPreferences("read_queue",0);
+    if(payload.equals(queues.getString(id,""))&&tip.equals(queuedTip(id)))return;
+    context.getSharedPreferences("settings",0).edit().putString("read_queue_tip_"+id,tip).putString("read_queue_generation_"+id,UUID.randomUUID().toString()).commit();
+    if(!queues.edit().putString(id,payload).commit())throw new IllegalStateException("Không lưu được hàng chờ");
   }
-  public synchronized void noReadButton(String id){context.getSharedPreferences("settings",0).edit().putString("read_no_button_tip_"+id,completedTip(id)).commit();clearQueue(id);}
-  public void readButtonReturned(String id){context.getSharedPreferences("settings",0).edit().remove("read_no_button_tip_"+id).apply();}
+  public static final class ReadRequest {
+    public final String id,payload,tip,generation;
+    ReadRequest(String id,String payload,String tip,String generation){this.id=id;this.payload=payload;this.tip=tip;this.generation=generation;}
+  }
+  public synchronized ReadRequest readRequest(String id){if(!queued(id))return null;return new ReadRequest(id,context.getSharedPreferences("read_queue",0).getString(id,""),queuedTip(id),context.getSharedPreferences("settings",0).getString("read_queue_generation_"+id,"legacy"));}
+  public synchronized Map<String,ReadRequest> readRequests(){Map<String,ReadRequest> all=new HashMap<>();for(String id:queuedBooks())all.put(id,readRequest(id));return all;}
+  public synchronized boolean sameReadRequest(ReadRequest request){if(request==null)return false;ReadRequest now=readRequest(request.id);return now!=null&&request.payload.equals(now.payload)&&request.tip.equals(now.tip)&&request.generation.equals(now.generation);}
+  public synchronized boolean retireReadRequest(ReadRequest request,boolean noButton){if(!sameReadRequest(request))return false;if(noButton)context.getSharedPreferences("settings",0).edit().putString("read_no_button_tip_"+request.id,request.tip).commit();clearQueue(request.id);return true;}
+  /** Local cleanup is generation-guarded and never treats stale membership as server evidence. */
+  public synchronized String reconcileReadRequest(ReadRequest q){
+    if(!sameReadRequest(q))return "GONE";
+    Book b=book(q.id);
+    if(b==null||"demo".equals(q.id)||HakoParser.storyId(HakoParser.storyUrl(b.url)).isEmpty()){retireReadRequest(q,false);return "LOCAL_ONLY";}
+    if(chapters(q.id).isEmpty())return "WAIT_CATALOG";
+    if(unread(q.id)>0){retireReadRequest(q,false);return "NEW_UNREAD";}
+    if(!canSubmit(q.id)&&remoteReadEligible(q.id)){
+      String tip=completedTip(q.id);int old=-1,now=-1,i=0;
+      for(Chapter ch:chapters(q.id)){if(ch.id.equals(q.tip))old=i;if(ch.id.equals(tip))now=i;i++;}
+      if(old>=0&&now>old){queueCaughtUp(q.id);return sameReadRequest(q)?"WAIT_CATALOG":"EXTENDED";}
+    }
+    return canSubmit(q.id)?"ELIGIBLE":"WAIT_CATALOG";
+  }
+  public synchronized void noReadButton(String id){retireReadRequest(readRequest(id),true);}
+  public synchronized void readButtonReturned(String id){
+    android.content.SharedPreferences p=context.getSharedPreferences("settings",0);
+    if(!p.contains("read_no_button_tip_"+id))return;
+    p.edit().remove("read_no_button_tip_"+id).commit();
+    if(!completedTip(id).isEmpty()&&unread(id)==0)queueIfAllRead(id);
+  }
   public Set<String> queuedBooks(){return new HashSet<>(context.getSharedPreferences("read_queue",0).getAll().keySet());}
   private String queuedTip(String book){
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);String tip=prefs.getString("read_queue_tip_"+book,"");if(!tip.isEmpty())return tip;
@@ -173,7 +206,7 @@ public final class Store extends SQLiteOpenHelper {
     return completedTip(id).equals(queuedTip(id));
   }
   public void extendQueueIfCaughtUp(String id){if(queued(id)&&!canSubmit(id)&&unread(id)==0)queueCaughtUp(id);}
-  public void clearQueue(String id){context.getSharedPreferences("read_queue",0).edit().remove(id).commit();}
+  public void clearQueue(String id){context.getSharedPreferences("read_queue",0).edit().remove(id).commit();context.getSharedPreferences("read_sync_holds",0).edit().remove(id).apply();}
   public int totalOfflinePercent(){int total=0,done=0;boolean unknown=false;for(Book b:books())if(syncTarget(b)){BookProgress p=progress(b);if(p.totalChs==0)unknown=true;total+=p.newChsTotal;done+=p.newChsDownloaded;}return unknown?0:total==0?100:Math.min(done==total?100:99,Math.round(done*100f/total));}
   public static class BookProgress {
     public final int totalChs;
@@ -258,15 +291,15 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void replaceShelf(List<HakoParser.Link> links){SQLiteDatabase d=getWritableDatabase();d.beginTransaction();try{Set<String> seen=new HashSet<>();for(HakoParser.Link link:links)seen.add(link.id);for(Book old:shelfBooks())if(!seen.contains(old.id))followed(old.id,false,999999);mergeShelf(links,0);d.setTransactionSuccessful();}finally{d.endTransaction();}}
   public synchronized void importHistory(String id,String chapter,long stamp){displayChanged(id,true);Book b=book(id);if(b==null||stamp<=b.stamp)return;ContentValues v=new ContentValues();v.put("current",chapter);v.put("stamp",stamp);v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{id});readingRevision.incrementAndGet();}
   public synchronized void selectChapter(String id,String chapter){displayChanged(id,true);Book b=book(id);if(b!=null&&!chapter.equals(b.current)){ContentValues v=new ContentValues();v.put("current",chapter);v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{id});readingRevision.incrementAndGet();}}
-  public synchronized void visited(String id){displayChanged(id,false);getWritableDatabase().execSQL("UPDATE books SET visits=visits+1 WHERE id=?",new Object[]{id});}
-  public synchronized void pin(String id,boolean value){displayChanged(id,false);getWritableDatabase().execSQL("UPDATE books SET pinned=? WHERE id=?",new Object[]{value?1:0,id});}
+  public synchronized void visited(String id){getWritableDatabase().execSQL("UPDATE books SET visits=visits+1 WHERE id=?",new Object[]{id});bookMetadataChanged(id);}
+  public synchronized void pin(String id,boolean value){Book old=book(id);if(old==null||old.pinned==value)return;getWritableDatabase().execSQL("UPDATE books SET pinned=? WHERE id=?",new Object[]{value?1:0,id});bookMetadataChanged(id);}
   public synchronized void readChapter(String id){Chapter owner=chapterById(id);if(owner!=null)displayChanged(owner.book,true);if(ignoredForReading(id)||wasRead(id))return;ContentValues v=new ContentValues();v.put("id",id);v.put("stamp",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("read_chapters",null,v,SQLiteDatabase.CONFLICT_REPLACE);readingRevision.incrementAndGet();}
   public boolean wasRead(String id){
     Chapter ch=chapterById(id);if(ch==null||ignoredForReading(ch))return false;
     Chapter tip=chapter(ch.book,completedTip(ch.book));if(tip!=null&&ch.ord<=tip.ord)return true;
     try(Cursor c=query("SELECT id FROM read_chapters WHERE id=?",new String[]{id})){return c.moveToFirst();}
   }
-  public synchronized void shelfInfo(String id,String info){displayChanged(id,false);ContentValues v=new ContentValues();v.put("shelf_info",info);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
+  public synchronized void shelfInfo(String id,String info){Book old=book(id);if(old!=null&&Objects.equals(old.shelfInfo,info))return;ContentValues v=new ContentValues();v.put("shelf_info",info);getWritableDatabase().update("books",v,"id=?",new String[]{id});bookMetadataChanged(id);}
   public static class Book {
     public String id, title, url, current;
     public int pos;
@@ -282,7 +315,7 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public synchronized void putBook(HakoParser.Link l) {
-    displayChanged(l.id,false);
+    Book old=book(l.id);if(old!=null&&Objects.equals(old.title,l.title)&&Objects.equals(old.url,l.url))return;
     ContentValues v = new ContentValues();
     v.put("id", l.id);
     v.put("title", l.title);
@@ -291,7 +324,7 @@ public final class Store extends SQLiteOpenHelper {
     ContentValues update = new ContentValues();
     update.put("title", l.title);
     update.put("url", l.url);
-    getWritableDatabase().update("books", update, "id=?", new String[] {l.id});
+    getWritableDatabase().update("books", update, "id=?", new String[] {l.id});bookMetadataChanged(l.id);
   }
 
   public synchronized List<Book> books() {
@@ -381,14 +414,28 @@ public final class Store extends SQLiteOpenHelper {
   public boolean isHidden(String book,String chapter){
     return context.getSharedPreferences("settings",0).getStringSet("hidden_chapters_"+book,Collections.emptySet()).contains(chapter);
   }
-  public boolean canSubmitServer(String book){
+  public boolean canSubmitServer(String book){return "OK".equals(verifyServerSubmission(readRequest(book)));}
+  public synchronized String verifyServerSubmission(ReadRequest q){
+    if(!sameReadRequest(q))return "REQUEST_CHANGED";
     android.content.SharedPreferences prefs=context.getSharedPreferences("settings",0);
+    if(prefs.getBoolean("catalog_failed_"+q.id,true))return "CATALOG_FAILED";
     try{
-      org.json.JSONArray serverJson=new org.json.JSONArray(prefs.getString("server_catalog_"+book,"[]"));
-      List<String> server=new ArrayList<>();Set<String> seen=new HashSet<>();Map<String,Chapter> known=new HashMap<>();for(Chapter ch:chapters(book))known.put(ch.id,ch);
-      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);if(id.isEmpty()||!seen.add(id))return false;Chapter ch=known.get(id);if(ch==null||!book.equals(ch.book))return false;if(!ignoredForReading(ch))server.add(id);}
-      return ReadPolicy.canSubmitAtTip(server,queuedTip(book),completedTip(book),!prefs.getBoolean("catalog_failed_"+book,true));
-    }catch(Exception e){return false;}
+      List<Chapter> all=chapters(q.id);Map<String,Chapter> known=new HashMap<>();for(Chapter ch:all)known.put(ch.id,ch);
+      org.json.JSONArray serverJson=new org.json.JSONArray(prefs.getString("server_catalog_"+q.id,"[]"));
+      List<String> text=new ArrayList<>();Set<String> seen=new HashSet<>();
+      for(int i=0;i<serverJson.length();i++){String id=serverJson.getString(i);if(id.isEmpty()||!seen.add(id))return "INVALID_SERVER_IDS";Chapter ch=known.get(id);if(ch==null||!q.id.equals(ch.book))return "UNKNOWN_SERVER_CHAPTER";if(!ignoredForReading(ch))text.add(id);}
+      org.json.JSONArray queued=new org.json.JSONArray(q.payload);Set<String> snapshot=new HashSet<>();for(int i=0;i<queued.length();i++){String id=queued.getString(i);if(id.isEmpty()||!snapshot.add(id))return "INVALID_SNAPSHOT";}
+      return ReadPolicy.verifySubmission(text,readingIds(q.id,all),snapshot,q.tip,completedTip(q.id),true);
+    }catch(org.json.JSONException e){return "INVALID_CATALOG_OR_SNAPSHOT";}
+  }
+  /** Only event-time metadata is hashed; never reads chapter HTML or scans files. */
+  public synchronized String readSubmissionKey(ReadRequest q){
+    if(q==null||!sameReadRequest(q))return "gone";
+    android.content.SharedPreferences p=context.getSharedPreferences("settings",0);List<Chapter> all=chapters(q.id);
+    StringBuilder data=new StringBuilder(q.generation).append('|').append(q.tip).append('|').append(q.payload).append('|').append(completedTip(q.id)).append('|').append(p.getString("server_catalog_"+q.id,"[]")).append('|').append(p.getBoolean("catalog_failed_"+q.id,true));
+    for(String id:new TreeSet<>(readingIds(q.id,all)))data.append('|').append(id);
+    for(Chapter ch:all)data.append('|').append(ch.id).append(':').append(ignoredForReading(ch)?1:0);
+    try{byte[] bytes=java.security.MessageDigest.getInstance("SHA-256").digest(data.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));StringBuilder hex=new StringBuilder();String digits="0123456789abcdef";for(byte value:bytes){hex.append(digits.charAt((value&255)>>>4));hex.append(digits.charAt(value&15));}return hex.toString();}catch(java.security.NoSuchAlgorithmException e){throw new IllegalStateException(e);}
   }
 
   public synchronized List<Chapter> chapters(String book) {
@@ -517,8 +564,8 @@ public final class Store extends SQLiteOpenHelper {
       }
   }
 
-  public synchronized void followed(String id,boolean value,int rank){displayChanged(id,false);ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
-  public synchronized void dropped(String id,boolean value){displayChanged(id,false);ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});}
+  public synchronized void followed(String id,boolean value,int rank){Book old=book(id);if(old!=null&&old.followed==value&&old.shelfRank==rank)return;ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});bookMetadataChanged(id);if(value&&(old==null||!old.followed)&&!completedTip(id).isEmpty())queueIfAllRead(id);}
+  public synchronized void dropped(String id,boolean value){Book old=book(id);if(old!=null&&old.dropped==value)return;ContentValues v=new ContentValues();v.put("dropped",value?1:0);getWritableDatabase().update("books",v,"id=?",new String[]{id});bookMetadataChanged(id);}
   // List queries must never read/parse chapter HTML while holding the Store monitor.
   // Content integrity is verified by the worker before queueing and before reuse.
   private boolean cachedChapter(String id,boolean markedReady){File f=html(id);if(!f.isFile()||f.length()==0)return false;String known=validatedFiles.get(id);return contentStamp(id,f).equals(known)||(known==null&&markedReady);}
@@ -603,11 +650,20 @@ public final class Store extends SQLiteOpenHelper {
   private String fileStamp(File f){return f.isFile()?f.length()+":"+f.lastModified():"missing";}
 
 
-  public synchronized void rebase(String origin){displayChanged("*",false);for(Book b:books()){ContentValues v=new ContentValues();try{v.put("url",origin+java.net.URI.create(b.url).getPath());getWritableDatabase().update("books",v,"id=?",new String[]{b.id});for(Chapter ch:chapters(b.id)){v.clear();v.put("url",origin+java.net.URI.create(ch.url).getPath());getWritableDatabase().update("chapters",v,"id=?",new String[]{ch.id});}}catch(Exception ignored){}}chapterCache.clear();chapterLookup.clear();}
+  public synchronized void rebase(String origin){
+    origin=HakoParser.originOf(origin);SQLiteDatabase d=getWritableDatabase();
+    d.beginTransaction();try{
+      d.execSQL("UPDATE books SET url=? || substr(url,instr(substr(url,9),'/')+8) WHERE url LIKE 'https://%/%'",new Object[]{origin});
+      d.execSQL("UPDATE chapters SET url=? || substr(url,instr(substr(url,9),'/')+8) WHERE url LIKE 'https://%/%'",new Object[]{origin});
+      d.setTransactionSuccessful();
+    }finally{d.endTransaction();}
+    chapterCache.clear();chapterLookup.clear();
+    context.getSharedPreferences("settings",0).edit().putString("origin",origin).remove("pending_origin").commit();
+    HakoParser.ORIGIN=origin;TocState.invalidateDisk(context);StoryInfo.invalidateDisk(context);displayChanged("*",false);
+  }
   public static void delete(File f) {
     File[] kids = f.listFiles();
     if (kids != null) for (File x : kids) delete(x);
     f.delete();
   }
 }
-

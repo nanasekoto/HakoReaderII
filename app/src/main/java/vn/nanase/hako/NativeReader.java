@@ -214,7 +214,7 @@ public final class NativeReader extends View {
   float headerY=(int)(11.5f*getResources().getDisplayMetrics().density);
   statusPaint.setTextAlign(Paint.Align.LEFT);
   if(!bookTitle.isEmpty()||!chapterTitle.isEmpty()){
-   String lockPrefix=touchLocked?"🔒 ":"";
+   String lockPrefix=touchLocked?"[Khóa] ":"";
    String headerText=!notice.isEmpty()?notice:lockPrefix+(bookTitle.isEmpty()?chapterTitle:(chapterTitle.isEmpty()?bookTitle:bookTitle+" · "+chapterTitle));
    float textW=statusPaint.measureText(headerText);
    if(textW>availW){
@@ -248,7 +248,7 @@ public final class NativeReader extends View {
   c.drawText(pageStr,margin,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.CENTER);
-  String centerStatus=(touchLocked?"🔒 ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ Xong":"Ⅱ"));
+  String centerStatus=(touchLocked?"[Khóa] ":"")+(isSyncing?("⤓ "+syncPct+"%"):(syncPct>=100?"✓ Xong":"Ⅱ"));
   String remaining=remainingChapterText();float room=Math.max(0,getWidth()-2*(margin+Math.max(statusPaint.measureText(pageStr),statusPaint.measureText(remaining))+8*getResources().getDisplayMetrics().density));centerStatus=android.text.TextUtils.ellipsize(centerStatus,statusPaint,room,android.text.TextUtils.TruncateAt.END).toString();c.drawText(centerStatus,getWidth()/2f,footerY,statusPaint);
 
   statusPaint.setTextAlign(Paint.Align.RIGHT);
@@ -259,7 +259,7 @@ public final class NativeReader extends View {
   Diagnostics.cpuEnd("reader.draw",cpuDraw);
  }
  public void turn(int direction){if(layout==null||pages.isEmpty())return;Diagnostics.readerInput();long cpuTurn=Diagnostics.cpuBegin();long turnStarted=Diagnostics.now();listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();long elapsed=Math.max(0,Diagnostics.now()-turnStarted);OperationTrace.pageTurn(elapsed);Diagnostics.pageTurn(turnStarted);Diagnostics.cpuEnd("reader.turn",cpuTurn);}
- public void jump(boolean end){if(pages.isEmpty())return;page=end?pages.size()-1:0;invalidate();publish();}
+ public void jump(boolean end){if(pages.isEmpty())return;listener.dismissToolbar();page=end?pages.size()-1:0;invalidate();publish();}
  public boolean onTouchEvent(MotionEvent e){
    if(touchLocked){
      // 100% IGNORE ALL TOUCH! Pure physical button reading
@@ -301,5 +301,4 @@ public final class NativeReader extends View {
  }
  public boolean performClick(){super.performClick();return true;}
 }
-
 
