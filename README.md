@@ -1,9 +1,9 @@
-# Hako Pocket 0.7.42 — Đồng bộ hai chiều tùy chọn
+# Hako Pocket 0.8.3 — Ưu tiên server, WebView trên K60
 
 Bản này kế thừa 0.7.40 và giữ package/chữ ký/schema/cache cũ. Cài đè, không gỡ app hoặc xóa dữ liệu.
 Vào **Cài đặt → Đồng bộ hai chiều với Hako Server** để liên kết; chủ sở hữu duyệt tại `/hako`. Rời chương tự gửi vị trí, không yêu cầu chọn bên có tiến độ cao hơn. Cloudflare lỗi thì dùng Ubuntu, giữ hàng chờ dự phòng.
 Khi đã bật Cloudflare trên server, vị trí/đã đọc/yêu thích/đánh dấu đi trực tiếp qua coordinator dù Ubuntu tắt.
-Gecko và đọc/tải trực tiếp Hako tiếp tục hoạt động theo cơ chế cũ. Không liên kết thì bridge không chạy.
+Khi đã liên kết, app ưu tiên mục lục/chương/tìm truyện từ Ubuntu. K60 dùng Android System WebView cho đăng nhập và nguồn trực tiếp; S4 giữ Gecko. Cache và bộ đọc native vẫn hoạt động offline. [Chi tiết bản hợp nhất](docs/UNIFIED_POCKET_080.md).
 
 [Hướng dẫn và giới hạn đồng bộ](docs/SHARED_PROGRESS_0741.md).
 
