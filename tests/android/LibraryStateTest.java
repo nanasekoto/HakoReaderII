@@ -34,6 +34,12 @@ public final class LibraryStateTest extends Instrumentation {
   UiLibrarySnapshot restored=LibraryState.decode(json);check(restored.books.get(0).current.equals(id+"-3")&&restored.summary(restored.books.get(0)).unread==248,"Saved state round-trip retains chapter identity and sequential unread watermark");
   Field current=LibraryState.class.getDeclaredField("current");current.setAccessible(true);current.set(null,null);
   check(LibraryState.restore(ctx)!=null,"Cold process restores display state from atomic file");
+  Field stateLockField=LibraryState.class.getDeclaredField("stateLock");stateLockField.setAccessible(true);
+  java.util.concurrent.locks.ReentrantLock stateLock=(java.util.concurrent.locks.ReentrantLock)stateLockField.get(null);
+  CountDownLatch refreshing=new CountDownLatch(1),finishRefresh=new CountDownLatch(1);
+  Thread refreshBlocker=new Thread(()->{stateLock.lock();try{refreshing.countDown();finishRefresh.await(5,TimeUnit.SECONDS);}catch(InterruptedException ignored){}finally{stateLock.unlock();}});refreshBlocker.start();refreshing.await();
+  try{long peekStarted=SystemClock.elapsedRealtime();final UiLibrarySnapshot[] visible={null};runOnMainSync(()->visible[0]=LibraryState.peek());check(visible[0]!=null&&SystemClock.elapsedRealtime()-peekStarted<1000,"UI keeps published snapshot while background refresh holds state lock");}
+  finally{finishRefresh.countDown();refreshBlocker.join(1000);}
   // Hold the same monitor used by catalog/import. Opening/navigating must not wait for it.
   CountDownLatch locked=new CountDownLatch(1),release=new CountDownLatch(1);
   Thread blocker=new Thread(()->{synchronized(s){locked.countDown();try{release.await(15,TimeUnit.SECONDS);}catch(InterruptedException ignored){}}});blocker.start();locked.await();

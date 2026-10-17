@@ -1,7 +1,7 @@
 name: Build Hako Pocket
 on:
   push:
-    branches: [ main, fix/workflow-diagnostics-0723 ]
+    branches: [ main, fix/workflow-diagnostics-0723, feature/shared-server-progress ]
     paths: [ 'app/**', 'backend/**', 'tests/**', 'scripts/**', '*.gradle', '*.properties', '*.sh', '.github/workflows/build.yml' ]
   pull_request:
     branches: [ main ]
@@ -64,9 +64,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Hako-0.7.40-validation
+          name: Hako-0.7.41-validation
           path: build/evidence/
       - uses: actions/upload-artifact@v4
         with:
-          name: Hako-Pocket-0.7.40-ARM32-tested
+          name: Hako-Pocket-0.7.41-ARM32-tested
           path: build/deliver/

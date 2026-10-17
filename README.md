@@ -1,3 +1,24 @@
+# Hako Pocket 0.9.1 — đồng bộ qua Ubuntu
+
+Bản hợp nhất dùng Ubuntu làm nơi đồng bộ duy nhất, không kết nối Cloudflare. Khi Ubuntu tắt, đọc cache và lưu tiến độ trên từng máy; nhận tiến độ của máy kia khi Ubuntu hoạt động lại. Giữ package, chữ ký và dữ liệu khi cài đè. [Phạm vi và trạng thái kiểm tra](docs/UNIFIED_POCKET_091.md).
+
+Các mục phiên bản cũ dưới đây là lịch sử; hướng dẫn Cloudflare cũ không áp dụng cho 0.9.1.
+
+# Hako Pocket 0.9.0 — dữ liệu lưu sẵn, server chuẩn bị, thao tác riêng S4/K60
+
+[Phạm vi và quy tắc bản 0.9.0](docs/UNIFIED_POCKET_090.md). Cài đè cùng package/chữ ký để giữ dữ liệu. Cài đặt → Kết nối & nguồn nội dung để chọn Tự động / Chỉ server / Hako trực tiếp. Liên kết một lần, tiến độ tự gửi khi rời chương. Tủ sách lấy từ tài khoản Hako trên server; phiên Hako của máy chỉ dùng khi lấy trực tiếp.
+
+# Hako Pocket 0.8.3 — Ưu tiên server, WebView trên K60
+
+Bản này kế thừa 0.7.40 và giữ package/chữ ký/schema/cache cũ. Cài đè, không gỡ app hoặc xóa dữ liệu.
+Vào **Cài đặt → Đồng bộ hai chiều với Hako Server** để liên kết; chủ sở hữu duyệt tại `/hako`. Rời chương tự gửi vị trí, không yêu cầu chọn bên có tiến độ cao hơn. Cloudflare lỗi thì dùng Ubuntu, giữ hàng chờ dự phòng.
+Khi đã bật Cloudflare trên server, vị trí/đã đọc/yêu thích/đánh dấu đi trực tiếp qua coordinator dù Ubuntu tắt.
+Khi đã liên kết, app ưu tiên mục lục/chương/tìm truyện từ Ubuntu. K60 dùng Android System WebView cho đăng nhập và nguồn trực tiếp; S4 giữ Gecko. Cache và bộ đọc native vẫn hoạt động offline. [Chi tiết bản hợp nhất](docs/UNIFIED_POCKET_080.md).
+
+[Hướng dẫn và giới hạn đồng bộ](docs/SHARED_PROGRESS_0741.md).
+
+---
+
 # Hako Pocket — 0.7.30 Gecko (UI, tải theo đợt và ưu tiên)
 
 Ứng dụng đọc Hako offline cho Xteink S4: Android 11, ARM 32-bit, màn hình e-ink. `main` là bộ source chính thức, thống nhất từ phiên bản 0.7.15 người dùng đã phản hồi chạy khá ổn.

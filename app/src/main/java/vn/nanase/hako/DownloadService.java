@@ -19,7 +19,7 @@ public class DownloadService extends Service {
             if(!i.hasExtra("read_sync_book")&&i.getStringExtra("text")!=null)nm.notify(9, notice(i.getStringExtra("text")));
           }
         };
-    registerReceiver(receiver, new IntentFilter(Repository.EVENT));
+    if(android.os.Build.VERSION.SDK_INT>=33)registerReceiver(receiver,new IntentFilter(Repository.EVENT),android.content.Context.RECEIVER_NOT_EXPORTED);else registerReceiver(receiver, new IntentFilter(Repository.EVENT));
   }
 
   private Notification notice(String text) {

@@ -1,0 +1,28 @@
+package vn.nanase.hako;
+import android.app.Instrumentation;
+import android.os.*;
+import android.view.*;
+import android.widget.*;
+import android.content.*;
+import java.util.*;
+/** Measured Android layouts and actual MotionEvents, not source-string assertions. */
+public final class PagedInteractionTest extends Instrumentation {
+ int checks;void check(boolean condition,String why){checks++;if(!condition)throw new AssertionError(why);}
+ // Unattached fixtures need an explicit root measure pass for requestLayout
+ // issued during layout; an attached ViewRoot schedules that deferred pass.
+ void layout(View view){for(int n=0;n<5;n++){view.forceLayout();view.measure(View.MeasureSpec.makeMeasureSpec(480,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(500,View.MeasureSpec.EXACTLY));view.layout(0,0,480,500);}}
+ public void onCreate(Bundle args){super.onCreate(args);start();}
+ public void onStart(){Bundle result=new Bundle();try{Context c=getTargetContext();runOnMainSync(()->{
+  LinearLayout rows=new LinearLayout(c);rows.setOrientation(1);for(int n=0;n<4;n++){Button row=new Button(c);row.setText("Control "+n);rows.addView(row,new LinearLayout.LayoutParams(-1,110));}
+  TextView longText=new TextView(c);longText.setTextSize(20);StringBuilder content=new StringBuilder();for(int n=0;n<90;n++)content.append("Paragraph "+n+": complete content continues on the next page.\n");longText.setText(content);rows.addView(longText);Button finalRow=new Button(c);finalRow.setText("Last control");rows.addView(finalRow,new LinearLayout.LayoutParams(-1,110));
+  EinkScrollView pages=new EinkScrollView(c);pages.addView(rows);layout(pages);int count=pages.pageCount();check(count>5,"Long metadata has multiple pages");ArrayList<Integer> offsets=new ArrayList<>();offsets.add(0);
+  for(int n=1;n<count;n++){pages.turn(1);check(pages.page()==n,"Forward key reaches exactly one page: expected="+n+", actual="+pages.page()+", y="+pages.getScrollY()+", count="+pages.pageCount());int y=pages.getScrollY();check(y>offsets.get(n-1)&&y-offsets.get(n-1)<=500,"No skipped viewport");if(y>longText.getTop()&&y<longText.getBottom()){int local=y-longText.getTop()-longText.getTotalPaddingTop();boolean boundary=false;for(int line=0;line<longText.getLineCount();line++)if(local==longText.getLayout().getLineTop(line))boundary=true;check(boundary,"Long text starts at a whole line");}offsets.add(y);}
+  pages.turn(1);check(pages.page()==count-1,"End does not wrap");for(int n=count-2;n>=0;n--){pages.turn(-1);check(pages.getScrollY()==offsets.get(n),"Back restores exact page boundary");}
+  for(int n=0;n<20;n++)check(pages.pageCount()==count,"Repeated queries do not grow padding or page count");
+  longText.setTextSize(28);layout(pages);check(pages.pageCount()>count,"Larger font recalculates pages: before="+count+", after="+pages.pageCount()+", textHeight="+longText.getHeight());
+  c.getSharedPreferences("settings",0).edit().putBoolean("eink_mode",true).commit();PagedBookList books=new PagedBookList(c);books.setAdapter(new ArrayAdapter<String>(c,android.R.layout.simple_list_item_1,Arrays.asList(content.toString(),"Second book","Third book")){public View getView(int position,View recycled,ViewGroup parent){TextView text=(TextView)super.getView(position,recycled,parent);text.setTextSize(20);text.setLayoutParams(new android.widget.AbsListView.LayoutParams(-1,books.rowHeight(position)));books.fitCard(text);return text;}});layout(books);check(books.getChildAt(0).getHeight()>500,"Long title remains complete rather than ellipsized");books.turn(1);layout(books);check(books.getFirstVisiblePosition()==0&&books.getChildAt(0).getTop()<0,"Oversized list row continues on the next page");books.turn(-1);layout(books);check(books.getFirstVisiblePosition()==0&&books.getChildAt(0).getTop()==books.getPaddingTop(),"Back restores oversized row offset exactly");
+  SharedPreferences prefs=c.getSharedPreferences("settings",0);prefs.edit().putBoolean("eink_mode",false).putBoolean("reader_scroll",true).putBoolean("reader_swipes",true).commit();final int[] chapter={0};NativeReader reader=new NativeReader(c,c.getFilesDir(),new NativeReader.Listener(){public void position(int p,float f,int page,int total){}public void boundary(int d){}public void toolbar(){}public void dismissToolbar(){}public void chapter(int d){chapter[0]+=d;}});reader.style(22,10,1.3f,8,9,android.graphics.Typeface.SERIF,true);reader.layout(0,0,1000,1600);
+  swipe(reader,300,700,700,710);check(chapter[0]==1,"Rightward swipe advances chapter in scroll mode");swipe(reader,700,700,300,710);check(chapter[0]==0,"Leftward swipe returns chapter");swipe(reader,300,1000,320,400);check(chapter[0]==0,"Vertical reading does not change chapter");swipe(reader,1,700,700,710);check(chapter[0]==0,"OS back edge does not change chapter");reader.setTouchLocked(true);swipe(reader,300,700,700,710);check(chapter[0]==0,"Touch lock suppresses chapter gesture");
+ });result.putString("stream","PASS TOTAL "+checks+" paged interaction checks\n");finish(0,result);}catch(Throwable error){result.putString("stream","FAIL "+error+"\n");error.printStackTrace();finish(1,result);}}
+ void swipe(NativeReader reader,float x,float y,float endX,float endY){long t=SystemClock.uptimeMillis();for(int action:new int[]{MotionEvent.ACTION_DOWN,MotionEvent.ACTION_MOVE,MotionEvent.ACTION_UP}){MotionEvent event=MotionEvent.obtain(t,t+(action==0?0:100),action,action==0?x:endX,action==0?y:endY,0);reader.onTouchEvent(event);event.recycle();}}
+}
