@@ -1,7 +1,7 @@
-# Hako Pocket 0.7.41 — Đồng bộ hai chiều tùy chọn
+# Hako Pocket 0.7.42 — Đồng bộ hai chiều tùy chọn
 
 Bản này kế thừa 0.7.40 và giữ package/chữ ký/schema/cache cũ. Cài đè, không gỡ app hoặc xóa dữ liệu.
-Vào **Cài đặt → Đồng bộ hai chiều với Hako Server** để liên kết; chủ sở hữu duyệt tại `/hako`.
+Vào **Cài đặt → Đồng bộ hai chiều với Hako Server** để liên kết; chủ sở hữu duyệt tại `/hako`. Rời chương tự gửi vị trí, không yêu cầu chọn bên có tiến độ cao hơn. Cloudflare lỗi thì dùng Ubuntu, giữ hàng chờ dự phòng.
 Khi đã bật Cloudflare trên server, vị trí/đã đọc/yêu thích/đánh dấu đi trực tiếp qua coordinator dù Ubuntu tắt.
 Gecko và đọc/tải trực tiếp Hako tiếp tục hoạt động theo cơ chế cũ. Không liên kết thì bridge không chạy.
 

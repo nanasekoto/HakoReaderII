@@ -1,3 +1,7 @@
+# Cập nhật 0.7.42
+
+Rời chương/flush checkpoint tự gửi vị trí. Sự kiện mới được nơi đồng bộ nhận sau cùng cập nhật vị trí, kể cả đọc lại chương cũ; retry cùng sự kiện không thay sự kiện đã nhận sau đó. Không còn bước chọn bên có tiến độ cao hơn. Khi Cloudflare lỗi, gửi và nhận qua Ubuntu; giữ gói chờ đám mây đến khi giao được hoặc vị trí của máy khác đã thay thế. Pocket đang đọc chỉ lấy snapshot của truyện đó.
+
 # Đồng bộ hai chiều — 0.7.41
 
 ## Thiết lập một lần
@@ -15,7 +19,7 @@
 - Khi Cloudflare đã cấu hình, hai app dùng chung trạng thái trực tiếp; Ubuntu chỉ cần cho lần liên kết đầu và nguồn/cache server của app mới.
 - Mục lục được lưu theo revision; dữ liệu giống nhau không tải/gửi lại toàn bộ mỗi lần lưu vị trí.
 - Chương đã đọc là tập ID cộng dồn. Đọc lại chương cũ không xóa dấu đã đọc của các chương sau.
-- Khi cả hai máy cùng đọc lúc mất mạng, gói cũ không tự chọn chương xa nhất. Trong Cài đặt đồng bộ → Chọn vị trí/Xử lý xung đột để giữ vị trí máy này hoặc nhận vị trí chung.
+- Khi cả hai máy cùng đọc lúc mất mạng, vị trí gửi lên sau cùng khi có kết nối trở thành vị trí chung; không chọn theo chương xa nhất.
 - Đang đọc không tự nhảy sang vị trí từ máy kia. Sau khi rời màn đọc, vị trí mới có thể áp dụng nếu không còn outbox/xung đột cần giải quyết.
 - Locator dùng trích đoạn và tỷ lệ trong đoạn để nối cách chia đoạn giữa hai trình đọc; kết quả chính xác trên hai máy thật vẫn cần kiểm tra bằng chương người dùng đang đọc.
 - App 0.7.40 không có bridge này. Cả hai điện thoại mất Internet thì chưa nhận được ngay tiến độ của nhau; mở nội dung local và gửi lại khi có kết nối.
