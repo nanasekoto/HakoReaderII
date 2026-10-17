@@ -11,7 +11,7 @@ final class EinkScrollView extends ScrollView {
  private final ArrayList<Integer> pages=new ArrayList<>();
  private int measuredWidth=-1,measuredHeight=-1,contentHeight=-1,tail;
  private Runnable changed;
- private boolean paddingPending;private float touchY;
+ private boolean paddingPending,layingOut;private float touchY;
  EinkScrollView(Context c){super(c);setSmoothScrollingEnabled(false);setOverScrollMode(OVER_SCROLL_NEVER);setVerticalScrollBarEnabled(false);}
  void onPageChanged(Runnable callback){changed=callback;}
  static void boundaries(View view,int top,int height,TreeSet<Integer> edges){
@@ -23,10 +23,10 @@ final class EinkScrollView extends ScrollView {
  int page(){prepare();int index=Collections.binarySearch(pages,getScrollY());return Math.max(0,index>=0?index:-index-2);}
  int pageCount(){prepare();return Math.max(1,pages.size());}
  void turn(int direction){prepare();if(pages.isEmpty())return;int next=Math.max(0,Math.min(pages.size()-1,page()+direction));scrollTo(0,pages.get(next));if(changed!=null)changed.run();}
- @Override protected void onLayout(boolean changed,int l,int t,int r,int b){super.onLayout(changed,l,t,r,b);paddingPending=false;prepare();if(this.changed!=null)this.changed.run();}
+ @Override protected void onLayout(boolean changed,int l,int t,int r,int b){layingOut=true;super.onLayout(changed,l,t,r,b);layingOut=false;paddingPending=false;prepare();if(this.changed!=null)this.changed.run();}
  // Last page may start after the ordinary scroll maximum so preceding controls
  // are not pulled back into the top of this page by ScrollView's end clamp.
- @Override public void scrollTo(int x,int y){prepare();int max=pages.isEmpty()?0:pages.get(pages.size()-1);super.scrollTo(0,Math.max(0,Math.min(y,max)));}
+ @Override public void scrollTo(int x,int y){if(layingOut){super.scrollTo(0,y);return;}prepare();int max=pages.isEmpty()?0:pages.get(pages.size()-1);super.scrollTo(0,Math.max(0,Math.min(y,max)));}
  @Override protected void dispatchDraw(android.graphics.Canvas canvas){prepare();int next=page()+1;int saved=canvas.save();if(next<pages.size())canvas.clipRect(0,getScrollY(),getWidth(),pages.get(next));super.dispatchDraw(canvas);canvas.restoreToCount(saved);}
  @Override public boolean onInterceptTouchEvent(android.view.MotionEvent event){if(event.getAction()==android.view.MotionEvent.ACTION_DOWN)touchY=event.getY();return super.onInterceptTouchEvent(event);}
  @Override public boolean onTouchEvent(android.view.MotionEvent event){if(event.getAction()==android.view.MotionEvent.ACTION_DOWN)touchY=event.getY();if(event.getAction()==android.view.MotionEvent.ACTION_UP&&Math.abs(event.getY()-touchY)>32*getResources().getDisplayMetrics().density)turn(event.getY()<touchY?1:-1);return true;}
