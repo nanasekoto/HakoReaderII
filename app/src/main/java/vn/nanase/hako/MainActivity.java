@@ -363,7 +363,7 @@ public class MainActivity extends Activity {
     LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
     heading.addView(text("HAKO POCKET",20),new LinearLayout.LayoutParams(0,-2,1));
     Button report=button("Báo cáo",this::reportDialog);report.setTextSize(13);report.setPadding(dp(4),0,dp(4),0);report.setContentDescription("Gửi báo cáo");heading.addView(report,new LinearLayout.LayoutParams(dp(82),dp(36)));root.addView(heading);
-    root.addView(text("Đọc nhẹ • Xteink S4 • v"+appVersion(),11));
+    root.addView(text("Đọc nhẹ • "+(DeviceProfile.eink(this)?"Xteink S4":"Android WebView")+" • v"+appVersion(),11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     boolean paused=prefs.getBoolean("sync_paused",false);
