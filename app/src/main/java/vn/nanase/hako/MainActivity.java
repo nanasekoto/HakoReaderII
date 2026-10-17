@@ -222,7 +222,7 @@ public class MainActivity extends Activity {
             }
           }
         };
-    registerReceiver(updates, new IntentFilter(Repository.EVENT));
+    if(android.os.Build.VERSION.SDK_INT>=33)registerReceiver(updates,new IntentFilter(Repository.EVENT),android.content.Context.RECEIVER_NOT_EXPORTED);else registerReceiver(updates, new IntentFilter(Repository.EVENT));
     ChargeJob.schedule(this, prefs.getBoolean("charging", true));
     io.execute(()->ReadSync.kick(this,"startup"));
     powerReceiver=new BroadcastReceiver(){public void onReceive(Context c,Intent i){ChargeJob.kick(c);}};
