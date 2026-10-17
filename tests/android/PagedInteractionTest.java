@@ -8,7 +8,9 @@ import java.util.*;
 /** Measured Android layouts and actual MotionEvents, not source-string assertions. */
 public final class PagedInteractionTest extends Instrumentation {
  int checks;void check(boolean condition,String why){checks++;if(!condition)throw new AssertionError(why);}
- void layout(View view){for(int n=0;n<5;n++){view.measure(View.MeasureSpec.makeMeasureSpec(480,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(500,View.MeasureSpec.EXACTLY));view.layout(0,0,480,500);}}
+ // Unattached fixtures need an explicit root measure pass for requestLayout
+ // issued during layout; an attached ViewRoot schedules that deferred pass.
+ void layout(View view){for(int n=0;n<5;n++){view.forceLayout();view.measure(View.MeasureSpec.makeMeasureSpec(480,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(500,View.MeasureSpec.EXACTLY));view.layout(0,0,480,500);}}
  public void onCreate(Bundle args){super.onCreate(args);start();}
  public void onStart(){Bundle result=new Bundle();try{Context c=getTargetContext();runOnMainSync(()->{
   LinearLayout rows=new LinearLayout(c);rows.setOrientation(1);for(int n=0;n<4;n++){Button row=new Button(c);row.setText("Control "+n);rows.addView(row,new LinearLayout.LayoutParams(-1,110));}
