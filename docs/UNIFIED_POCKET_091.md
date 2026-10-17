@@ -20,4 +20,16 @@ Theo lựa chọn của chủ sở hữu, Pocket không đọc cấu hình hoặ
 
 ## Kiểm tra phát hành
 
-Đang chờ CI và kiểm tra APK cuối trên hai thiết bị. Chưa xác nhận mọi giao diện đã tối ưu hoặc đo được mức tiết kiệm pin. Nguồn Hako thật phụ thuộc trạng thái dịch vụ; không suy ra hoạt động từ fixture.
+Bản Ubuntu-only đã qua CI: 14 nhóm kiểm tra Android, gồm 82 kiểm tra phân trang/thao tác. Cài đè 0.9.1 lên S4 và K60 thành công, giữ dữ liệu. Đã kiểm tra ảnh bìa thật trên K60, tag/thao tác trong chi tiết, cuộn dọc, vuốt đổi chương, vị trí K60 → S4 và S4 → K60 qua Ubuntu. S4 mở cache khi tắt Wi-Fi, sau bật lại đã gửi vị trí mới lên Ubuntu.
+
+Kiểm tra vật lý phát hiện màn cài đặt S4 bị bọc hai pager. Đã sửa và thêm kiểm tra đúng một pager trong màn thật; APK sửa cuối đã qua CI và cài đè cả hai máy. Thử thật trên S4: giảm âm lượng sang trang 2, tăng âm lượng trở lại trang 1; không còn pager lồng nhau. Chưa đo mức tiết kiệm pin hoặc khẳng định mọi giao diện đều tối ưu. Không kiểm tra gửi thao tác ghi lên tài khoản Hako thật trong lượt này.
+
+
+## Bản phát hành đã công bố
+
+- CI cuối: https://github.com/nanasekoto/HakoReaderII/actions/runs/39074625607 — thành công.
+- Mã app: 3735041443bb6a285365feb31a3ffeb86f8db4fe; 0.9.1 / code 64.
+- SHA256 APK: `9bc65f855b20d8c6d239cb1ec2e1dd3bcada5841d759128d9b0adcf7405bece9`.
+- Tải: https://nanains.duckdns.org/hako/download/pocket.apk; đã tải lại qua HTTPS và đối chiếu hash.
+- Backup đầy đủ sau công bố: HDD 3 TB, `hako-full-20261017-222752-cb1c9a.tar` (804874240 byte).
+- Kết quả pin và thời gian mở chương chưa được đo định lượng; không tuyên bố toàn bộ lỗi ảnh/giao diện của mọi truyện đã hết.
