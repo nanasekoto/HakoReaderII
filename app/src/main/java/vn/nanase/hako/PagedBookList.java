@@ -44,7 +44,8 @@ final class PagedBookList extends ListView {
     // Reduce the row count instead of squeezing controls into a shorter card.
     int minimum = compact?(int)Math.ceil(54*scaled):
       (int)Math.ceil(40*scaled+Math.max(15*scaled,controls?38*density:0)+8*density);
-    rows = Math.max(1, Math.min(compact?10:6, (available+getDividerHeight())/(minimum+getDividerHeight())));
+    int maximum=DeviceProfile.eink(getContext())?(compact?10:6):12;
+    rows = Math.max(1, Math.min(maximum, (available+getDividerHeight())/(minimum+getDividerHeight())));
     int content = Math.max(rows, available-(rows-1)*getDividerHeight());
     base = content/rows;
     remainder = content%rows;

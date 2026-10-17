@@ -270,7 +270,7 @@ public class MainActivity extends Activity {
     b.setPadding(dp(8), 0, dp(8), 0);
     android.graphics.drawable.GradientDrawable btnBg = new android.graphics.drawable.GradientDrawable();
     btnBg.setColor(Color.WHITE);
-    btnBg.setStroke(dp(1), Color.BLACK);
+    btnBg.setStroke(dp(1), DeviceProfile.eink(this)?Color.BLACK:Color.rgb(220,225,228));
     btnBg.setCornerRadius(dp(6));
     b.setBackground(btnBg);
     b.setStateListAnimator(null);
@@ -388,6 +388,14 @@ public class MainActivity extends Activity {
       this::settings,
       this::exitApp
     };
+    if(!DeviceProfile.eink(this)){
+      names[4]="Khám phá";
+      Store.Book recent=displayBook(prefs.getString("lastBook",""));
+      LinearLayout hero=new LinearLayout(this);hero.setOrientation(1);hero.setPadding(dp(18),dp(18),dp(18),dp(18));android.graphics.drawable.GradientDrawable background=new android.graphics.drawable.GradientDrawable();background.setColor(Color.rgb(235,244,240));background.setCornerRadius(dp(14));hero.setBackground(background);
+      TextView label=text("TIẾP TỤC ĐỌC",12);label.setTextColor(Color.rgb(42,94,73));hero.addView(label);
+      TextView book=text(recent==null?"Chọn câu chuyện tiếp theo":recent.title,21);book.setMaxLines(3);book.setEllipsize(android.text.TextUtils.TruncateAt.END);hero.addView(book);
+      hero.addView(text(recent==null?"Mở thư viện hoặc khám phá truyện mới":"Chạm để trở lại vị trí đã lưu",14));hero.setOnClickListener(v->actions[0].run());LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.setMargins(dp(10),dp(12),dp(10),dp(16));root.addView(hero,hp);
+    }
     int[] homeOrder={0,1,2,3,4,5,6,7,8,9,10,11};
     int cols=3;
     for(int n=0;n<homeOrder.length;n+=cols){
@@ -399,7 +407,7 @@ public class MainActivity extends Activity {
         cell.setOrientation(1);cell.setGravity(Gravity.CENTER);
         android.graphics.drawable.GradientDrawable cellBg = new android.graphics.drawable.GradientDrawable();
         cellBg.setColor(Color.WHITE);
-        cellBg.setStroke(dp(1), Color.BLACK);
+        cellBg.setStroke(dp(1), DeviceProfile.eink(this)?Color.BLACK:Color.rgb(220,225,228));
         cellBg.setCornerRadius(dp(8));
         cell.setBackground(cellBg);
         cell.setPadding(dp(2), dp(6), dp(2), dp(6));
@@ -419,9 +427,9 @@ public class MainActivity extends Activity {
         lpCell.setMargins(dp(3),dp(3),dp(3),dp(3));
         line.addView(cell,lpCell);
       }
-      grid.addView(line,new LinearLayout.LayoutParams(-1,0,1f));
+      grid.addView(line,DeviceProfile.eink(this)?new LinearLayout.LayoutParams(-1,0,1f):new LinearLayout.LayoutParams(-1,dp(104)));
     }
-    root.addView(grid,new LinearLayout.LayoutParams(-1,0,1f));
+    if(DeviceProfile.eink(this))root.addView(grid,new LinearLayout.LayoutParams(-1,0,1f));else{ScrollView homeScroll=new ScrollView(this);homeScroll.setFillViewport(false);homeScroll.addView(grid);root.addView(homeScroll,new LinearLayout.LayoutParams(-1,0,1f));}
     Store.Book last=displayBook(prefs.getString("lastBook",""));
     TextView summary=text(last==null?"Chọn truyện để đọc · Đồng bộ trước khi tắt Wi-Fi":"Đọc tiếp: "+last.title,15);summary.setMaxLines(2);summary.setEllipsize(android.text.TextUtils.TruncateAt.END);root.addView(summary,new LinearLayout.LayoutParams(-1,-2));
     status();
@@ -496,14 +504,14 @@ public class MainActivity extends Activity {
 
           android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
           cardBg.setColor(Color.WHITE);
-          cardBg.setStroke(dp(1), Color.BLACK);
+          cardBg.setStroke(dp(1), DeviceProfile.eink(this)?Color.BLACK:Color.rgb(220,225,228));
           cardBg.setCornerRadius(dp(6));
           card.setBackground(cardBg);
           card.setPadding(dp(10), dp(2), dp(10), dp(2));
 
           TextView titleView = new TextView(MainActivity.this);
           titleView.setText(item.title);
-          titleView.setTextSize(16f);
+          titleView.setTextSize(DeviceProfile.eink(this)?16f:17f);
           titleView.setTypeface(UI_MEDIUM);
           titleView.setTextColor(Color.BLACK);
           titleView.setMaxLines(2);
