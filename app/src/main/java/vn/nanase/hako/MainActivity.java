@@ -417,7 +417,7 @@ public class MainActivity extends Activity {
         lpCell.setMargins(dp(3),dp(3),dp(3),dp(3));
         line.addView(cell,lpCell);
       }
-      grid.addView(line,new LinearLayout.LayoutParams(-1,dp(Math.max(104,Math.round(86*getResources().getConfiguration().fontScale)))));
+      float scale=getResources().getConfiguration().fontScale;int rowDp=DeviceProfile.eink(this)?(scale<=1.05f?84:(int)Math.ceil(60+40*scale)):104;grid.addView(line,new LinearLayout.LayoutParams(-1,dp(rowDp)));
     }
     ScrollView homeScroll=profileScroll();homeScroll.setFillViewport(false);homeScroll.addView(grid);currentScroll=homeScroll;root.addView(homeScroll,new LinearLayout.LayoutParams(-1,0,1f));
     Store.Book last=displayBook(prefs.getString("lastBook",""));
