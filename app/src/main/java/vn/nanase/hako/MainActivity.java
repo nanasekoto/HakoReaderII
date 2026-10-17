@@ -270,7 +270,7 @@ public class MainActivity extends Activity {
     b.setPadding(dp(8), 0, dp(8), 0);
     android.graphics.drawable.GradientDrawable btnBg = new android.graphics.drawable.GradientDrawable();
     btnBg.setColor(Color.WHITE);
-    btnBg.setStroke(dp(1), DeviceProfile.eink(this)?Color.BLACK:Color.rgb(220,225,228));
+    btnBg.setStroke(dp(1), DeviceProfile.eink(MainActivity.this)?Color.BLACK:Color.rgb(220,225,228));
     btnBg.setCornerRadius(dp(6));
     b.setBackground(btnBg);
     b.setStateListAnimator(null);
@@ -363,7 +363,7 @@ public class MainActivity extends Activity {
     LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
     heading.addView(text("HAKO POCKET",20),new LinearLayout.LayoutParams(0,-2,1));
     Button report=button("Báo cáo",this::reportDialog);report.setTextSize(13);report.setPadding(dp(4),0,dp(4),0);report.setContentDescription("Gửi báo cáo");heading.addView(report,new LinearLayout.LayoutParams(dp(82),dp(36)));root.addView(heading);
-    root.addView(text("Đọc nhẹ • "+(DeviceProfile.eink(this)?"Xteink S4":"Android WebView")+" • v"+appVersion(),11));
+    root.addView(text("Đọc nhẹ • "+(DeviceProfile.eink(MainActivity.this)?"Xteink S4":"Android WebView")+" • v"+appVersion(),11));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     boolean paused=prefs.getBoolean("sync_paused",false);
@@ -388,7 +388,7 @@ public class MainActivity extends Activity {
       this::settings,
       this::exitApp
     };
-    if(!DeviceProfile.eink(this)){
+    if(!DeviceProfile.eink(MainActivity.this)){
       names[4]="Khám phá";
       Store.Book recent=displayBook(prefs.getString("lastBook",""));
       LinearLayout hero=new LinearLayout(this);hero.setOrientation(1);hero.setPadding(dp(18),dp(18),dp(18),dp(18));android.graphics.drawable.GradientDrawable background=new android.graphics.drawable.GradientDrawable();background.setColor(Color.rgb(235,244,240));background.setCornerRadius(dp(14));hero.setBackground(background);
@@ -407,7 +407,7 @@ public class MainActivity extends Activity {
         cell.setOrientation(1);cell.setGravity(Gravity.CENTER);
         android.graphics.drawable.GradientDrawable cellBg = new android.graphics.drawable.GradientDrawable();
         cellBg.setColor(Color.WHITE);
-        cellBg.setStroke(dp(1), DeviceProfile.eink(this)?Color.BLACK:Color.rgb(220,225,228));
+        cellBg.setStroke(dp(1), DeviceProfile.eink(MainActivity.this)?Color.BLACK:Color.rgb(220,225,228));
         cellBg.setCornerRadius(dp(8));
         cell.setBackground(cellBg);
         cell.setPadding(dp(2), dp(6), dp(2), dp(6));
@@ -427,9 +427,9 @@ public class MainActivity extends Activity {
         lpCell.setMargins(dp(3),dp(3),dp(3),dp(3));
         line.addView(cell,lpCell);
       }
-      grid.addView(line,DeviceProfile.eink(this)?new LinearLayout.LayoutParams(-1,0,1f):new LinearLayout.LayoutParams(-1,dp(104)));
+      grid.addView(line,DeviceProfile.eink(MainActivity.this)?new LinearLayout.LayoutParams(-1,0,1f):new LinearLayout.LayoutParams(-1,dp(104)));
     }
-    if(DeviceProfile.eink(this))root.addView(grid,new LinearLayout.LayoutParams(-1,0,1f));else{ScrollView homeScroll=new ScrollView(this);homeScroll.setFillViewport(false);homeScroll.addView(grid);root.addView(homeScroll,new LinearLayout.LayoutParams(-1,0,1f));}
+    if(DeviceProfile.eink(MainActivity.this))root.addView(grid,new LinearLayout.LayoutParams(-1,0,1f));else{ScrollView homeScroll=new ScrollView(this);homeScroll.setFillViewport(false);homeScroll.addView(grid);root.addView(homeScroll,new LinearLayout.LayoutParams(-1,0,1f));}
     Store.Book last=displayBook(prefs.getString("lastBook",""));
     TextView summary=text(last==null?"Chọn truyện để đọc · Đồng bộ trước khi tắt Wi-Fi":"Đọc tiếp: "+last.title,15);summary.setMaxLines(2);summary.setEllipsize(android.text.TextUtils.TruncateAt.END);root.addView(summary,new LinearLayout.LayoutParams(-1,-2));
     status();
@@ -457,14 +457,14 @@ public class MainActivity extends Activity {
     header.addView(new IconButton(this,14,"Mở web",()->browse(url)),new LinearLayout.LayoutParams(dp(42),dp(42)));
     root.addView(header);
     android.net.Uri sourceUri=android.net.Uri.parse(url);
-    if(!DeviceProfile.eink(this)){
+    if(!DeviceProfile.eink(MainActivity.this)){
       LinearLayout searchRow=new LinearLayout(this);searchRow.setPadding(dp(10),dp(4),dp(10),dp(4));
       EditText query=new EditText(this);query.setSingleLine(true);query.setTextSize(17);query.setHint("Tên truyện hoặc tác giả");query.setText(sourceUri.getQueryParameter("keywords"));query.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);searchRow.addView(query,new LinearLayout.LayoutParams(0,dp(50),1));
       Runnable find=()->searchStories(query.getText().toString());query.setOnEditorActionListener((view,action,event)->{if(action==android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH){find.run();return true;}return false;});searchRow.addView(button("Tìm",find));root.addView(searchRow);
     }
     LinearLayout discovery=new LinearLayout(this);
     String[] labels={"Cập nhật","Truyện mới","Hoàn thành"};String[] sorts={"truyendich=1&sapxep=capnhat","truyendich=1&sapxep=truyenmoi","hoanthanh=1&sapxep=capnhat"};
-    for(int n=0;n<labels.length;n++){final int selected=n;Button tab=button(labels[n],()->onlineList(labels[selected],HakoParser.ORIGIN+"/danh-sach?"+sorts[selected]));tab.setTextSize(DeviceProfile.eink(this)?13:15);discovery.addView(tab,new LinearLayout.LayoutParams(0,dp(48),1));}root.addView(discovery);
+    for(int n=0;n<labels.length;n++){final int selected=n;Button tab=button(labels[n],()->onlineList(labels[selected],HakoParser.ORIGIN+"/danh-sach?"+sorts[selected]));tab.setTextSize(DeviceProfile.eink(MainActivity.this)?13:15);discovery.addView(tab,new LinearLayout.LayoutParams(0,dp(48),1));}root.addView(discovery);
 
     final PagedBookList list = new PagedBookList(this);
     currentList = list;
@@ -504,14 +504,14 @@ public class MainActivity extends Activity {
 
           android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
           cardBg.setColor(Color.WHITE);
-          cardBg.setStroke(dp(1), DeviceProfile.eink(this)?Color.BLACK:Color.rgb(220,225,228));
+          cardBg.setStroke(dp(1), DeviceProfile.eink(MainActivity.this)?Color.BLACK:Color.rgb(220,225,228));
           cardBg.setCornerRadius(dp(6));
           card.setBackground(cardBg);
           card.setPadding(dp(10), dp(2), dp(10), dp(2));
 
           TextView titleView = new TextView(MainActivity.this);
           titleView.setText(item.title);
-          titleView.setTextSize(DeviceProfile.eink(this)?16f:17f);
+          titleView.setTextSize(DeviceProfile.eink(MainActivity.this)?16f:17f);
           titleView.setTypeface(UI_MEDIUM);
           titleView.setTextColor(Color.BLACK);
           titleView.setMaxLines(2);
@@ -1454,7 +1454,7 @@ public class MainActivity extends Activity {
   private void browse(String url) {
     if(settingsDialog!=null){settingsDialog.dismiss();settingsDialog=null;}
     Repository.cancel.set(true);GeckoClient.authenticating=true;leaveReader();
-    new Thread(()->{GeckoClient.release();runOnUiThread(()->{if(!isFinishing())startActivityForResult(new Intent(this,DeviceProfile.eink(this)?GeckoBrowserActivity.class:SystemBrowserActivity.class).putExtra("url",url).putExtra("origin",HakoParser.ORIGIN),91);else GeckoClient.authenticating=false;});},"Hako login handoff").start();
+    new Thread(()->{GeckoClient.release();runOnUiThread(()->{if(!isFinishing())startActivityForResult(new Intent(this,DeviceProfile.eink(MainActivity.this)?GeckoBrowserActivity.class:SystemBrowserActivity.class).putExtra("url",url).putExtra("origin",HakoParser.ORIGIN),91);else GeckoClient.authenticating=false;});},"Hako login handoff").start();
   }
 
   private String readerFont(){int n=prefs.getInt("font2",0);return n==1?"DejaVu,serif":n==2?"sans-serif":n==3?"ReaderCustom,serif":"Tinos,serif";}
@@ -1472,7 +1472,7 @@ public class MainActivity extends Activity {
   private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setMessage("Giữ miền hiện tại nếu vẫn dùng được. Nếu cần đăng nhập ở miền khác, lưu và mở xác minh trực tiếp; không cần miền cũ hoạt động.").setView(input).setPositiveButton("Kiểm tra và lưu",(d,w)->applyOrigin(input.getText().toString(),true)).setNeutralButton("Lưu và mở xác minh",(d,w)->applyOrigin(input.getText().toString(),false)).setNegativeButton("Hủy",null).show();}
   private void webViewInfo(){
     android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
-    String info="Nguồn trực tiếp: "+(DeviceProfile.eink(this)?"GeckoView":"Android System WebView")+" · "+appVersion()+"\nWebView hệ thống:\n"+
+    String info="Nguồn trực tiếp: "+(DeviceProfile.eink(MainActivity.this)?"GeckoView":"Android System WebView")+" · "+appVersion()+"\nWebView hệ thống:\n"+
       "Gói: "+(provider==null?"Không xác định":provider.packageName)+"\n"+
       "Phiên bản: "+(provider==null?"Không xác định":provider.versionName)+"\n\n"+
       "Thiết bị: "+Build.MANUFACTURER+" "+Build.MODEL+"\n"+
