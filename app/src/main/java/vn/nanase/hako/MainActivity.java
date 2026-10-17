@@ -290,7 +290,7 @@ public class MainActivity extends Activity {
     caughtUpPrompt=false; caughtUpBook=null;
     cancelLockKey();
     currentList=null; currentScroll=null; status=null;listLoadStatus=null;libraryMetadata=null;activeLibraryAdapter=null;activeLibraryBooks=null;libraryListMode=0;
-    nativeReader=null;
+    nativeReader=null;ServerBridge.activeBook="";
     readerReady = false;
     topBar = null; bar = null; boundaryPrompt = null; boundaryDir = 0; syncBadge = null;
     root = new LinearLayout(this);
@@ -855,7 +855,7 @@ public class MainActivity extends Activity {
   private void startDownloads(String id, int mode) {OperationTrace.Span trace=OperationTrace.begin(mode==Repository.MODE_READER_NEXT?"download.prefetch":"download.enqueue");try{if(id!=null&&!id.isEmpty())store.allowDownloads(id);
     if(prefs.getBoolean("sync_paused",false)&&mode!=Repository.MODE_BOOK_ALL){if(mode!=Repository.MODE_READER_NEXT)showActionFeedback("Đang tạm dừng · Chọn Tiếp tục trên trang chính");return;}
     if(mode==Repository.MODE_BOOK_ALL && !id.isEmpty()) {
-      if(nativeReader!=null&&id.equals(bookId)){flushReaderSave();nativeReader=null;readerReady=false;contents(displayBook(id));}
+      if(nativeReader!=null&&id.equals(bookId)){flushReaderSave();nativeReader=null;ServerBridge.activeBook="";readerReady=false;contents(displayBook(id));}
       final java.util.concurrent.Future<?> savedBeforeReset=lastReaderSave;libraryAction("Đã chọn tải full · đặt lại chưa đọc",()->{if(savedBeforeReset!=null)savedBeforeReset.get();store.resetUnreadForFull(id);store.setKeepFull(id,true);Intent request=new Intent(this,DownloadService.class).putExtra("book",id).putExtra("mode",mode);startForegroundService(request);return null;},"Đã xếp hàng tải full · tất cả chương chưa đọc");return;
     }
     if(mode==Repository.MODE_SYNC_LIBRARY){Repository.notify(this,Repository.busy.get()?"Đã nhận Cập nhật · chờ tác vụ hiện tại kết thúc":"Đã nhận Cập nhật · chuẩn bị kết nối HAKO");libraryHandler.removeCallbacks(libraryClock);libraryHandler.postDelayed(libraryClock,1000);}
@@ -1233,6 +1233,7 @@ public class MainActivity extends Activity {
       return null;
     },()->{if(request!=chapterOpenRequest||result.chapter==null)return;hideBoundaryPrompt();showPreparedReader(bid,result.chapter.id,result.book,result.chapter,result.content);if(nativeReader!=null)nativeReader.setRemainingChapters(result.remaining);Diagnostics.elapsed("reader.open_to_ui",begun);});
   }
+  void bridgeResume(String bid,String cid,Runnable importPosition){flushReaderSave();final java.util.concurrent.Future<?> checkpoint=lastReaderSave;nativeReader=null;readerReady=false;io.execute(()->{try{if(checkpoint!=null)checkpoint.get();importPosition.run();runOnUiThread(()->showReader(bid,cid));}catch(Exception e){runOnUiThread(()->message("Chưa nhận được vị trí. Tiến độ trên máy được giữ."));}});}
   private void showReader(String bid,String cid){openChapter(bid,cid);}
 
   private void toolCell(View view){android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setStroke(dp(1),Color.BLACK);bg.setCornerRadius(dp(6));view.setBackground(bg);if(view.getLayoutParams() instanceof LinearLayout.LayoutParams)((LinearLayout.LayoutParams)view.getLayoutParams()).setMargins(dp(2),dp(2),dp(2),dp(2));}
