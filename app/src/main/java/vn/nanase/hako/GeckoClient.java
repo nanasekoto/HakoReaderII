@@ -36,6 +36,7 @@ public final class GeckoClient {
  }
  public static byte[] request(String url,String script,int max,String selectedOrigin)throws Exception{
   selectedOrigin=HakoParser.originOf(selectedOrigin);
+  if(app!=null&&!DeviceProfile.eink(app))return SystemWebClient.request(app,url,script,max,selectedOrigin);
   if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");long queued=Diagnostics.now();turns.acquire(RequestTurn.background.get());OperationTrace.Span trace=OperationTrace.begin("net.request",queued);String priorStage=Repository.executionStage;try{Repository.executionStage="NETWORK";Diagnostics.activityEvent();return requestNow(url,script,max,selectedOrigin);}finally{Repository.executionStage=priorStage;Diagnostics.activityEvent();OperationTrace.end(trace,"closed",0);synchronized(turns){turns.release();if(releaseWanted||!Repository.busy.get()){releaseWanted=false;releaseNow();}}}
  }
  private static byte[] requestNow(String url,String script,int max,String selectedOrigin)throws Exception{

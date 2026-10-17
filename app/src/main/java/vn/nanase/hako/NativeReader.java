@@ -163,8 +163,8 @@ public final class NativeReader extends View {
  private Bitmap visibleImage(File f){
   if(activeImage!=null&&activeImagePath.equals(f.getPath()))return activeImage;
   releaseImage();BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(f.getPath(),o);
-  o.inSampleSize=1;while(o.outWidth/o.inSampleSize>480||o.outHeight/o.inSampleSize>800)o.inSampleSize*=2;
-  o.inJustDecodeBounds=false;o.inPreferredConfig=Bitmap.Config.RGB_565;
+  o.inSampleSize=1;while(o.outWidth/o.inSampleSize>DeviceProfile.imageWidth(getContext())||o.outHeight/o.inSampleSize>DeviceProfile.imageHeight(getContext()))o.inSampleSize*=2;
+  o.inJustDecodeBounds=false;o.inPreferredConfig=DeviceProfile.eink(getContext())?Bitmap.Config.RGB_565:Bitmap.Config.ARGB_8888;
   activeImage=BitmapFactory.decodeFile(f.getPath(),o);activeImagePath=f.getPath();return activeImage;
  }
  private final class LocalImage extends Drawable {

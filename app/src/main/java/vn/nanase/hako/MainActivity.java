@@ -453,6 +453,7 @@ public class MainActivity extends Activity {
     status();
     final List<HakoParser.Link> stories = new ArrayList<>();
     task("Đang tải danh sách…", () -> {
+      if(ServerSource.available(this)){try{stories.addAll(ServerSource.discover(this,url));return null;}catch(Exception e){ServerSource.failed(this,e);}}
       String html = Repository.page(url, false);
       stories.addAll(HakoParser.storyList(html, url));
       return null;
@@ -1431,7 +1432,7 @@ public class MainActivity extends Activity {
   private void browse(String url) {
     if(settingsDialog!=null){settingsDialog.dismiss();settingsDialog=null;}
     Repository.cancel.set(true);GeckoClient.authenticating=true;leaveReader();
-    new Thread(()->{GeckoClient.release();runOnUiThread(()->{if(!isFinishing())startActivityForResult(new Intent(this,GeckoBrowserActivity.class).putExtra("url",url).putExtra("origin",HakoParser.ORIGIN),91);else GeckoClient.authenticating=false;});},"Hako login handoff").start();
+    new Thread(()->{GeckoClient.release();runOnUiThread(()->{if(!isFinishing())startActivityForResult(new Intent(this,DeviceProfile.eink(this)?GeckoBrowserActivity.class:SystemBrowserActivity.class).putExtra("url",url).putExtra("origin",HakoParser.ORIGIN),91);else GeckoClient.authenticating=false;});},"Hako login handoff").start();
   }
 
   private String readerFont(){int n=prefs.getInt("font2",0);return n==1?"DejaVu,serif":n==2?"sans-serif":n==3?"ReaderCustom,serif":"Tinos,serif";}

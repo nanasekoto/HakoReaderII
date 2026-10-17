@@ -15,6 +15,7 @@
         android:theme="@style/AppTheme">
 
         <service android:name="vn.nanase.hako.GeckoEngineService" android:process=":gecko" android:exported="false" />
+        <activity android:name="vn.nanase.hako.SystemBrowserActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name="vn.nanase.hako.GeckoBrowserActivity" android:process=":gecko" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden" />
 
         <activity

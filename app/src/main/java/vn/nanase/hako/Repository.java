@@ -44,7 +44,7 @@ public final class Repository {
   }
   private static final Object stopLock=new Object();private static final AtomicInteger stopRevision=new AtomicInteger();private static final ThreadLocal<Integer> runStopRevision=new ThreadLocal<>();
   public static int stopEpoch(){return stopRevision.get();}
-  private static boolean downloadCancelled(){Integer started=runStopRevision.get();return cancel.get()||(started!=null&&started!=stopRevision.get());}
+  static boolean downloadCancelled(){Integer started=runStopRevision.get();return cancel.get()||(started!=null&&started!=stopRevision.get());}
   public static void stopDownloads(Context c){synchronized(stopLock){stopRevision.incrementAndGet();cancel.set(true);pendingAll=false;pendingPersonal=false;clearBook();c.getSharedPreferences("download_resume",0).edit().clear().apply();c.getSharedPreferences("paused_requests",0).edit().clear().apply();}c.getSystemService(android.app.job.JobScheduler.class).cancel(41);notify(c,"Đã dừng tải theo yêu cầu");}
   private static long lastNetwork=0;
   public static void cooldown(Context c,long ms){c.getSharedPreferences("settings",0).edit().remove("cooldownUntil").apply();}
@@ -93,12 +93,14 @@ public final class Repository {
     if (authenticated && !HakoParser.isOrigin(url))
       throw new IOException("Sai máy chủ đăng nhập");
     if(app==null)throw new IOException("Chưa khởi tạo app");
+    if(ServerSource.available(app)){try{return ServerSource.html(app,u);}catch(Exception e){ServerSource.failed(app,e);}}
     return GeckoClient.request(url,null,max);
   }
 
   public static String page(String u, boolean auth) throws Exception {return pageAt(u,HakoParser.ORIGIN);}
   public static String pageAt(String u,String origin) throws Exception {
     if(app==null)throw new IOException("Chưa khởi tạo app");
+    if(ServerSource.available(app)){try{return ServerSource.html(app,u);}catch(Exception e){ServerSource.failed(app,e);}}
     String script="(function(){var t=document.title||'';if(/^(just a moment|attention required|access denied|503 service unavailable|too many requests)[.!… ]*$/i.test(t.trim())||document.querySelector('#challenge-form,.cf-browser-verification'))return JSON.stringify({error:'Trang yêu cầu xác minh hoặc đang giới hạn truy cập. Mở HAKO để kiểm tra.'});if(!document.body||!document.body.innerHTML.trim())return JSON.stringify({});return JSON.stringify({html:document.documentElement.outerHTML});})()";
     return new String(GeckoClient.request(u,script,8*1024*1024,origin),"UTF-8");
   }
@@ -208,7 +210,9 @@ public final class Repository {
     String u = HakoParser.storyUrl(url);
     String id = HakoParser.storyId(u);
     if (id.isEmpty()) throw new IOException("Dán URL truyện hoặc chương từ docln.sbs");
-    allowed(c);String html = page(u, true);
+    allowed(c);
+    if(ServerSource.available(c)){try{Store.Book book=ServerSource.catalog(c,u,false);String cid=HakoParser.chapterId(url);if(!cid.isEmpty()&&Store.get(c).chapter(book.id,cid)!=null)Store.get(c).selectChapter(book.id,cid);return Store.get(c).book(book.id);}catch(Exception e){ServerSource.failed(c,e);}}
+    String html = page(u, true);
     Store s = Store.get(c);
     s.putBook(new HakoParser.Link(id, HakoParser.title(html, u), u));
     List<HakoParser.Link> list = HakoParser.chapters(html, u);
@@ -249,6 +253,7 @@ public final class Repository {
     prefs.edit().putBoolean("catalog_failed_"+b.id,true).commit();
     allowed(c);
     String shelfKey=c.getSharedPreferences("settings",0).getString("shelf_key_"+b.id,"");
+    if(ServerSource.available(c)){try{ServerSource.catalog(c,b.url,force);catalogVerified(c,b.id,shelfKey);LibraryState.changed(c,b.id,true);return;}catch(Exception e){ServerSource.failed(c,e);}}
     String html = page(b.url, true);
     List<HakoParser.Link> ls = HakoParser.chapters(html, b.url);
     if (ls.isEmpty()) throw new IOException("Mục lục trống: " + b.title);
@@ -282,6 +287,7 @@ public final class Repository {
     if(!force&&s.cachedIllustration(c.id)){UpdateReport.log(ctx,c.title+": giữ minh họa đã lưu · không tải lại trang");return;}
     if(!CachePolicy.shouldFetch(cachedContent,force)){if(!c.ready)s.state(c.id,true,c.error);return;}
     allowed(ctx);
+    if(ServerSource.available(ctx)){try{ServerSource.download(ctx,c,force,imagesOnly);return;}catch(ServerSource.PendingImages e){throw e;}catch(InterruptedIOException e){throw e;}catch(Exception e){ServerSource.failed(ctx,e);}}
     long pause=Math.max(0,1500-(android.os.SystemClock.elapsedRealtime()-lastNetwork));
     if(pause>0)Thread.sleep(pause);
     lastNetwork=android.os.SystemClock.elapsedRealtime();
@@ -327,7 +333,7 @@ public final class Repository {
           byte[] data = fetch(src, false, 16 * 1024 * 1024);
           File tmp = new File(dir, name + ".tmp");
           try (FileOutputStream out = new FileOutputStream(tmp)) {
-            writeSmallImage(data,out);
+            writeDeviceImage(ctx,data,out);
             out.getFD().sync();
           }
           if(!Store.imageFileReadable(tmp)){tmp.delete();throw new IOException("Máy chủ không trả ảnh đọc được");}
@@ -352,6 +358,17 @@ public final class Repository {
   }
 
   private static void promoteActive(List<Store.Book> todo){for(int i=0;i<todo.size();i++)if(todo.get(i).id.equals(activeBook)){Store.Book b=todo.remove(i);todo.add(0,b);break;}}
+  private static void writeDeviceImage(Context context,byte[] data,OutputStream out)throws IOException{
+    if(DeviceProfile.eink(context)){writeSmallImage(data,out);return;}
+    android.graphics.BitmapFactory.Options options=new android.graphics.BitmapFactory.Options();options.inJustDecodeBounds=true;
+    android.graphics.BitmapFactory.decodeByteArray(data,0,data.length,options);
+    if(options.outWidth<=0||options.outHeight<=0)throw new IOException("Ảnh không hợp lệ");
+    options.inSampleSize=1;while(options.outWidth/options.inSampleSize>2400||options.outHeight/options.inSampleSize>4800)options.inSampleSize*=2;
+    options.inJustDecodeBounds=false;options.inPreferredConfig=android.graphics.Bitmap.Config.ARGB_8888;
+    android.graphics.Bitmap image=android.graphics.BitmapFactory.decodeByteArray(data,0,data.length,options);
+    if(image==null)throw new IOException("Không giải mã được ảnh");
+    try{if(!image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out))throw new IOException("Không lưu được ảnh");}finally{image.recycle();}
+  }
   public static void writeSmallImage(byte[] data,OutputStream out)throws IOException{
     android.graphics.BitmapFactory.Options o=new android.graphics.BitmapFactory.Options();o.inJustDecodeBounds=true;
     android.graphics.BitmapFactory.decodeByteArray(data,0,data.length,o);
