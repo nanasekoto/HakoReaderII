@@ -24,6 +24,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r build/test-android/tests.apk
 adb shell svc wifi disable
 adb shell svc data disable
+failed=0
 for phase in targeted remaining; do
   if [ "$phase" = targeted ]; then suites="ReadQueueWorkflowTest UxLinkTest TocWorkflowTest FeatureFlowTest"; else suites="ImageCacheTest ReadingStateTest UnreadStateTest SequentialReadTest LibraryStateTest QueueResponsivenessTest BatchWorkflowTest WorkflowDiagnosticsTest SyncDomainTest"; fi
   echo "Validation phase: $phase"
@@ -31,12 +32,17 @@ for phase in targeted remaining; do
   adb shell am force-stop vn.nanase.hako
   adb shell pm clear vn.nanase.hako
   class="vn.nanase.hako.tests.$test"; if [ "$test" = ReadQueueWorkflowTest ]; then class="vn.nanase.hako.$test"; fi
-  timeout 180 adb shell am instrument -w "vn.nanase.hako.tests/$class" | tee "build/evidence/$test.txt"
-  grep -q 'PASS TOTAL' "build/evidence/$test.txt"
-  if [ "$test" = WorkflowDiagnosticsTest ]; then adb exec-out run-as vn.nanase.hako cat files/main-page.png > build/evidence/main-page.png; fi
+  if timeout 180 adb shell am instrument -w "vn.nanase.hako.tests/$class" | tee "build/evidence/$test.txt"; then
+    if ! grep -q 'PASS TOTAL' "build/evidence/$test.txt"; then failed=$((failed+1)); fi
+  else
+    failed=$((failed+1))
+  fi
+  if [ "$test" = WorkflowDiagnosticsTest ]; then adb exec-out run-as vn.nanase.hako cat files/main-page.png > build/evidence/main-page.png || true; fi
   if [ "$test" = FeatureFlowTest ]; then
-    for pic in story-info.png settings.png book-menu.png reader-footer.png; do adb exec-out run-as vn.nanase.hako cat "files/$pic" > "build/evidence/$pic"; done
+    for pic in story-info.png settings.png book-menu.png reader-footer.png; do adb exec-out run-as vn.nanase.hako cat "files/$pic" > "build/evidence/$pic" || true; done
   fi
   done
 done
 adb logcat -d -s AndroidRuntime > build/evidence/crashes.txt
+
+if [ "$failed" -ne 0 ]; then echo "Failed Android suites: $failed"; exit 1; fi
