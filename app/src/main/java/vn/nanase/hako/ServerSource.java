@@ -56,6 +56,7 @@ public final class ServerSource {
   String html=doc.getString("html");if(!HakoParser.validContent(html))throw new IOException("Nội dung server không hợp lệ");synchronized(store){Store.Book b=store.book(chapter.book);if(b==null||!FetchPolicy.allowCache(b.followed||store.syncTarget(b),chapter.book.equals(Repository.activeBook),store.isKeepFull(b.id)))return true;Store.write(store.html(chapter.id),html);store.classify(chapter.id,html);store.state(chapter.id,store.readable(chapter.id),missing==0?"":"Đang chờ "+missing+" ảnh từ server");}
   return missing==0;
  }
+ static void repairCachedImages(Context c,Store.Chapter ch){if(available(c)&&Store.get(c).missingImages(ch.id)>0)scheduleImages(c,ch,0);}
  private static void scheduleImages(Context c,Store.Chapter ch,int attempt){
   if(attempt>=12||repairing.size()>=16||!repairing.add(ch.id))return;Context app=c.getApplicationContext();images.schedule(()->{boolean retry=false;try{if(!preferred(app)||Repository.downloadCancelled()||(Repository.pocketPaused&&!ch.book.equals(Repository.activeBook)))return;JSONObject doc=request(app,"POST","/v2/pocket/chapter",new JSONObject().put("url",ch.url).put("eink",DeviceProfile.eink(app)));if(doc.has("html")){retry=!save(app,ch,doc);if(!retry)app.sendBroadcast(new Intent(Repository.EVENT).setPackage(app.getPackageName()).putExtra("server_images_changed",ch.id));}else retry=true;}catch(Exception e){retry=true;}finally{repairing.remove(ch.id);if(retry)scheduleImages(app,ch,attempt+1);}},3,TimeUnit.SECONDS);
  }

@@ -207,6 +207,7 @@ public class MainActivity extends Activity {
           public void onReceive(Context c, Intent i) {
             if(i.hasExtra("diagnostic_status")){if(Diagnostics.foreground)Toast.makeText(MainActivity.this,i.getStringExtra("diagnostic_status"),Toast.LENGTH_LONG).show();return;}
             String text = i.getStringExtra("text");
+            if(nativeReader!=null&&chapterId.equals(i.getStringExtra("server_images_changed"))){final String bid=bookId,cid=chapterId;saveThen(()->showReader(bid,cid));return;}
             if(i.hasExtra("read_sync_book")){if(text!=null&&bookId.equals(i.getStringExtra("read_sync_book")))showActionFeedback(text);return;}
             if(i.getBooleanExtra("reading_position",false)){readyLibrary=LibraryState.peek();if(chapterId.isEmpty())refreshLibraryView();}
             if(i.getBooleanExtra("snapshot_changed",false)){readyLibrary=LibraryState.peek();refreshLibraryView();if(nativeReader!=null&&readyLibrary!=null){Store.Book b=displayBook(bookId);if(b!=null&&chapterId.equals(b.current)){int remaining=readyLibrary.summary(b).unread;if(remaining>=0)nativeReader.setRemainingChapters(remaining);}}}
@@ -447,9 +448,22 @@ public class MainActivity extends Activity {
         new LinearLayout.LayoutParams(dp(42),dp(42)));
     header.addView(new IconButton(this,14,"Mở web",()->browse(url)),new LinearLayout.LayoutParams(dp(42),dp(42)));
     root.addView(header);
+    android.net.Uri sourceUri=android.net.Uri.parse(url);
+    if(!DeviceProfile.eink(this)){
+      LinearLayout searchRow=new LinearLayout(this);searchRow.setPadding(dp(10),dp(4),dp(10),dp(4));
+      EditText query=new EditText(this);query.setSingleLine(true);query.setTextSize(17);query.setHint("Tên truyện hoặc tác giả");query.setText(sourceUri.getQueryParameter("keywords"));query.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);searchRow.addView(query,new LinearLayout.LayoutParams(0,dp(50),1));
+      Runnable find=()->searchStories(query.getText().toString());query.setOnEditorActionListener((view,action,event)->{if(action==android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH){find.run();return true;}return false;});searchRow.addView(button("Tìm",find));root.addView(searchRow);
+    }
+    LinearLayout discovery=new LinearLayout(this);
+    String[] labels={"Cập nhật","Truyện mới","Hoàn thành"};String[] sorts={"truyendich=1&sapxep=capnhat","truyendich=1&sapxep=truyenmoi","hoanthanh=1&sapxep=capnhat"};
+    for(int n=0;n<labels.length;n++){final int selected=n;Button tab=button(labels[n],()->onlineList(labels[selected],HakoParser.ORIGIN+"/danh-sach?"+sorts[selected]));tab.setTextSize(DeviceProfile.eink(this)?13:15);discovery.addView(tab,new LinearLayout.LayoutParams(0,dp(48),1));}root.addView(discovery);
+
     final PagedBookList list = new PagedBookList(this);
     currentList = list;
     root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+    int parsedPage=1;try{parsedPage=Math.max(1,Integer.parseInt(sourceUri.getQueryParameter("page")));}catch(Exception ignored){}final int sourcePage=parsedPage;
+    LinearLayout paging=new LinearLayout(this);Button previous=button("← Trang trước",()->onlineList(title,sourcePageUrl(url,sourcePage-1)));previous.setEnabled(sourcePage>1);Button next=button("Trang sau →",()->onlineList(title,sourcePageUrl(url,sourcePage+1)));next.setEnabled(false);paging.addView(previous,new LinearLayout.LayoutParams(0,dp(48),1));TextView pageLabel=new TextView(this);pageLabel.setText(" "+sourcePage+" ");pageLabel.setGravity(Gravity.CENTER);paging.addView(pageLabel,new LinearLayout.LayoutParams(-2,dp(48)));paging.addView(next,new LinearLayout.LayoutParams(0,dp(48),1));root.addView(paging);
+
     status();
     final List<HakoParser.Link> stories = new ArrayList<>();
     task("Đang tải danh sách…", () -> {
@@ -458,8 +472,9 @@ public class MainActivity extends Activity {
       stories.addAll(HakoParser.storyList(html, url));
       return null;
     }, () -> {
+      next.setEnabled(!stories.isEmpty());
       if (stories.isEmpty()) {
-        status.setText("Không tìm thấy truyện. Chọn Mở web để kiểm tra.");
+        status.setText("Không có truyện ở trang này. Thử từ khóa khác hoặc quay về trang trước.");
         return;
       }
 
@@ -521,12 +536,11 @@ public class MainActivity extends Activity {
     });
   }
 
+  private String sourcePageUrl(String url,int page){android.net.Uri uri=android.net.Uri.parse(url);android.net.Uri.Builder builder=uri.buildUpon().clearQuery();for(String key:uri.getQueryParameterNames())if(!key.equals("page"))for(String value:uri.getQueryParameters(key))builder.appendQueryParameter(key,value);return builder.appendQueryParameter("page",String.valueOf(Math.max(1,page))).build().toString();}
+  private void searchStories(String query){String q=query.trim();if(q.isEmpty())return;prefs.edit().putString("last_search",q).apply();try{String u=HakoParser.ORIGIN+"/tim-kiem?keywords="+java.net.URLEncoder.encode(q,"UTF-8");onlineList("Tìm: "+q,u);}catch(Exception ignored){}}
   private void searchDialog() {
-    EditText field=new EditText(this);field.setSingleLine(true);field.setHint("Nhập tên truyện hoặc tác giả…");
-    new AlertDialog.Builder(this).setTitle("Tìm kiếm HAKO").setView(field).setPositiveButton("Tìm",(d,w)->{
-      String q=field.getText().toString().trim();
-      if(!q.isEmpty()){try{String u=HakoParser.ORIGIN+"/tim-kiem?keywords="+java.net.URLEncoder.encode(q,"UTF-8");navStack.push(this::library);onlineList("Tìm: "+q,u);}catch(Exception ignored){}}
-    }).setNegativeButton("Hủy",null).show();
+    EditText field=new EditText(this);field.setSingleLine(true);field.setHint("Nhập tên truyện hoặc tác giả…");field.setText(prefs.getString("last_search",""));field.selectAll();
+    new AlertDialog.Builder(this).setTitle("Tìm kiếm HAKO").setView(field).setPositiveButton("Tìm",(d,w)->{navStack.push(this::library);searchStories(field.getText().toString());}).setNegativeButton("Hủy",null).show();
   }
 
   private void bookList(boolean shelf){openLibraryList(shelf?1:4);}

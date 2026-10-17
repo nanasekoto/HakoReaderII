@@ -285,7 +285,7 @@ public final class Repository {
     Store s = Store.get(ctx);
     boolean cachedContent=s.readable(c.id);
     if(!force&&s.cachedIllustration(c.id)){UpdateReport.log(ctx,c.title+": giữ minh họa đã lưu · không tải lại trang");return;}
-    if(!CachePolicy.shouldFetch(cachedContent,force)){if(!c.ready)s.state(c.id,true,c.error);return;}
+    if(!CachePolicy.shouldFetch(cachedContent,force)){if(!c.ready)s.state(c.id,true,c.error);ServerSource.repairCachedImages(ctx,c);return;}
     allowed(ctx);
     if(ServerSource.available(ctx)){try{ServerSource.download(ctx,c,force,imagesOnly);return;}catch(ServerSource.PendingImages e){throw e;}catch(InterruptedIOException e){throw e;}catch(Exception e){ServerSource.failed(ctx,e);}}
     long pause=Math.max(0,1500-(android.os.SystemClock.elapsedRealtime()-lastNetwork));
