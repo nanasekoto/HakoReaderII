@@ -33,8 +33,12 @@ Trong app: Cài đặt → Tên miền HAKO. Mục lục nhận từ server/Clou
 
 Khi thoát chương, vị trí vẫn được gửi kể cả khi chưa lật trang; cache không cần ghi lại chỉ để tạo checkpoint. Cloudflare không dùng được thì việc nhận vị trí quay về Ubuntu.
 
-## Kiem tra phat hanh 2026-10-18
+## Kiểm tra phát hành 2026-10-18
 
-Pocket 0.8.2 da cai de tren S4 Android 11 va K60 Android 14, giu du lieu. K60 dang nhap bang System WebView, tim truyen, mo anh mau va xoay anh thanh cong. Hai chieu S4 -> K60 va K60 -> S4 da khop chuong 195 cua truyen-28753, quote bat dau tai paragraph 144. Backend 51 pytest passed; APK 0.8.2 CI 13 Android suites / 323 checks.
+Pocket 0.8.3 đã cài đè trên S4 Android 11 và K60 Android 14, giữ dữ liệu. K60 đăng nhập bằng System WebView, tìm truyện, mở ảnh màu và xoay ảnh thành công. Hai chiều S4 → K60 và K60 → S4 đã khớp chương 195 của truyen-28753, đoạn bắt đầu tại paragraph 144. Sau khi cập nhật 0.8.3, cả hai máy mở lại đoạn này và thoát chương bình thường; không thấy ANR/crash mới trong log của lượt kiểm tra.
 
-0.8.3 sua UI bi cho khoa LibraryState khi dong bo muc luc: peek tra snapshot da cong bo ngay neu refresh dang ban. Read mark da co khong kich hoat tinh lai summary. Co regression test UI peek trong luc refresh giu khoa; ket qua CI va kiem tra thiet bi 0.8.3 se duoc cap nhat khi hoan tat.
+Backend: 51 pytest đạt. CI 39063528610: JVM/parser/JS, 13 bộ kiểm thử Android với 324 checks, build ARM32 và kiểm tra APK đều đạt. Bài kiểm tra mới giữ khóa refresh và xác nhận UI lấy snapshot ngay. 0.8.3 sửa peek chờ khóa khi đồng bộ mục lục; read mark đã có không kích hoạt tính lại summary.
+
+APK công khai đã đối chiếu SHA256: `3930c8dd9d1a05717ece481c109e0b30cab0ab0855af8520f399eabb559b8c2d`. Thiết lập giữ sáng màn hình tạm thời trên cả hai máy đã trả về giá trị ban đầu.
+
+Cloudflare đã chạm hạn mức đọc D1 miễn phí trong lượt kiểm tra; chưa xác nhận phục hồi trực tiếp khi Ubuntu tắt. Đồng bộ qua Ubuntu đã kiểm tra hai chiều. Zoom hai ngón đã triển khai nhưng chưa xác nhận bằng thao tác trên máy thật.
