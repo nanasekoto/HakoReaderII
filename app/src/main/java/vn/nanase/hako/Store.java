@@ -490,7 +490,7 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void position(String book, String chapter, int pos, float fraction) {OperationTrace.Span trace=OperationTrace.begin("read.persist");try{
     if(ignoredForReading(chapter))return;
     Book previous=book(book);boolean changed=previous!=null&&!chapter.equals(previous.current);
-    int savedPos=Math.max(0,pos);float savedFraction=Math.max(0,Math.min(.999999f,fraction));if(previous!=null&&!changed&&previous.pos==savedPos&&Float.compare(previous.fraction,savedFraction)==0)return;
+    int savedPos=Math.max(0,pos);float savedFraction=Math.max(0,Math.min(.999999f,fraction));if(previous!=null&&!changed&&previous.pos==savedPos&&Float.compare(previous.fraction,savedFraction)==0){ServerBridge.localPosition(context,book,chapter,savedPos,savedFraction);return;}
     ContentValues v = new ContentValues();
     v.put("current", chapter);
     v.put("pos", Math.max(0, pos));
