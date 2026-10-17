@@ -1,7 +1,7 @@
 name: Build Hako Pocket
 on:
   push:
-    branches: [ main, fix/workflow-diagnostics-0723 ]
+    branches: [ main, fix/workflow-diagnostics-0723, feature/shared-server-progress ]
     paths: [ 'app/**', 'backend/**', 'tests/**', 'scripts/**', '*.gradle', '*.properties', '*.sh', '.github/workflows/build.yml' ]
   pull_request:
     branches: [ main ]

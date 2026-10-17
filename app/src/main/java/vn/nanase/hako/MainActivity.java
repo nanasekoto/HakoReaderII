@@ -1280,6 +1280,7 @@ public class MainActivity extends Activity {
 
     FrameLayout readerFrame = new FrameLayout(this);
 
+    ServerBridge.activeBook=bid;
     nativeReader=new NativeReader(this,store.dir(cid),new NativeReader.Listener(){
       private int persisted=Integer.MIN_VALUE;private float persistedFraction;private boolean completed;
       public void position(int p,float f,int page,int count){
@@ -1541,6 +1542,7 @@ public class MainActivity extends Activity {
     importedFontDraft=()->{fontChoice[0]=5;fontSelect.setText("Phông: "+fontNames[5]+" ⇅");fontCache[5]=null;update.run();};
     box.addView(button("Nhập font TTF / OTF",()->{fontImportPanel=settingsDialog;optionalPicker(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),88);}));
     box.addView(button("Tài khoản HAKO",()->browse(HakoParser.ORIGIN+"/login")));
+    box.addView(button("Đồng bộ hai chiều với Hako Server",()->ServerBridge.settings(this)));
     CheckBox profiling=check("Đo CPU / log chi tiết (áp dụng ngay)",Diagnostics.measuring());profiling.setOnCheckedChangeListener((v,on)->Diagnostics.setMeasuring(on));box.addView(profiling);box.addView(button("Chi tiết cập nhật / Xuất báo cáo lỗi",this::updateDetails));
     box.addView(button("Kiểm tra toàn bộ tủ sách",()->{settingsDialog.dismiss();requestFullShelf(1);}));
     box.addView(button("Đối chiếu quét nhanh với toàn bộ",()->{settingsDialog.dismiss();requestFullShelf(2);}));
@@ -1680,12 +1682,13 @@ public class MainActivity extends Activity {
   protected void onPause() {
     cancelLockKey();
     if(nativeReader!=null&&readerReady){final String bid=bookId,cid=chapterId;final int p=lastPos;final float f=lastFraction;queueReaderSave(()->store.position(bid,cid,p,f),true);}
-    flushReaderSave();Repository.pocketPaused=true;Diagnostics.background(this);
+    flushReaderSave();ServerBridge.activeBook="";ServerBridge.kick(this);Repository.pocketPaused=true;Diagnostics.background(this);
     super.onPause();
   }
 
   @Override protected void onResume(){
     super.onResume();
+    ServerBridge.activeBook=nativeReader==null?"":bookId;ServerBridge.kick(this);
     Repository.pocketPaused=touchLocked;Diagnostics.resumeMonitoring();
   }
 
