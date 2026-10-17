@@ -17,6 +17,9 @@ public final class SystemWebClient {
   CountDownLatch done=new CountDownLatch(1);AtomicReference<byte[]> result=new AtomicReference<>();AtomicReference<Exception> error=new AtomicReference<>();AtomicReference<WebView> holder=new AtomicReference<>();
   ui.post(()->{try{
    WebView view=new WebView(c.getApplicationContext());holder.set(view);view.getSettings().setJavaScriptEnabled(true);view.getSettings().setDomStorageEnabled(true);view.getSettings().setAllowFileAccess(false);view.getSettings().setAllowContentAccess(false);android.webkit.CookieManager.getInstance().setAcceptCookie(true);
+   if(!androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT))throw new IOException("Cần cập nhật Android System WebView để tải trực tiếp an toàn");
+   // Background fetches must not masquerade as a human reading on Hako.
+   androidx.webkit.WebViewCompat.addDocumentStartJavaScript(view,"(function(){const set=Storage.prototype.setItem,remove=Storage.prototype.removeItem;Storage.prototype.setItem=function(k,v){if(this===localStorage&&k==='reading_series')return;return set.apply(this,arguments)};Storage.prototype.removeItem=function(k){if(this===localStorage&&k==='reading_series')return;return remove.apply(this,arguments)}})()",java.util.Collections.singleton(origin));
    view.setWebViewClient(new WebViewClient());
    view.loadUrl(url);
    ui.postDelayed(new Runnable(){int tries;public void run(){
