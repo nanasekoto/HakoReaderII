@@ -35,12 +35,12 @@ public final class ServerSource {
   throw new IOException("Server đang chuẩn bị nội dung; có thể thử lại sau");
  }
  public static List<HakoParser.Link> discover(Context c,String url)throws Exception{
-  JSONObject result=request(c,"GET","/v2/pocket/discover?url="+URLEncoder.encode(url,"UTF-8"),null);JSONArray rows=result.getJSONArray("books");List<HakoParser.Link> links=new ArrayList<>();for(int i=0;i<rows.length();i++){JSONObject row=rows.getJSONObject(i);HakoParser.Link link=new HakoParser.Link(row.getString("id"),row.getString("title"),row.getString("url"));link.info=row.optString("info");links.add(link);}return links;
+  JSONObject result=request(c,"GET","/v2/pocket/discover?url="+URLEncoder.encode(url,"UTF-8"),null);JSONArray rows=result.getJSONArray("books");List<HakoParser.Link> links=new ArrayList<>();for(int i=0;i<rows.length();i++){JSONObject row=rows.getJSONObject(i);HakoParser.Link link=new HakoParser.Link(row.getString("id"),row.getString("title"),HakoParser.sharedUrl(row.getString("url")));link.info=row.optString("info");links.add(link);}return links;
  }
  static String html(Context c,String url)throws Exception{return request(c,"GET","/v2/pocket/page?url="+URLEncoder.encode(url,"UTF-8"),null).getString("html");}
  static Store.Book catalog(Context c,String url,boolean force)throws Exception{
-  JSONObject data=prepare(c,"/v2/pocket/catalog",HakoParser.storyUrl(url),force,false);JSONObject b=data.getJSONObject("book");String bid=b.getString("id");Store store=Store.get(c);store.putBook(new HakoParser.Link(bid,b.getString("title"),b.getString("url")));JSONArray chapters=data.getJSONArray("chapters");List<HakoParser.Link> rows=new ArrayList<>();
-  for(int i=0;i<chapters.length();i++){JSONObject ch=chapters.getJSONObject(i);String link=ch.getString("url"),id=HakoParser.chapterId(link);if(!id.isEmpty())rows.add(new HakoParser.Link(id,ch.getString("title"),link));}if(rows.isEmpty())throw new IOException("Server chưa có mục lục hợp lệ");store.catalog(bid,rows);store.establishReadBaseline(bid);return store.book(bid);
+  JSONObject data=prepare(c,"/v2/pocket/catalog",HakoParser.storyUrl(url),force,false);JSONObject b=data.getJSONObject("book");String bid=b.getString("id");Store store=Store.get(c);store.putBook(new HakoParser.Link(bid,b.getString("title"),HakoParser.sharedUrl(b.getString("url"))));JSONArray chapters=data.getJSONArray("chapters");List<HakoParser.Link> rows=new ArrayList<>();
+  for(int i=0;i<chapters.length();i++){JSONObject ch=chapters.getJSONObject(i);String link=HakoParser.sharedUrl(ch.getString("url")),id=HakoParser.chapterId(link);if(!id.isEmpty())rows.add(new HakoParser.Link(id,ch.getString("title"),link));}if(rows.isEmpty())throw new IOException("Server chưa có mục lục hợp lệ");store.catalog(bid,rows);store.establishReadBaseline(bid);return store.book(bid);
  }
  static boolean download(Context c,Store.Chapter chapter,boolean force,boolean imagesOnly)throws Exception{
   JSONObject doc=prepare(c,"/v2/pocket/chapter",chapter.url,force&&!imagesOnly,imagesOnly);boolean complete=save(c,chapter,doc);

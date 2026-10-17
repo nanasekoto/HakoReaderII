@@ -45,6 +45,10 @@ public final class HakoParser {
   /** Automatic migration accepts a site host, never arbitrary asset subdomains. */
   public static boolean autoSiteOrigin(String url,String selected){try{String origin=originOf(url);if(origin.equals(originOf(selected)))return true;String host=URI.create(origin).getHost();return Arrays.asList("docln.sbs","docln.net","www.docln.sbs","www.docln.net","ln.hako.vn","hako.vn","hako.vip").contains(host);}catch(Exception error){return false;}}
   public static boolean senderOriginAllowed(String sender,String selectedOrigin){try{return originOf(sender).equals(originOf(selectedOrigin))||isOrigin(sender);}catch(Exception ignored){return false;}}
+  /** Rebase authenticated shared metadata onto this device's explicitly selected source. */
+  public static String sharedUrl(String input) {
+    try{URI u=URI.create(input);if(!"https".equalsIgnoreCase(u.getScheme())||u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443))return "";String path=u.getRawPath();if(!STORY.matcher(path).matches()&&!CHAPTER.matcher(path).matches())return "";return ORIGIN+path;}catch(Exception e){return "";}
+  }
   public static String normalize(String input) {
     try {URI u=URI.create(input.startsWith("/")?ORIGIN+input:input);if(!isOrigin(u.toString()))return "";return ORIGIN+u.getRawPath();}catch(Exception ignored){return "";}
   }
