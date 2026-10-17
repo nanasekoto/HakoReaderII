@@ -14,7 +14,8 @@ public final class RelayClient {
     final SharedPreferences prefs;
     final File metadata;
     public RelayClient(Context c){prefs=c.getSharedPreferences("reading_cloud",0);metadata=new File(c.getFilesDir(),"relay-metadata");}
-    public boolean ready(){return !prefs.getString("url","").isEmpty()&&!prefs.getString("token","").isEmpty();}
+    /** Unified Pocket uses Ubuntu only; retained cloud credentials are never used. */
+    public boolean ready(){return false;}
     public synchronized void configure(JSONObject value)throws Exception{String url=value.optString("url"),token=value.optString("token");if(url.isEmpty()||token.isEmpty())return;URL parsed=new URL(url);if(!parsed.getProtocol().equals("https")||parsed.getUserInfo()!=null||parsed.getQuery()!=null||parsed.getRef()!=null)throw new IOException("Địa chỉ đồng bộ không hợp lệ");if(!url.equals(prefs.getString("url","")))prefs.edit().clear().commit();prefs.edit().putString("url",url.replaceAll("/+$","")).putString("token",token).commit();}
     public long revision(String book){return prefs.getLong("revision:"+book,0);}
     public synchronized JSONObject send(JSONObject source)throws Exception{
