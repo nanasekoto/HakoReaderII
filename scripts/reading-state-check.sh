@@ -26,12 +26,12 @@ adb shell svc wifi disable
 adb shell svc data disable
 failed=0
 for phase in targeted remaining; do
-  if [ "$phase" = targeted ]; then suites="ReadQueueWorkflowTest UxLinkTest TocWorkflowTest FeatureFlowTest"; else suites="ImageCacheTest ReadingStateTest UnreadStateTest SequentialReadTest LibraryStateTest QueueResponsivenessTest BatchWorkflowTest WorkflowDiagnosticsTest SyncDomainTest"; fi
+  if [ "$phase" = targeted ]; then suites="PagedInteractionTest ReadQueueWorkflowTest UxLinkTest TocWorkflowTest FeatureFlowTest"; else suites="ImageCacheTest ReadingStateTest UnreadStateTest SequentialReadTest LibraryStateTest QueueResponsivenessTest BatchWorkflowTest WorkflowDiagnosticsTest SyncDomainTest"; fi
   echo "Validation phase: $phase"
   for test in $suites; do
   adb shell am force-stop vn.nanase.hako
   adb shell pm clear vn.nanase.hako
-  class="vn.nanase.hako.tests.$test"; if [ "$test" = ReadQueueWorkflowTest ]; then class="vn.nanase.hako.$test"; fi
+  class="vn.nanase.hako.tests.$test"; if [ "$test" = ReadQueueWorkflowTest ] || [ "$test" = PagedInteractionTest ]; then class="vn.nanase.hako.$test"; fi
   if timeout 180 adb shell am instrument -w "vn.nanase.hako.tests/$class" | tee "build/evidence/$test.txt"; then
     if ! grep -q 'PASS TOTAL' "build/evidence/$test.txt"; then failed=$((failed+1)); fi
   else

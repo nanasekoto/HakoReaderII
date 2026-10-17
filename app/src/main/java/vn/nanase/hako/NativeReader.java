@@ -14,7 +14,7 @@ import org.jsoup.nodes.Element;
 
 /** One immutable layout drawn at complete-line page boundaries; no remote renderer. */
 public final class NativeReader extends View {
- public interface Listener {void position(int paragraph,float fraction,int page,int count);void boundary(int direction);void toolbar();void dismissToolbar();}
+ public interface Listener {void position(int paragraph,float fraction,int page,int count);void boundary(int direction);void toolbar();void dismissToolbar();default void chapter(int direction){boundary(direction);}}
  private final TextPaint paint=new TextPaint(Paint.ANTI_ALIAS_FLAG|Paint.SUBPIXEL_TEXT_FLAG);
  private final Listener listener;
  private final File chapterDir;
@@ -271,7 +271,7 @@ public final class NativeReader extends View {
    android.widget.LinearLayout box=new android.widget.LinearLayout(getContext());box.setOrientation(1);
    IllustrationView image=new IllustrationView(getContext());box.addView(image,new android.widget.LinearLayout.LayoutParams(-1,0,1));image.setImageBitmap(bitmap);
    android.widget.Button rotate=new android.widget.Button(getContext());rotate.setText("Xoay ảnh");rotate.setOnClickListener(v->image.rotate());box.addView(rotate);
-   AlertDialog dialog=new AlertDialog.Builder(getContext()).setView(box).setPositiveButton("Đóng",null).create();dialog.setOnDismissListener(d->{image.setImageDrawable(null);bitmap.recycle();});dialog.show();
+   AlertDialog dialog=new ReaderDialogBuilder(getContext()).setView(box).setPositiveButton("Đóng",null).create();dialog.setOnDismissListener(d->{image.setImageDrawable(null);bitmap.recycle();});dialog.show();
    if(dialog.getWindow()!=null)dialog.getWindow().setLayout(-1,-1);
  }
  public boolean onTouchEvent(MotionEvent e){
@@ -279,10 +279,11 @@ public final class NativeReader extends View {
      // 100% IGNORE ALL TOUCH! Pure physical button reading
      return true;
    }
-   if(e.getAction()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();lastTouchY=downY;dragging=false;scroller.forceFinished(true);if(velocity!=null)velocity.recycle();velocity=android.view.VelocityTracker.obtain();velocity.addMovement(e);return true;}
+   if(e.getAction()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();lastTouchY=downY;dragging=false;swiped=false;scroller.forceFinished(true);if(velocity!=null)velocity.recycle();velocity=android.view.VelocityTracker.obtain();velocity.addMovement(e);return true;}
    if(e.getAction()==MotionEvent.ACTION_CANCEL){if(velocity!=null){velocity.recycle();velocity=null;}if(scrolling)publish();return true;}
-   if(e.getAction()==MotionEvent.ACTION_MOVE&&scrolling){if(velocity!=null)velocity.addMovement(e);float delta=lastTouchY-e.getY();lastTouchY=e.getY();if(Math.abs(e.getY()-downY)>android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop())dragging=true;if(dragging){listener.dismissToolbar();scrollOffset=Math.max(0,Math.min(maxScroll(),scrollOffset+Math.round(delta)));updateScrollPage();invalidate();}return true;}
+   if(e.getAction()==MotionEvent.ACTION_MOVE&&scrolling){if(velocity!=null)velocity.addMovement(e);float dx=Math.abs(e.getX()-downX),dy=Math.abs(e.getY()-downY);if(!dragging&&dx>24*getResources().getDisplayMetrics().density&&dx>dy*1.5f)swiped=true;float delta=lastTouchY-e.getY();lastTouchY=e.getY();if(!swiped&&dy>android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop())dragging=true;if(dragging){listener.dismissToolbar();scrollOffset=Math.max(0,Math.min(maxScroll(),scrollOffset+Math.round(delta)));updateScrollPage();invalidate();}return true;}
    if(e.getAction()==MotionEvent.ACTION_UP){
+     if(scrolling&&swiped){float dx=e.getX()-downX,dy=e.getY()-downY,density=getResources().getDisplayMetrics().density;if(velocity!=null){velocity.recycle();velocity=null;}if(swipePaging&&downX>24*density&&downX<getWidth()-24*density&&Math.abs(dx)>72*density&&Math.abs(dx)>Math.abs(dy)*1.5f){checkpoint();listener.dismissToolbar();listener.chapter(dx>0?1:-1);}swiped=false;return true;}
      if(scrolling&&dragging){if(velocity!=null){velocity.addMovement(e);velocity.computeCurrentVelocity(1000);scroller.fling(0,scrollOffset,0,-Math.round(velocity.getYVelocity()),0,0,0,maxScroll());velocity.recycle();velocity=null;postInvalidateOnAnimation();}publish();return true;}
      if(velocity!=null){velocity.recycle();velocity=null;}
      if(!DeviceProfile.eink(getContext())&&swipePaging&&!scrolling&&Math.abs(e.getX()-downX)>48*getResources().getDisplayMetrics().density&&Math.abs(e.getX()-downX)>Math.abs(e.getY()-downY)){turn(e.getX()<downX?1:-1);return true;}
@@ -300,7 +301,7 @@ public final class NativeReader extends View {
          if(pictures.length>0&&pictures[0].getDrawable() instanceof LocalImage){showImage(((LocalImage)pictures[0].getDrawable()).file);return true;}
          Note[] ns=text.getSpans(off,Math.min(text.length(),off+1),Note.class);
          if(ns.length>0){
-           new AlertDialog.Builder(getContext()).setTitle("Chú thích").setMessage(ns[0].value).setPositiveButton("Đóng",null).show();
+           new ReaderDialogBuilder(getContext()).setTitle("Chú thích").setMessage(ns[0].value).setPositiveButton("Đóng",null).show();
            return true;
          }
        }
