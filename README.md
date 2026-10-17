@@ -1,3 +1,9 @@
+# Hako Pocket 0.9.1 — đồng bộ qua Ubuntu
+
+Bản hợp nhất dùng Ubuntu làm nơi đồng bộ duy nhất, không kết nối Cloudflare. Khi Ubuntu tắt, đọc cache và lưu tiến độ trên từng máy; nhận tiến độ của máy kia khi Ubuntu hoạt động lại. Giữ package, chữ ký và dữ liệu khi cài đè. [Phạm vi và trạng thái kiểm tra](docs/UNIFIED_POCKET_091.md).
+
+Các mục phiên bản cũ dưới đây là lịch sử; hướng dẫn Cloudflare cũ không áp dụng cho 0.9.1.
+
 # Hako Pocket 0.9.0 — dữ liệu lưu sẵn, server chuẩn bị, thao tác riêng S4/K60
 
 [Phạm vi và quy tắc bản 0.9.0](docs/UNIFIED_POCKET_090.md). Cài đè cùng package/chữ ký để giữ dữ liệu. Cài đặt → Kết nối & nguồn nội dung để chọn Tự động / Chỉ server / Hako trực tiếp. Liên kết một lần, tiến độ tự gửi khi rời chương. Tủ sách lấy từ tài khoản Hako trên server; phiên Hako của máy chỉ dùng khi lấy trực tiếp.
