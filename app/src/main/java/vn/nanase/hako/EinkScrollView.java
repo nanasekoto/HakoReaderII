@@ -14,7 +14,7 @@ final class EinkScrollView extends ScrollView {
  private boolean paddingPending;private float touchY;
  EinkScrollView(Context c){super(c);setSmoothScrollingEnabled(false);setOverScrollMode(OVER_SCROLL_NEVER);setVerticalScrollBarEnabled(false);}
  void onPageChanged(Runnable callback){changed=callback;}
- private void boundaries(View view,int top,int height,TreeSet<Integer> edges){
+ static void boundaries(View view,int top,int height,TreeSet<Integer> edges){
   if(view.getVisibility()==GONE)return;edges.add(top);edges.add(top+view.getHeight());if(view.getHeight()<=height)return;
   if(view instanceof TextView){TextView text=(TextView)view;Layout layout=text.getLayout();if(layout!=null)for(int line=1;line<layout.getLineCount();line++)edges.add(top+text.getTotalPaddingTop()+layout.getLineTop(line));}
   else if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int n=0;n<group.getChildCount();n++){View child=group.getChildAt(n);boundaries(child,top+child.getTop(),height,edges);}for(int n=0;n+1<group.getChildCount();n++){View heading=group.getChildAt(n),next=group.getChildAt(n+1);if("keep_next".equals(heading.getTag())&&next.getBottom()-heading.getTop()<=height){int first=top+heading.getTop(),end=top+next.getBottom();edges.removeIf(edge->edge>first&&edge<end);}}}

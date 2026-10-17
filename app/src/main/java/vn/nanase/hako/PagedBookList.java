@@ -13,6 +13,8 @@ final class PagedBookList extends ListView {
   private int rows = 6, base = 1, remainder;
   private int scrollState=OnScrollListener.SCROLL_STATE_IDLE;
   private final java.util.ArrayDeque<Integer> previous = new java.util.ArrayDeque<>();
+  private final ListPaging measuredPaging=new ListPaging();
+  void fitCard(View view){if(!DeviceProfile.eink(getContext()))return;if(view instanceof android.widget.TextView){android.widget.TextView text=(android.widget.TextView)view;text.setSingleLine(false);text.setMaxLines(Integer.MAX_VALUE);text.setEllipsize(null);}else if(view instanceof android.view.ViewGroup){android.view.ViewGroup group=(android.view.ViewGroup)view;for(int n=0;n<group.getChildCount();n++)fitCard(group.getChildAt(n));}}
 
   PagedBookList(Context context) {
     super(context);
@@ -22,7 +24,7 @@ final class PagedBookList extends ListView {
       public void onScroll(AbsListView v, int first, int visible, int total) {}
       public void onScrollStateChanged(AbsListView v, int state) {
         scrollState=state;
-        if (state == OnScrollListener.SCROLL_STATE_IDLE && getChildCount() > 0) {
+        if (!DeviceProfile.eink(getContext()) && state == OnScrollListener.SCROLL_STATE_IDLE && getChildCount() > 0) {
           View first = getChildAt(0);
           if (first.getTop() != getPaddingTop()) {
             int target = getFirstVisiblePosition();
@@ -35,6 +37,7 @@ final class PagedBookList extends ListView {
   }
 
   @Override protected void onMeasure(int widthSpec, int heightSpec) {
+    if(DeviceProfile.eink(getContext())){super.onMeasure(widthSpec,heightSpec);return;}
     int available = Math.max(1, View.MeasureSpec.getSize(heightSpec)
         - getPaddingTop() - getPaddingBottom());
     // Two title lines, two metadata lines and card padding at the configured font scale.
@@ -59,9 +62,10 @@ final class PagedBookList extends ListView {
     super.onMeasure(widthSpec,heightSpec);
   }
 
-  int rowHeight(int position) { return base + (position%rows < remainder ? 1 : 0); }
+  int rowHeight(int position) { return DeviceProfile.eink(getContext())?-2:base + (position%rows < remainder ? 1 : 0); }
 
   void turn(int direction) {
+    if(DeviceProfile.eink(getContext())){measuredPaging.turn(this,direction);return;}
     if (getCount()==0) return;
     int first=getFirstVisiblePosition();
     int target=direction>0 ? Math.min(Math.max(0,getCount()-rows),first+rows)
@@ -73,4 +77,5 @@ final class PagedBookList extends ListView {
     }
     setSelectionFromTop(target,0);
   }
+  @Override protected void dispatchDraw(android.graphics.Canvas canvas){int saved=canvas.save();if(DeviceProfile.eink(getContext())&&getChildCount()>0){int limit=getHeight()-getPaddingBottom();View last=getChildAt(getChildCount()-1);if(last.getBottom()>limit){if(getChildCount()>1)limit=last.getTop();else{java.util.TreeSet<Integer> edges=new java.util.TreeSet<>();EinkScrollView.boundaries(last,last.getTop(),limit,edges);Integer edge=edges.floor(limit);if(edge!=null&&edge>getPaddingTop())limit=edge;}}canvas.clipRect(0,getPaddingTop(),getWidth(),limit);}super.dispatchDraw(canvas);canvas.restoreToCount(saved);}
 }

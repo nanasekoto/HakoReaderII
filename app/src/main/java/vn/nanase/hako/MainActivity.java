@@ -513,7 +513,7 @@ public class MainActivity extends Activity {
             infoView.setPadding(0, dp(2), 0, 0);
             card.addView(infoView);
           }
-          return card;
+          list.fitCard(card);return card;
         }
       });
       status.setText(stories.size()+" truyện");
@@ -694,7 +694,7 @@ public class MainActivity extends Activity {
         }
 
 
-        return card;
+        list.fitCard(card);return card;
       }
     };
     list.setAdapter(activeLibraryAdapter);
@@ -820,7 +820,7 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable badgeBg=new android.graphics.drawable.GradientDrawable();badgeBg.setColor(Color.BLACK);badgeBg.setCornerRadius(dp(5));badge.setBackground(badgeBg);badge.setPadding(dp(5),dp(2),dp(5),dp(2));badge.setText(totalChs==0?"Chưa rõ":summary.unread+" chưa đọc");badge.setTextSize(15f);
         LinearLayout meta=new LinearLayout(MainActivity.this);meta.setGravity(Gravity.CENTER_VERTICAL);meta.addView(subView,new LinearLayout.LayoutParams(0,-2,1));meta.addView(badge);card.addView(meta);
 
-        return card;
+        list.fitCard(card);return card;
       }
     };
     list.setAdapter(activeLibraryAdapter);
@@ -1140,7 +1140,7 @@ public class MainActivity extends Activity {
         subView.setText(subView.getText()+" · "+vg.readSummary);
         card.addView(subView);
 
-        return card;
+        list.fitCard(card);return card;
       }
     });
 
@@ -1206,7 +1206,7 @@ public class MainActivity extends Activity {
         } else {
           t.setBackgroundColor(Color.WHITE);
         }
-        return t;
+        list.fitCard(t);return t;
       }
     });
 
@@ -2011,7 +2011,7 @@ public class MainActivity extends Activity {
     LinearLayout header=new LinearLayout(this);header.addView(new IconButton(this,4,"Quay lại",this::goBack),new LinearLayout.LayoutParams(dp(44),dp(44)));header.addView(text(title,18),new LinearLayout.LayoutParams(0,-2,1));root.addView(header);
     LinearLayout tabs=new LinearLayout(this);String[] labels={"Cập nhật","Truyện mới","Hoàn thành"},sorts={"capnhat","truyenmoi","capnhat&hoanthanh=1"};for(int n=0;n<labels.length;n++){final int at=n;tabs.addView(button(labels[n],()->onlineList(labels[at],HakoParser.ORIGIN+"/danh-sach?sapxep="+sorts[at])),new LinearLayout.LayoutParams(0,dp(44),1));}root.addView(tabs);
     root.addView(button("Loại: Dịch / AI dịch / Sáng tác",()->new ReaderDialogBuilder(this).setItems(new String[]{"Truyện dịch","AI dịch","Sáng tác"},(d,n)->onlineList(title,HakoParser.ORIGIN+"/danh-sach?sapxep=capnhat&"+new String[]{"truyendich=1","convert=1","sangtac=1"}[n])).show()));
-    TextView state=text("Đang mở danh sách đã lưu…",12);state.setMinHeight(dp(36));root.addView(state);ListView list=new ListView(this);currentList=list;list.setDividerHeight(dp(6));root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+    TextView state=text("Đang mở danh sách đã lưu…",12);state.setMinHeight(dp(36));root.addView(state);ListView list=new PagedBookList(this);currentList=list;list.setDividerHeight(dp(6));root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
     int page=1;try{page=Integer.parseInt(android.net.Uri.parse(url).getQueryParameter("page"));}catch(Exception ignored){}final int sourcePage=page;LinearLayout paging=new LinearLayout(this);Button previous=button("← Trang trước",()->onlineList(title,sourcePageUrl(url,sourcePage-1)));previous.setEnabled(page>1);paging.addView(previous,new LinearLayout.LayoutParams(0,dp(44),1));paging.addView(button("Trang "+page+" · Sau →",()->onlineList(title,sourcePageUrl(url,sourcePage+1))),new LinearLayout.LayoutParams(0,dp(44),1));root.addView(paging);final int token=generation;final boolean[] shown={false};
     viewCacheIo.execute(()->{JSONObject cached=PreparedViews.load(this,url);boolean conserve=DeviceProfile.eink(this)&&cached!=null;if(cached!=null)runOnUiThread(()->{if(token!=generation)return;showPreparedStories(list,cached,title,url);shown[0]=true;state.setText(conserve?"Bản đã lưu · Chạm để cập nhật":"Danh sách đã lưu · Đang cập nhật nền");if(conserve)state.setOnClickListener(v->{viewCacheIo.execute(()->{try{JSONObject fresh=refreshView(url);runOnUiThread(()->{if(token==generation){showPreparedStories(list,fresh,title,url);state.setText("Đã cập nhật");}});}catch(Exception error){runOnUiThread(()->state.setText("Chưa cập nhật được · Giữ bản đã lưu"));}});});});if(conserve)return;preparedIo.execute(()->{try{JSONObject fresh=refreshView(url);runOnUiThread(()->{if(token!=generation)return;if(shown[0]){state.setText("Có bản dữ liệu cập nhật · Chạm để xem");state.setOnClickListener(v->{showPreparedStories(list,fresh,title,url);state.setText("Đã cập nhật");});}else{showPreparedStories(list,fresh,title,url);state.setText("Đã nhận từ server");}});}catch(Exception e){try{ServerSource.failed(this,e);}catch(Exception ignored){}runOnUiThread(()->{if(token==generation){if(!shown[0]&&ServerSource.mode(this).equals("auto")){state.setText("Server chưa sẵn sàng · Chạm để lấy Hako trực tiếp");state.setOnClickListener(v->{prefs.edit().putString("content_source","web").apply();onlineList(title,url);});return;}state.setText(shown[0]?"Đang dùng bản đã lưu · Không lấy được bản mới":"Server chưa có dữ liệu · Kiểm tra đăng nhập trong /hako");state.setOnClickListener(v->connectionSettings());}});}});});
   }
