@@ -101,12 +101,15 @@ public final class Repository {
   public static String pageAt(String u,String origin) throws Exception {
     if(app==null)throw new IOException("Chưa khởi tạo app");
     if(ServerSource.available(app)){try{return ServerSource.html(app,u);}catch(Exception e){ServerSource.failed(app,e);}}
+    ServerSource.directAllowed(app);
     String script="(function(){var t=document.title||'';if(/^(just a moment|attention required|access denied|503 service unavailable|too many requests)[.!… ]*$/i.test(t.trim())||document.querySelector('#challenge-form,.cf-browser-verification'))return JSON.stringify({error:'Trang yêu cầu xác minh hoặc đang giới hạn truy cập. Mở HAKO để kiểm tra.'});if(!document.body||!document.body.innerHTML.trim())return JSON.stringify({});return JSON.stringify({html:document.documentElement.outerHTML});})()";
     return new String(GeckoClient.request(u,script,8*1024*1024,origin),"UTF-8");
   }
 
   public static void importShelf(Context ctx) throws Exception {
-    init(ctx);allowed(ctx);shelfUpdating=true;syncState="SHELF";
+    init(ctx);allowed(ctx);
+    if(ServerSource.available(ctx)){try{ServerSource.shelf(ctx,true);notify(ctx,"Đã nhận tủ sách từ server · cập nhật nền");return;}catch(Exception e){ServerSource.failed(ctx,e);}}
+    ServerSource.directAllowed(ctx);shelfUpdating=true;syncState="SHELF";
     notify(ctx,"Đang cập nhật tủ sách trước khi tải chương…");
     try{
     Store s = Store.get(ctx);
@@ -525,6 +528,10 @@ public final class Repository {
           notify(ctx, "Đang tải " + syncPct + "% (" + syncDone + "/" + syncTotal + ")");
         }
 
+        if(DeviceProfile.eink(ctx)&&ServerSource.available(ctx)&&!needDownload.isEmpty()){
+          try{notify(ctx,"Server đang chuẩn bị gói nội dung · "+Math.min(15,needDownload.size())+" chương/lượt");ServerSource.pack(ctx,needDownload);}
+          catch(InterruptedIOException stopped){throw stopped;}catch(Exception error){ServerSource.failed(ctx,error);}
+        }
         // 3. Download loop per chapter with preemption
         int distance=0;
         for (Store.Chapter ch : needDownload) {

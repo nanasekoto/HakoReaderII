@@ -25,6 +25,7 @@ public final class NativeReader extends View {
  private Bitmap activeImage;private String activeImagePath="";
  private StaticLayout layout;private final OperationTrace.Span openOperation=OperationTrace.current();private boolean layoutLinked;
  private int page=0,margin=10,pendingParagraph=0;private float pendingFraction=0,line=1.30f;private int paraSpaceDp=8,indentDp=9;private String rawHtml="";
+ private boolean scrolling=false,swipePaging=true,dragging=false;private int scrollOffset;private float lastTouchY;private android.view.VelocityTracker velocity;private final android.widget.OverScroller scroller=new android.widget.OverScroller(getContext());
  private boolean taps=true,swiped=false,openAtEnd=false,touchLocked=false;private float downX,downY;
  
  public void setTouchLocked(boolean locked){this.touchLocked=locked;invalidate();}
@@ -159,7 +160,7 @@ public final class NativeReader extends View {
   public void updateMeasureState(android.text.TextPaint p){apply(p);}
  }
  private void releaseImage(){if(activeImage!=null){activeImage.recycle();activeImage=null;}activeImagePath="";}
- protected void onDetachedFromWindow(){formatRequest++;if(formatWork!=null)formatWork.cancel(true);releaseImage();super.onDetachedFromWindow();}
+ protected void onDetachedFromWindow(){scroller.forceFinished(true);if(velocity!=null){velocity.recycle();velocity=null;}formatRequest++;if(formatWork!=null)formatWork.cancel(true);releaseImage();super.onDetachedFromWindow();}
  private Bitmap visibleImage(File f){
   if(activeImage!=null&&activeImagePath.equals(f.getPath()))return activeImage;
   releaseImage();BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(f.getPath(),o);
@@ -184,9 +185,9 @@ public final class NativeReader extends View {
   }catch(Exception e){return null;}
  }
  private static class Note extends CharacterStyle {final String value;Note(String s){value=s;}public void updateDrawState(TextPaint p){p.setUnderlineText(true);}}
- public void style(float sp,int marginDp,float spacing,int pSpaceDp,int indDp,Typeface face,boolean tap){capture();paint.setTextSize(sp*getResources().getDisplayMetrics().scaledDensity);paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;boolean reformat=(paraSpaceDp!=pSpaceDp)||(indentDp!=indDp);paraSpaceDp=pSpaceDp;indentDp=indDp;taps=tap;if(reformat&&!rawHtml.isEmpty()){reformatAsync();}else{reflow();}}
+ public void style(float sp,int marginDp,float spacing,int pSpaceDp,int indDp,Typeface face,boolean tap){capture();android.content.SharedPreferences settings=getContext().getSharedPreferences("settings",0);scrolling=!DeviceProfile.eink(getContext())&&settings.getBoolean("reader_scroll",false);swipePaging=settings.getBoolean("reader_swipes",true);paint.setTextSize(sp*getResources().getDisplayMetrics().scaledDensity);paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;boolean reformat=(paraSpaceDp!=pSpaceDp)||(indentDp!=indDp);paraSpaceDp=pSpaceDp;indentDp=indDp;taps=tap;if(reformat&&!rawHtml.isEmpty()){reformatAsync();}else{reflow();}}
  public void taps(boolean on){taps=on;}public int getPageCount(){return pages.size();}
- private int offset(){return layout==null||pages.isEmpty()?0:layout.getLineStart(pages.get(page));}
+ private int offset(){return layout==null||pages.isEmpty()?0:layout.getLineStart(scrolling?layout.getLineForVertical(scrollOffset):pages.get(page));}
  private void capture(){if(layout==null||pages.isEmpty())return;int off=offset(),p=0;int found=Collections.binarySearch(anchors,off);p=Math.max(0,found>=0?found:-found-2);pendingParagraph=p;int end=p+1<anchors.size()?anchors.get(p+1):text.length();pendingFraction=(float)(off-anchors.get(p))/Math.max(1,end-anchors.get(p));}
  private void publish(){capture();listener.position(pendingParagraph,pendingFraction,page,pages.size());}
  protected void onSizeChanged(int w,int h,int ow,int oh){if(w!=ow||h!=oh){capture();reflow();}}
@@ -203,6 +204,7 @@ public final class NativeReader extends View {
   pages.clear();for(int start:PageBreaks.split(top,bottom,height,targetLine))pages.add(start);
   if(openAtEnd&&!pages.isEmpty()){page=pages.size()-1;openAtEnd=false;}
   else{page=pages.indexOf(targetLine);if(page<0)page=0;}
+  if(scrolling)scrollOffset=Math.min(maxScroll(),layout.getLineTop(targetLine));
   Diagnostics.elapsed("reader.layout",begun);invalidate();publish();}finally{OperationTrace.end(trace,"closed",0);}
  }
  protected void onDraw(Canvas c){
@@ -232,10 +234,10 @@ public final class NativeReader extends View {
 
   // 2. Story Content strictly clipped inside textTop..textBottom
   int first=pages.get(page),end=page+1<pages.size()?pages.get(page+1):layout.getLineCount();
-  int top=layout.getLineTop(first);
+  int top=scrolling?scrollOffset:layout.getLineTop(first);
   c.save();
   c.clipRect(margin,textTop,getWidth()-margin,
-      Math.min(textBottom, textTop + layout.getLineBottom(end-1) - top));
+      scrolling?textBottom:Math.min(textBottom, textTop + layout.getLineBottom(end-1) - top));
   c.translate(margin,textTop-top);
   layout.draw(c);
   c.restore();
@@ -258,8 +260,8 @@ public final class NativeReader extends View {
   statusPaint.setTextAlign(Paint.Align.LEFT);
   Diagnostics.cpuEnd("reader.draw",cpuDraw);
  }
- public void turn(int direction){if(layout==null||pages.isEmpty())return;Diagnostics.readerInput();long cpuTurn=Diagnostics.cpuBegin();long turnStarted=Diagnostics.now();listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();long elapsed=Math.max(0,Diagnostics.now()-turnStarted);OperationTrace.pageTurn(elapsed);Diagnostics.pageTurn(turnStarted);Diagnostics.cpuEnd("reader.turn",cpuTurn);}
- public void jump(boolean end){if(pages.isEmpty())return;listener.dismissToolbar();page=end?pages.size()-1:0;invalidate();publish();}
+ public void turn(int direction){if(layout==null||pages.isEmpty())return;if(scrolling){int next=Math.max(0,Math.min(maxScroll(),scrollOffset+(direction>0?1:-1)*(getHeight()-headerHeight-footerHeight)));if(next==scrollOffset)listener.boundary(direction);else{scrollOffset=next;updateScrollPage();invalidate();publish();}return;}Diagnostics.readerInput();long cpuTurn=Diagnostics.cpuBegin();long turnStarted=Diagnostics.now();listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();long elapsed=Math.max(0,Diagnostics.now()-turnStarted);OperationTrace.pageTurn(elapsed);Diagnostics.pageTurn(turnStarted);Diagnostics.cpuEnd("reader.turn",cpuTurn);}
+ public void jump(boolean end){if(pages.isEmpty())return;if(scrolling){scrollOffset=end?maxScroll():0;updateScrollPage();invalidate();publish();return;}listener.dismissToolbar();page=end?pages.size()-1:0;invalidate();publish();}
  private void showImage(File file){
    BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(file.getPath(),o);o.inSampleSize=1;
    int width=DeviceProfile.eink(getContext())?960:2400,height=DeviceProfile.eink(getContext())?1600:4800;
@@ -277,22 +279,20 @@ public final class NativeReader extends View {
      // 100% IGNORE ALL TOUCH! Pure physical button reading
      return true;
    }
-   if(e.getAction()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();return true;}
+   if(e.getAction()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();lastTouchY=downY;dragging=false;scroller.forceFinished(true);if(velocity!=null)velocity.recycle();velocity=android.view.VelocityTracker.obtain();velocity.addMovement(e);return true;}
+   if(e.getAction()==MotionEvent.ACTION_CANCEL){if(velocity!=null){velocity.recycle();velocity=null;}if(scrolling)publish();return true;}
+   if(e.getAction()==MotionEvent.ACTION_MOVE&&scrolling){if(velocity!=null)velocity.addMovement(e);float delta=lastTouchY-e.getY();lastTouchY=e.getY();if(Math.abs(e.getY()-downY)>android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop())dragging=true;if(dragging){listener.dismissToolbar();scrollOffset=Math.max(0,Math.min(maxScroll(),scrollOffset+Math.round(delta)));updateScrollPage();invalidate();}return true;}
    if(e.getAction()==MotionEvent.ACTION_UP){
-     if(Math.abs(e.getY()-downY)>40){swiped=true;return true;}
+     if(scrolling&&dragging){if(velocity!=null){velocity.addMovement(e);velocity.computeCurrentVelocity(1000);scroller.fling(0,scrollOffset,0,-Math.round(velocity.getYVelocity()),0,0,0,maxScroll());velocity.recycle();velocity=null;postInvalidateOnAnimation();}publish();return true;}
+     if(velocity!=null){velocity.recycle();velocity=null;}
+     if(!DeviceProfile.eink(getContext())&&swipePaging&&!scrolling&&Math.abs(e.getX()-downX)>48*getResources().getDisplayMetrics().density&&Math.abs(e.getX()-downX)>Math.abs(e.getY()-downY)){turn(e.getX()<downX?1:-1);return true;}
+     if(scrolling&&Math.abs(e.getY()-downY)>20)return true;
+     if(Math.abs(e.getY()-downY)>40){swiped=DeviceProfile.eink(getContext());return true;}
      if(Math.abs(e.getX()-downX)>25)return true;
      performClick();
      if(swiped){swiped=false;listener.toolbar();return true;}
-     if(!taps){
-       // When touch paging is off, only tap in center 30% opens toolbar
-       float h=getHeight();
-       if(e.getY()>=h*0.35f&&e.getY()<=h*0.65f){
-         listener.toolbar();
-       }
-       return true;
-     }
      if(layout!=null&&!pages.isEmpty()){
-       float x=e.getX()-margin,y=e.getY()-headerHeight+layout.getLineTop(pages.get(page));
+       float x=e.getX()-margin,y=e.getY()-headerHeight+(scrolling?scrollOffset:layout.getLineTop(pages.get(page)));
        int ln=layout.getLineForVertical((int)y);
        if(x>=layout.getLineLeft(ln)&&x<=layout.getLineRight(ln)){
          int off=layout.getOffsetForHorizontal(ln,x);
@@ -305,6 +305,15 @@ public final class NativeReader extends View {
          }
        }
      }
+     if(!taps){
+       // When touch paging is off, only tap in center 30% opens toolbar
+       float h=getHeight();
+       if(e.getY()>=h*0.35f&&e.getY()<=h*0.65f){
+         listener.toolbar();
+       }
+       return true;
+     }
+     if(scrolling){listener.toolbar();return true;}
      float h=getHeight();
      if(e.getY()<h*0.35f)turn(-1);
      else if(e.getY()>h*0.65f)turn(1);
@@ -314,5 +323,10 @@ public final class NativeReader extends View {
    return true;
  }
  public boolean performClick(){super.performClick();return true;}
+ public void checkpoint(){if(scrolling&&layout!=null){scroller.forceFinished(true);publish();}}
+ private int maxScroll(){return layout==null?0:Math.max(0,layout.getHeight()-(getHeight()-headerHeight-footerHeight));}
+ private void updateScrollPage(){if(layout==null)return;int line=layout.getLineForVertical(scrollOffset);int found=Collections.binarySearch(pages,line);page=scrollOffset>=maxScroll()?Math.max(0,pages.size()-1):Math.min(Math.max(0,pages.size()-2),Math.max(0,found>=0?found:-found-2));}
+ @Override public void computeScroll(){if(scrolling&&scroller.computeScrollOffset()){scrollOffset=scroller.getCurrY();updateScrollPage();invalidate();if(!scroller.isFinished())postInvalidateOnAnimation();else publish();}}
+
 }
 

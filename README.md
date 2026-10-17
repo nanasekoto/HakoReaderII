@@ -1,3 +1,7 @@
+# Hako Pocket 0.9.0 — dữ liệu lưu sẵn, server chuẩn bị, thao tác riêng S4/K60
+
+[Phạm vi và quy tắc bản 0.9.0](docs/UNIFIED_POCKET_090.md). Cài đè cùng package/chữ ký để giữ dữ liệu. Cài đặt → Kết nối & nguồn nội dung để chọn Tự động / Chỉ server / Hako trực tiếp. Liên kết một lần, tiến độ tự gửi khi rời chương. Tủ sách lấy từ tài khoản Hako trên server; phiên Hako của máy chỉ dùng khi lấy trực tiếp.
+
 # Hako Pocket 0.8.3 — Ưu tiên server, WebView trên K60
 
 Bản này kế thừa 0.7.40 và giữ package/chữ ký/schema/cache cũ. Cài đè, không gỡ app hoặc xóa dữ liệu.

@@ -44,7 +44,7 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public boolean isCompleted(String id){return context.getSharedPreferences("settings",0).getBoolean("completed_"+id,false);}
-  public void setCompleted(String id,boolean value){displayChanged(id,true);context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();ServerBridge.flags(context,id);}
+  public void setCompleted(String id,boolean value){if(isCompleted(id)==value)return;displayChanged(id,true);context.getSharedPreferences("settings",0).edit().putBoolean("completed_"+id,value).apply();ServerBridge.flags(context,id);}
   public int newArrivals(String id){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(!p.contains("new_arrival_ids_"+id))return p.getInt("new_arrivals_"+id,0);int n=0;for(String chapter:p.getStringSet("new_arrival_ids_"+id,Collections.emptySet()))if(!illustration(chapter)&&!wasRead(chapter))n++;return n;}
   public synchronized void mergeShelf(List<HakoParser.Link> links){mergeShelf(links,0);}
   public static void traceQuery(String sql){OperationTrace.query(sql);Diagnostics.count("db.query");String lower=sql.toLowerCase(java.util.Locale.ROOT);Diagnostics.count(lower.contains("from chapters")?"db.chapters_query":lower.contains("from books")?"db.books_query":"db.other_query");}
@@ -293,7 +293,7 @@ public final class Store extends SQLiteOpenHelper {
   public synchronized void selectChapter(String id,String chapter){displayChanged(id,true);Book b=book(id);if(b!=null&&!chapter.equals(b.current)){ContentValues v=new ContentValues();v.put("current",chapter);v.put("pos",0);v.put("fraction",0);getWritableDatabase().update("books",v,"id=?",new String[]{id});readingRevision.incrementAndGet();}}
   public synchronized void visited(String id){getWritableDatabase().execSQL("UPDATE books SET visits=visits+1 WHERE id=?",new Object[]{id});bookMetadataChanged(id);}
   public synchronized void pin(String id,boolean value){Book old=book(id);if(old==null||old.pinned==value)return;getWritableDatabase().execSQL("UPDATE books SET pinned=? WHERE id=?",new Object[]{value?1:0,id});bookMetadataChanged(id);ServerBridge.flags(context,id);}
-  public synchronized void readChapter(String id){if(ignoredForReading(id)||wasRead(id))return;Chapter owner=chapterById(id);if(owner!=null)displayChanged(owner.book,true);ContentValues v=new ContentValues();v.put("id",id);v.put("stamp",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("read_chapters",null,v,SQLiteDatabase.CONFLICT_REPLACE);readingRevision.incrementAndGet();}
+  public synchronized void readChapter(String id){if(wasRead(id)||ignoredForReading(id))return;Chapter owner=chapterById(id);if(owner!=null)displayChanged(owner.book,true);ContentValues v=new ContentValues();v.put("id",id);v.put("stamp",System.currentTimeMillis());getWritableDatabase().insertWithOnConflict("read_chapters",null,v,SQLiteDatabase.CONFLICT_REPLACE);readingRevision.incrementAndGet();}
   public boolean wasRead(String id){
     Chapter ch=chapterById(id);if(ch==null||ignoredForReading(ch))return false;
     Chapter tip=chapter(ch.book,completedTip(ch.book));if(tip!=null&&ch.ord<=tip.ord)return true;
