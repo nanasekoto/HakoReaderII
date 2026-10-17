@@ -21,5 +21,5 @@
 - App 0.7.40 không có bridge này. Cả hai điện thoại mất Internet thì chưa nhận được ngay tiến độ của nhau; mở nội dung local và gửi lại khi có kết nối.
 - Ghi “Đọc hết” lên Hako vẫn theo cơ chế cũ. Server mặc định không ghi, tránh hai đầu cùng thao tác tài khoản.
 
-Đã qua pipeline đầy đủ của repo ở source ac72613 trước tối ưu gửi catalog; source 213e760 được chạy cùng pipeline.
+Source 213e760 đã qua pipeline đầy đủ, run 39038639814: gates, Android workflow/diagnostics, release ARM32 và xác minh APK. APK tải lại qua HTTPS khớp SHA-256 bản phát hành.
 Không dùng kết quả giả lập để tuyên bố đã kiểm chứng trực tiếp S4 hay K60.
