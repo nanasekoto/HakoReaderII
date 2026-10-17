@@ -260,6 +260,18 @@ public final class NativeReader extends View {
  }
  public void turn(int direction){if(layout==null||pages.isEmpty())return;Diagnostics.readerInput();long cpuTurn=Diagnostics.cpuBegin();long turnStarted=Diagnostics.now();listener.dismissToolbar();int next=page+(direction>0?1:-1);if(next<0||next>=pages.size()){listener.boundary(direction);return;}page=next;invalidate();publish();long elapsed=Math.max(0,Diagnostics.now()-turnStarted);OperationTrace.pageTurn(elapsed);Diagnostics.pageTurn(turnStarted);Diagnostics.cpuEnd("reader.turn",cpuTurn);}
  public void jump(boolean end){if(pages.isEmpty())return;listener.dismissToolbar();page=end?pages.size()-1:0;invalidate();publish();}
+ private void showImage(File file){
+   BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeFile(file.getPath(),o);o.inSampleSize=1;
+   int width=DeviceProfile.eink(getContext())?960:2400,height=DeviceProfile.eink(getContext())?1600:4800;
+   while(o.outWidth/o.inSampleSize>width||o.outHeight/o.inSampleSize>height)o.inSampleSize*=2;
+   o.inJustDecodeBounds=false;o.inPreferredConfig=DeviceProfile.eink(getContext())?Bitmap.Config.RGB_565:Bitmap.Config.ARGB_8888;
+   Bitmap bitmap=BitmapFactory.decodeFile(file.getPath(),o);if(bitmap==null){setNotice("Ảnh chưa tải xong");return;}
+   android.widget.LinearLayout box=new android.widget.LinearLayout(getContext());box.setOrientation(1);
+   IllustrationView image=new IllustrationView(getContext());box.addView(image,new android.widget.LinearLayout.LayoutParams(-1,0,1));image.setImageBitmap(bitmap);
+   android.widget.Button rotate=new android.widget.Button(getContext());rotate.setText("Xoay ảnh");rotate.setOnClickListener(v->image.rotate());box.addView(rotate);
+   AlertDialog dialog=new AlertDialog.Builder(getContext()).setView(box).setPositiveButton("Đóng",null).create();dialog.setOnDismissListener(d->{image.setImageDrawable(null);bitmap.recycle();});dialog.show();
+   if(dialog.getWindow()!=null)dialog.getWindow().setLayout(-1,-1);
+ }
  public boolean onTouchEvent(MotionEvent e){
    if(touchLocked){
      // 100% IGNORE ALL TOUCH! Pure physical button reading
@@ -284,6 +296,8 @@ public final class NativeReader extends View {
        int ln=layout.getLineForVertical((int)y);
        if(x>=layout.getLineLeft(ln)&&x<=layout.getLineRight(ln)){
          int off=layout.getOffsetForHorizontal(ln,x);
+         ImageSpan[] pictures=text.getSpans(off,Math.min(text.length(),off+1),ImageSpan.class);
+         if(pictures.length>0&&pictures[0].getDrawable() instanceof LocalImage){showImage(((LocalImage)pictures[0].getDrawable()).file);return true;}
          Note[] ns=text.getSpans(off,Math.min(text.length(),off+1),Note.class);
          if(ns.length>0){
            new AlertDialog.Builder(getContext()).setTitle("Chú thích").setMessage(ns[0].value).setPositiveButton("Đóng",null).show();

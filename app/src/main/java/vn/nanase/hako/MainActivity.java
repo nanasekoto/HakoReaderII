@@ -1450,7 +1450,7 @@ public class MainActivity extends Activity {
   private void domain(){EditText input=new EditText(this);input.setSingleLine(true);input.setText(HakoParser.ORIGIN);new AlertDialog.Builder(this).setTitle("Tên miền HAKO HTTPS").setMessage("Giữ miền hiện tại nếu vẫn dùng được. Nếu cần đăng nhập ở miền khác, lưu và mở xác minh trực tiếp; không cần miền cũ hoạt động.").setView(input).setPositiveButton("Kiểm tra và lưu",(d,w)->applyOrigin(input.getText().toString(),true)).setNeutralButton("Lưu và mở xác minh",(d,w)->applyOrigin(input.getText().toString(),false)).setNegativeButton("Hủy",null).show();}
   private void webViewInfo(){
     android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
-    String info="Engine của app: GeckoView · "+appVersion()+"\nWebView hệ thống (app không dùng đăng nhập):\n"+
+    String info="Nguồn trực tiếp: "+(DeviceProfile.eink(this)?"GeckoView":"Android System WebView")+" · "+appVersion()+"\nWebView hệ thống:\n"+
       "Gói: "+(provider==null?"Không xác định":provider.packageName)+"\n"+
       "Phiên bản: "+(provider==null?"Không xác định":provider.versionName)+"\n\n"+
       "Thiết bị: "+Build.MANUFACTURER+" "+Build.MODEL+"\n"+

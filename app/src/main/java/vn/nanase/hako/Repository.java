@@ -93,7 +93,7 @@ public final class Repository {
     if (authenticated && !HakoParser.isOrigin(url))
       throw new IOException("Sai máy chủ đăng nhập");
     if(app==null)throw new IOException("Chưa khởi tạo app");
-    if(ServerSource.available(app)){try{return ServerSource.html(app,u);}catch(Exception e){ServerSource.failed(app,e);}}
+
     return GeckoClient.request(url,null,max);
   }
 
