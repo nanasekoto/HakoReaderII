@@ -22,6 +22,14 @@ public final class OriginPolicyTest {
   check(!HakoParser.autoSiteOrigin("https://docln.sbs.evil.example/","https://docln.sbs"),"Lookalike cannot migrate origin");
   check(HakoParser.autoSiteOrigin("https://selected.example/login","https://selected.example"),"Explicit selected custom site remains usable");
   check(!HakoParser.autoSiteOrigin("https://other.example/login","https://selected.example"),"Unapproved custom host cannot migrate automatically");
+  check(HakoParser.sharedUrl("https://docln.top/truyen/123-old/c4-title").equals("https://docln.sbs/truyen/123-old/c4-title"),"Authenticated metadata is rebased across mirrors");
+  HakoParser.ORIGIN="https://my-reader.example";
+  check(HakoParser.sharedUrl("https://source.example/truyen/123-title").equals("https://my-reader.example/truyen/123-title"),"Manual selected domain receives shared book metadata");
+  check(HakoParser.chapterId(HakoParser.sharedUrl("https://source.example/truyen/123-title/c4-chapter")).equals("truyen-123-4"),"Custom-source catalog retains chapter identity");
+  check(HakoParser.sharedUrl("http://source.example/truyen/123-title").isEmpty(),"Shared metadata requires HTTPS");
+  check(HakoParser.sharedUrl("https://secret@source.example/truyen/123-title").isEmpty(),"Shared metadata rejects credentials");
+  check(HakoParser.sharedUrl("https://source.example/account").isEmpty(),"Shared metadata must be a book or chapter path");
+  HakoParser.ORIGIN="https://docln.sbs";
   System.out.println("PASS "+count+" origin policy checks");
  }
 }

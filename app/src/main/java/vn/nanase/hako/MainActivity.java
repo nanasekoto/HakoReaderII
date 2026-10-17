@@ -56,7 +56,7 @@ public class MainActivity extends Activity {
   private boolean libraryLoading=false,libraryReloadAgain=false;
   private Runnable libraryLoaded;
   private long libraryLoadStarted;
-  private TextView listLoadStatus, libraryMetadata;
+  private TextView listLoadStatus, libraryMetadata, homeBookTitle, homeBookHint, homeSummary;
   private List<Store.Book> activeLibraryBooks;
   private ArrayAdapter<Store.Book> activeLibraryAdapter;
   private final Runnable libraryClock=new Runnable(){public void run(){
@@ -110,6 +110,8 @@ public class MainActivity extends Activity {
     return (mode==3?"Bạn đánh dấu hoàn thành · Đã tải đủ · ":"Đọc nhiều trước · Truyện ghim để dễ tìm · ")+count+" bộ";
   }
   private void refreshLibraryView(){
+    if(homeSummary!=null){Store.Book recent=displayBook(prefs.getString("lastBook",""));homeSummary.setText(recent==null?"Chọn truyện để đọc · Đồng bộ trước khi tắt Wi-Fi":"Đọc tiếp: "+recent.title);if(homeBookTitle!=null)homeBookTitle.setText(recent==null?"Chọn câu chuyện tiếp theo":recent.title);if(homeBookHint!=null)homeBookHint.setText(recent==null?"Mở thư viện hoặc khám phá truyện mới":"Chạm để trở lại vị trí đã lưu");}
+
     if(readyLibrary==null||activeLibraryAdapter==null||libraryListMode==0)return;
     // Keep the same root, header, viewport and scroll anchor during background updates.
     List<Store.Book> updated=libraryBooks(libraryListMode);
@@ -290,6 +292,7 @@ public class MainActivity extends Activity {
     generation++;
     caughtUpPrompt=false; caughtUpBook=null;
     cancelLockKey();
+    homeBookTitle=null;homeBookHint=null;homeSummary=null;
     currentList=null; currentScroll=null; status=null;listLoadStatus=null;libraryMetadata=null;activeLibraryAdapter=null;activeLibraryBooks=null;libraryListMode=0;
     nativeReader=null;ServerBridge.activeBook="";
     readerReady = false;
@@ -393,8 +396,8 @@ public class MainActivity extends Activity {
       Store.Book recent=displayBook(prefs.getString("lastBook",""));
       LinearLayout hero=new LinearLayout(this);hero.setOrientation(1);hero.setPadding(dp(18),dp(18),dp(18),dp(18));android.graphics.drawable.GradientDrawable background=new android.graphics.drawable.GradientDrawable();background.setColor(Color.rgb(235,244,240));background.setCornerRadius(dp(14));hero.setBackground(background);
       TextView label=text("TIẾP TỤC ĐỌC",12);label.setTextColor(Color.rgb(42,94,73));hero.addView(label);
-      TextView book=text(recent==null?"Chọn câu chuyện tiếp theo":recent.title,21);book.setMaxLines(3);book.setEllipsize(android.text.TextUtils.TruncateAt.END);hero.addView(book);
-      hero.addView(text(recent==null?"Mở thư viện hoặc khám phá truyện mới":"Chạm để trở lại vị trí đã lưu",14));hero.setOnClickListener(v->actions[0].run());LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.setMargins(dp(10),dp(12),dp(10),dp(16));root.addView(hero,hp);
+      TextView book=text(recent==null?"Chọn câu chuyện tiếp theo":recent.title,21);homeBookTitle=book;book.setMaxLines(3);book.setEllipsize(android.text.TextUtils.TruncateAt.END);hero.addView(book);
+      homeBookHint=text(recent==null?"Mở thư viện hoặc khám phá truyện mới":"Chạm để trở lại vị trí đã lưu",14);hero.addView(homeBookHint);hero.setOnClickListener(v->actions[0].run());LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.setMargins(dp(10),dp(12),dp(10),dp(16));root.addView(hero,hp);
     }
     int[] homeOrder={0,1,2,3,4,5,6,7,8,9,10,11};
     int cols=3;
@@ -431,7 +434,7 @@ public class MainActivity extends Activity {
     }
     if(DeviceProfile.eink(MainActivity.this))root.addView(grid,new LinearLayout.LayoutParams(-1,0,1f));else{ScrollView homeScroll=new ScrollView(this);homeScroll.setFillViewport(false);homeScroll.addView(grid);root.addView(homeScroll,new LinearLayout.LayoutParams(-1,0,1f));}
     Store.Book last=displayBook(prefs.getString("lastBook",""));
-    TextView summary=text(last==null?"Chọn truyện để đọc · Đồng bộ trước khi tắt Wi-Fi":"Đọc tiếp: "+last.title,15);summary.setMaxLines(2);summary.setEllipsize(android.text.TextUtils.TruncateAt.END);root.addView(summary,new LinearLayout.LayoutParams(-1,-2));
+    TextView summary=text(last==null?"Chọn truyện để đọc · Đồng bộ trước khi tắt Wi-Fi":"Đọc tiếp: "+last.title,15);homeSummary=summary;summary.setMaxLines(2);summary.setEllipsize(android.text.TextUtils.TruncateAt.END);root.addView(summary,new LinearLayout.LayoutParams(-1,-2));
     status();
   }
     private void onlineList(String title, String url) {
