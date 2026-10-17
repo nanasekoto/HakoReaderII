@@ -1239,7 +1239,7 @@ public class MainActivity extends Activity {
   private void toolCell(View view){android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setStroke(dp(1),Color.BLACK);bg.setCornerRadius(dp(6));view.setBackground(bg);if(view.getLayoutParams() instanceof LinearLayout.LayoutParams)((LinearLayout.LayoutParams)view.getLayoutParams()).setMargins(dp(2),dp(2),dp(2),dp(2));}
   private final java.util.concurrent.ExecutorService positionIo=java.util.concurrent.Executors.newSingleThreadExecutor();private java.util.concurrent.Future<?> lastReaderSave;
   private Runnable pendingReaderSave;private int unsavedPageTurns;
-  private void flushReaderSave(){if(pendingReaderSave!=null){libraryHandler.removeCallbacks(readerSaveCheckpoint);Runnable save=pendingReaderSave;pendingReaderSave=null;unsavedPageTurns=0;lastReaderSave=positionIo.submit(save);}}
+  private void flushReaderSave(){if(pendingReaderSave!=null){libraryHandler.removeCallbacks(readerSaveCheckpoint);Runnable save=pendingReaderSave;pendingReaderSave=null;unsavedPageTurns=0;lastReaderSave=positionIo.submit(()->{save.run();ServerBridge.kick(this);});}}
   private final Runnable readerSaveCheckpoint=()->flushReaderSave();
   private void queueReaderSave(Runnable save,boolean completed){pendingReaderSave=save;libraryHandler.removeCallbacks(readerSaveCheckpoint);if(completed||++unsavedPageTurns>=8)flushReaderSave();else libraryHandler.postDelayed(readerSaveCheckpoint,5000);}
   private void showPreparedReader(String bid,String cid,Store.Book b,Store.Chapter c,NativeReader.Prepared prepared){
