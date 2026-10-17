@@ -1,3 +1,14 @@
+# Hako Pocket 0.7.41 — Đồng bộ hai chiều tùy chọn
+
+Bản này kế thừa 0.7.40 và giữ package/chữ ký/schema/cache cũ. Cài đè, không gỡ app hoặc xóa dữ liệu.
+Vào **Cài đặt → Đồng bộ hai chiều với Hako Server** để liên kết; chủ sở hữu duyệt tại `/hako`.
+Khi đã bật Cloudflare trên server, vị trí/đã đọc/yêu thích/đánh dấu đi trực tiếp qua coordinator dù Ubuntu tắt.
+Gecko và đọc/tải trực tiếp Hako tiếp tục hoạt động theo cơ chế cũ. Không liên kết thì bridge không chạy.
+
+[Hướng dẫn và giới hạn đồng bộ](docs/SHARED_PROGRESS_0741.md).
+
+---
+
 # Hako Pocket — 0.7.30 Gecko (UI, tải theo đợt và ưu tiên)
 
 Ứng dụng đọc Hako offline cho Xteink S4: Android 11, ARM 32-bit, màn hình e-ink. `main` là bộ source chính thức, thống nhất từ phiên bản 0.7.15 người dùng đã phản hồi chạy khá ổn.
