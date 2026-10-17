@@ -1401,7 +1401,7 @@ public class MainActivity extends Activity {
     for(int n=0;n<marks.length();n++){JSONObject m=marks.optJSONObject(n);labels[n+1]=m==null?"Đánh dấu không hợp lệ":m.optString("title")+" · đoạn "+(m.optInt("pos")+1);}
     new AlertDialog.Builder(this).setTitle("Đánh dấu trên máy").setItems(labels,(dialog,w)->{
       if(!bid.equals(bookId)||!cid.equals(chapterId))return;
-      if(w==0)taskOp("bookmark.save","Đang lưu đánh dấu…",()->{Store.Chapter ch=store.chapter(bid,cid);if(ch==null)throw new IOException("Chương không còn trong mục lục");JSONObject m=new JSONObject();m.put("chapter",cid);m.put("pos",pos);m.put("fraction",fraction);m.put("title",ch.title);marks.put(m);if(!prefs.edit().putString(key,marks.toString()).commit())throw new IOException("Không lưu được đánh dấu");return null;},()->showActionFeedback("Đã lưu đánh dấu"));
+      if(w==0)taskOp("bookmark.save","Đang lưu đánh dấu…",()->{Store.Chapter ch=store.chapter(bid,cid);if(ch==null)throw new IOException("Chương không còn trong mục lục");JSONObject m=new JSONObject();m.put("id",java.util.UUID.randomUUID().toString());m.put("chapter",cid);m.put("pos",pos);m.put("fraction",fraction);m.put("title",ch.title);marks.put(m);if(!prefs.edit().putString(key,marks.toString()).commit())throw new IOException("Không lưu được đánh dấu");ServerBridge.bookmark(this,bid,m,false);return null;},()->showActionFeedback("Đã lưu đánh dấu"));
       else {JSONObject m=marks.optJSONObject(w-1);if(m==null)return;String target=m.optString("chapter");taskOp("bookmark.open","Đang mở đánh dấu…",()->{if(checkpoint!=null)checkpoint.get();store.position(bid,target,m.optInt("pos"),(float)m.optDouble("fraction"));return null;},()->openChapter(bid,target));}
     }).setNeutralButton("Xóa đánh dấu…",(d,w)->removeBookmark(key,marks)).setNegativeButton("Đóng",null).show();
   });}
@@ -1419,6 +1419,7 @@ public class MainActivity extends Activity {
         .setItems(
             names,
             (d, w) -> {
+              JSONObject removed=marks.optJSONObject(w);if(removed!=null)ServerBridge.bookmark(this,key.substring(6),removed,true);
               marks.remove(w);
               prefs.edit().putString(key, marks.toString()).apply();
               Toast.makeText(this, "Đã xóa đánh dấu trên máy", Toast.LENGTH_SHORT).show();
