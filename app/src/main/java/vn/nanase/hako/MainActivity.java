@@ -1222,7 +1222,7 @@ public class MainActivity extends Activity {
   }
   private static final class OpenResult {Store.Book book;Store.Chapter chapter;NativeReader.Prepared content;int remaining;}
   private NativeReader.Prepared preparedCache;private String preparedCacheKey="";
-  private void openChapter(String bid,String requested){flushReaderSave();final java.util.concurrent.Future<?> checkpoint=lastReaderSave;
+  private void openChapter(String bid,String requested){final boolean sharedResume=nativeReader==null&&requested.isEmpty();flushReaderSave();final java.util.concurrent.Future<?> checkpoint=lastReaderSave;
     final int request=++chapterOpenRequest;final long begun=Diagnostics.now();
     if(!Repository.activeBook.equals(bid)){leaveReader();Repository.activeBook=bid;}
     Repository.cancel.set(false);final boolean visit=!visitSession.equals(bid);final OpenResult result=new OpenResult();
@@ -1232,6 +1232,7 @@ public class MainActivity extends Activity {
     task("Đang mở chương…",()->{
       if(checkpoint!=null)checkpoint.get();
       if(request!=chapterOpenRequest)return null;
+      if(sharedResume)ServerBridge.resumePosition(this,bid);
       Store.Selection selected=store.selectForReading(bid,requested);
       if(selected==null&&requested.isEmpty()){Store.Book book=store.book(bid);if(book!=null)Repository.catalog(this,book);selected=store.selectForReading(bid,requested);}
       if(selected==null)throw new IOException("Không tìm thấy chương trong mục lục.");
