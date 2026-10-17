@@ -14,3 +14,15 @@
 Kiểm tra và bằng chứng phát hành sẽ được ghi sau lượt CI và kiểm tra thiết bị cuối. Không coi kiểm thử fixture là bằng chứng tài khoản Hako thật đã đăng nhập.
 
 Đồng bộ qua Ubuntu dùng một phản hồi JSON nén gzip cho các truyện có tiến độ hoặc đã mở trên máy; fingerprint bỏ qua tài liệu không đổi. Mỗi phản hồi giới hạn 8 truyện / 5 MiB dữ liệu, tiếp tục phần còn lại theo đợt. Không nhập toàn bộ mục lục của truyện chưa đọc chỉ vì có trên kệ. Các cờ hoàn thành/đã đọc không đổi không gây tính lại thư viện. Đồng bộ qua coordinator Cloudflare hiện giữ giao thức cũ.
+
+## Bằng chứng phát hành
+
+- CI 39067661586, source d4b3e19574aa9cb1168dd2796260f94442e1ed86: JVM/parser/JS, 13 bộ Android với 330 checks, release ARM32 và xác minh APK đều đạt. Lượt CI đầu dừng ở assert cũ đợi mục lục inline; đã đổi assert theo nút mở mục lục và cho runner thu toàn bộ lỗi mỗi lượt.
+- Backend: 56 pytest đạt; các bài pack, cache restart, delta sync, lazy cover, thống kê có nhãn và credit nhóm dịch đạt sau các chỉnh sửa dữ liệu nguồn.
+- APK 0.9.0 code 63 cài đè thành công trên S4 Android 11 và K60 Android 14; không xóa dữ liệu. K60 mở kệ 120 bộ mà không đăng nhập trên máy; Khám phá hiển thị bìa, loại truyện và mở trang thông tin dài tới toàn bộ tag. S4 chuyển cài đặt từ trang 1/2 sang 2/2 bằng phím; hàng cuối kết thúc phía trên vùng Trước/Sau và Đóng/Áp dụng. K60 đã mở chế độ cuộn native và vuốt; đã trả chế độ phân trang sau kiểm tra. S4 thử chọn Chỉ server rồi trả về Tự động. Nút Báo cáo hiện công tắc log.
+- Server thật trả gói ZIP của chương 195 truyen-28753, khoảng 12 KB; gói sync gom 3 truyện trong một phản hồi gzip. Không suy ra từ đây rằng mọi đợt 15 chương/ảnh đều có cùng kích thước hoặc chỉ cần đúng một request; gói chưa sẵn sàng vẫn hỏi trạng thái.
+- HTTPS APK/page/QR hoạt động; SHA256 `fa7bde393ee807aabd5a2559c42f7b6aff18ab1f8b3d97309575029f5842b91f`. Không thấy crash/ANR mới trong log lượt kiểm tra cuối. Cài đặt giữ sáng tạm thời được trả về giá trị trước kiểm tra.
+
+## Giới hạn quan sát được
+
+Làm mới kệ Hako trên server hiện có lượt timeout chờ bảng; app vẫn dùng kệ đã lưu và thời gian cập nhật thật. Một số lần lấy danh sách bị nguồn đóng kết nối, cache được giữ. Ảnh bìa chưa tải thành công có thể còn trống. Cloudflare outage recovery vẫn chưa xác nhận do hạn mức D1 miễn phí trước đó. Sau khi đổi nguồn trong panel, lựa chọn có hiệu lực ngay nhưng nhãn Home có thể chỉ đổi khi mở lại Home. Không tuyên bố giao diện đã được người dùng chốt là tối ưu hoàn toàn.
