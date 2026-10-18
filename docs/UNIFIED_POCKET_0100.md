@@ -19,3 +19,7 @@ JVM/parser/JS gates đã qua local; app và Android tests biên dịch. Server71
 
 ## Giới hạn cần nói rõ
 Không có tự dọn TTL mới khi người dùng chưa chốt; không mất data vì thoát. K60 ảnh mới hoàn tất không tự thay vào trang đang đọc để tránh nhảy vị trí. Không tuyên bố đã đo tiết kiệm pin hoặc mọi trường hợp web thật. Những chức năng cũ không thuộc batch này giữ cơ chế đã có, không gọi đây là rewrite toàn bộ sản phẩm.
+
+## Hiệu chỉnh sau một lượt kiểm tra APK đủ chức năng
+
+Bản code66 đã qua CI39104743094 và cài trên hai máy. Thử thật thấy Home lặp tiêu đề làm S4 mất hàng cuối, Đọc tiếp bị thống kê đẩy sang màn2; Explore K60 còn nhiều khoảng trống và footer cố định. Gom sửa thành code67: bỏ footer lặp, đưa hành động S4 lên trước thống kê, đưa bộ lọc K60 vào app bar, action nhỏ trong vùng48dp và footer kết quả ở cuối danh sách cuộn. Sửa range không tính hàng bị pager che và toggle yêu thích phản ánh đúng trạng thái. Không gọi code66 là bản hoàn thiện cuối.
