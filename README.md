@@ -1,6 +1,6 @@
 # Hako Pocket 0.11.0 — bộ mẫu và nghiệm thu theo đợt
 
-[Phạm vi, môi trường kiểm thử và cách xóa](docs/FIXTURE_LAB_0110.md). Đang chuẩn bị; chưa công bố APK đạt trước khi kiểm xong.
+[Phạm vi, môi trường kiểm thử và cách xóa](docs/FIXTURE_LAB_0110.md). Code69 đã qua CI39114897466 và kiểm trên S4/K60; APK Kiểm thử đã gỡ sau nghiệm thu. [Tải Pocket](https://nanains.duckdns.org/hako/download/pocket.apk).
 
 # Hako Pocket 0.10.0 — giao diện riêng S4/K60
 

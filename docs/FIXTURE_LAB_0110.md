@@ -22,3 +22,6 @@ APK cuối được nghiệm thu trên S4/K60 bằng kho lab. Lưu bằng chứn
 
 ## Giới hạn bằng chứng
 Fixture không chứng minh login/captcha/HTML Hako đang chạy, pin e-ink hay mạng Internet. Không thêm chức năng upload file local ngược server trong batch này; trạng thái cache khác bản sao file. Tự dọn cache theo TTL mới vẫn chưa bật. Không gọi tổng số case là bằng chứng mọi yêu cầu đã đạt; xem biên bản riêng sau pipeline.
+
+## Bản đã kiểm và phát hành
+CI39114897466 thành công ở commit d3ff584. Server75pytest; 14 suite Android cũ; bốn cấu hình fixture đạt; S4 thật45/K60 thật34 kiểm đạt. Code69 đã cài đè hai máy và công bố /hako/download/pocket.apk, SHA256 d25780c1dcb308c1f4173e17eb48babda49155d54131d494d9fc0de23f90336a. Đã thử nút xóa kho QA trên S4, gỡ cả hai gói QA ở hai máy. Một số ảnh tự động quá sớm bị loại khỏi bằng chứng thị giác; có ảnh máy thật bổ sung sau khi màn đã ổn định.
