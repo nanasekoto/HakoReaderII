@@ -1,3 +1,7 @@
+# Hako Pocket 0.12.0 — bản ứng viên đang nghiệm thu
+
+Chưa phát hành, chưa kết luận hoàn tất. Bổ sung upload nội dung local, thử gửi lại khi có mạng, sửa thanh đọc và nhãn S4, tách sửa ảnh khỏi chữ và bảo vệ cache. Phạm vi nghiệm thu gồm toàn bộ yêu cầu đã chốt, không chỉ các mục vừa sửa.
+
 # Hako Pocket 0.11.0 — bộ mẫu và nghiệm thu theo đợt
 
 [Phạm vi, môi trường kiểm thử và cách xóa](docs/FIXTURE_LAB_0110.md). Code69 đã qua CI39114897466 và kiểm trên S4/K60; APK Kiểm thử đã gỡ sau nghiệm thu. [Tải Pocket](https://nanains.duckdns.org/hako/download/pocket.apk).

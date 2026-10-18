@@ -359,6 +359,7 @@ public final class Repository {
     boolean readable=s.readable(c.id);
     String warning=errors == 0 ? "" : "Thiếu " + errors + " ảnh. " + error;
     s.state(c.id,readable,warning);
+    ContentUpload.enqueue(ctx,c.book,c.id);
     if(!readable)throw new IOException("Chương chỉ có ảnh chưa tải đủ: "+c.title+" · "+warning);}
   }
 

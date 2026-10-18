@@ -554,20 +554,28 @@ public final class Store extends SQLiteOpenHelper {
     }
   }
 
-  public synchronized void prune(Book b) {
-    if (b == null) return;
-    // Default retention is conservative. Leaving a book never authorizes deletion.
-    int days=context.getSharedPreferences("settings",0).getInt("cache_retention_days",0);
-    if(days<=0||b.id.equals(Repository.activeBook)||unread(b.id)>0||context.getSharedPreferences("server_bridge",0).contains("pending:"+b.id)||System.currentTimeMillis()-b.stamp<days*86400000L)return;
-    if (isKeepFull(b.id)) return; // Never prune books selected for full offline
-    Chapter current = chapter(b.id, b.current);
-    if (current == null) return;
-    for (Chapter c : chapters(b.id))
-      // Preserve all future/unread chapters; only prune read chapters far in the past
-      if (!isHidden(b.id,c.id) && c.ord < current.ord - FetchPolicy.BEHIND && wasRead(c.id)) {
-        delete(dir(c.id));
-        state(c.id, false, "");
+  public void prune(Book b){prune(b,false);}
+  public void prune(Book b,boolean overBudget){
+    if(b==null)return;android.content.SharedPreferences settings=context.getSharedPreferences("settings",0);
+    int days=settings.getInt("cache_retention_days",0);
+    if(!overBudget&&days<=0)return;
+    // A storage budget cannot evict a recently sampled/in-progress book.
+    long minimumAge=Math.max(overBudget?7:1,days)*86400000L;
+    if(b.id.equals(Repository.activeBook)||b.id.equals(ServerBridge.activeBook)||unread(b.id)>0
+        ||ServerBridge.prefs(context).contains("pending:"+b.id)||System.currentTimeMillis()-b.stamp<minimumAge
+        ||isKeepFull(b.id)||b.pinned||!settings.getString("marks-"+b.id,"[]").equals("[]"))return;
+    Chapter current=chapter(b.id,b.current);if(current==null)return;
+    Repository.contentLock.writeLock().lock();try{
+      for(Chapter c:chapters(b.id)){
+        if(b.id.equals(ServerBridge.activeBook)||b.id.equals(Repository.activeBook))return;
+        if(isHidden(b.id,c.id)||c.ord>=current.ord-FetchPolicy.BEHIND||!wasRead(c.id)
+            ||ContentUpload.prefs(context).contains("pending:"+c.id))continue;
+        String backup=ContentUpload.prefs(context).getString("ack_hash:"+c.id,"");
+        try{if(backup.isEmpty()||!backup.equals(ContentUpload.hash(html(c.id))))continue;}catch(Exception unavailable){continue;}
+        // Only verified server-backed old text; preserve metadata, anchors and history.
+        delete(dir(c.id));state(c.id,false,"");
       }
+    }finally{Repository.contentLock.writeLock().unlock();}
   }
 
   public synchronized void followed(String id,boolean value,int rank){Book old=book(id);if(old!=null&&old.followed==value&&old.shelfRank==rank)return;ContentValues v=new ContentValues();v.put("followed",value?1:0);v.put("shelf_rank",rank);getWritableDatabase().update("books",v,"id=?",new String[]{id});bookMetadataChanged(id);if(value&&(old==null||!old.followed)&&!completedTip(id).isEmpty())queueIfAllRead(id);}
@@ -620,7 +628,7 @@ public final class Store extends SQLiteOpenHelper {
       for(String src:content.images){String name=HakoParser.offlineImageName(cid,src);if(!name.isEmpty())names.add(name);}
       validatedImages.put(cid,names);
       fingerprint=contentStamp(cid,f);
-      boolean ok=content.readable(src->{String name=HakoParser.offlineImageName(cid,src);return !name.isEmpty()&&imageFileReadable(new File(dir(cid),name));});
+      boolean ok=content.readable(src->{if(!DeviceProfile.images(context))return false;String name=HakoParser.offlineImageName(cid,src);return !name.isEmpty()&&imageFileReadable(new File(dir(cid),name));});
       ok=ok&&fingerprint.equals(contentStamp(cid,f));
       validatedFiles.put(cid,ok?fingerprint:"invalid:"+fingerprint);persistValidation();reconcileReady(cid,ok);
       return ok;

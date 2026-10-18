@@ -54,6 +54,7 @@ public final class ServerSource {
   for(int i=0;i<chapters.length();i++){JSONObject ch=chapters.getJSONObject(i);String link=HakoParser.sharedUrl(ch.getString("url")),id=HakoParser.chapterId(link);if(!id.isEmpty())rows.add(new HakoParser.Link(id,ch.optString("volume").isEmpty()?ch.getString("title"):ch.getString("volume")+" · "+ch.getString("title"),link));}if(rows.isEmpty())throw new IOException("Server chưa có mục lục hợp lệ");store.catalog(bid,rows);store.establishReadBaseline(bid);return store.book(bid);
  }
  static boolean download(Context c,Store.Chapter chapter,boolean force,boolean imagesOnly)throws Exception{
+  if(imagesOnly&&Store.get(c).readable(chapter.id)){JSONObject imageDoc=request(c,"POST","/v3/pocket/images",new JSONObject().put("url",chapter.url).put("eink",DeviceProfile.eink(c)).put("repair",true));boolean done=repairOnly(c,chapter,imageDoc);if(!done)scheduleImages(c,chapter,0);return true;}
   JSONObject doc=prepare(c,"/v2/pocket/chapter",chapter.url,force&&!imagesOnly,imagesOnly);boolean complete=save(c,chapter,doc);
   if(!complete){scheduleImages(c,chapter,0);if(!Store.get(c).readable(chapter.id))throw new PendingImages();}
   ServerBridge.prefs(c).edit().putString("source_status","Đang dùng nội dung từ server").apply();return true;
@@ -63,16 +64,26 @@ public final class ServerSource {
  static boolean save(Context c,Store.Chapter chapter,JSONObject doc,Map<String,byte[]> packed)throws Exception{
   Store store=Store.get(c);
   if(!DeviceProfile.images(c)&&"illustration".equals(doc.optString("kind"))){c.getSharedPreferences("settings",0).edit().putInt("chapter_kind_"+chapter.id,2).putBoolean("illustration_attempted_"+chapter.id,true).apply();return true;}
+  int missing=saveImages(c,chapter,doc,packed);
+  String html=doc.getString("html");if(!DeviceProfile.images(c)){org.jsoup.nodes.Document plain=org.jsoup.Jsoup.parseBodyFragment(html);plain.select("img").remove();html=plain.body().html();}if(!HakoParser.validContent(html))throw new IOException("Nội dung server không hợp lệ");synchronized(store){Store.Book b=store.book(chapter.book);if(b==null||!FetchPolicy.allowCache(b.followed||store.syncTarget(b),chapter.book.equals(Repository.activeBook),store.isKeepFull(b.id)))return true;Store.write(store.html(chapter.id),html);store.classify(chapter.id,html);store.state(chapter.id,store.readable(chapter.id),missing==0?"":"Đang chờ "+missing+" ảnh từ server");}
+  return missing==0;
+ }
+ static int saveImages(Context c,Store.Chapter chapter,JSONObject doc,Map<String,byte[]> packed)throws Exception{
+  Store store=Store.get(c);
   File dir=store.dir(chapter.id);dir.mkdirs();JSONArray assets=doc.getJSONArray("images");int missing=0;
   for(int i=0;DeviceProfile.images(c)&&i<assets.length();i++){if(Repository.downloadCancelled())throw new InterruptedIOException("Đã dừng tải");JSONObject image=assets.getJSONObject(i);String name=image.getString("name"),asset=image.optString("asset");if(!name.matches("image-[a-f0-9]{24}\\.bin"))throw new IOException("Tên ảnh không hợp lệ");File file=new File(dir,name);if(Store.imageFileReadable(file))continue;if(!asset.matches("[a-f0-9]{64}(?:-color|-eink)?\\.png")){missing++;continue;}
    try{if(packed!=null&&!packed.containsKey(asset)){missing++;continue;}byte[] data=packed==null?bytes(c,"GET","/v2/images/"+asset,null,20*1024*1024):packed.get(asset);BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(data,0,data.length,bounds);if(bounds.outWidth<=0||bounds.outHeight<=0)throw new IOException("Ảnh server không hợp lệ");AtomicFile atomic=new AtomicFile(file);FileOutputStream out=atomic.startWrite();try{out.write(data);atomic.finishWrite(out);}catch(Exception e){atomic.failWrite(out);throw e;}}catch(IOException e){missing++;}
   }
-  String html=doc.getString("html");if(!DeviceProfile.images(c)){org.jsoup.nodes.Document plain=org.jsoup.Jsoup.parseBodyFragment(html);plain.select("img").remove();html=plain.body().html();}if(!HakoParser.validContent(html))throw new IOException("Nội dung server không hợp lệ");synchronized(store){Store.Book b=store.book(chapter.book);if(b==null||!FetchPolicy.allowCache(b.followed||store.syncTarget(b),chapter.book.equals(Repository.activeBook),store.isKeepFull(b.id)))return true;Store.write(store.html(chapter.id),html);store.classify(chapter.id,html);store.state(chapter.id,store.readable(chapter.id),missing==0?"":"Đang chờ "+missing+" ảnh từ server");}
+  return missing;
+ }
+ static boolean repairOnly(Context c,Store.Chapter ch,JSONObject doc)throws Exception{
+  int missing=saveImages(c,ch,doc,null);Store store=Store.get(c);
+  store.state(ch.id,store.readable(ch.id),missing==0?"":"Đang chờ "+missing+" ảnh từ server");
   return missing==0;
  }
  static void repairCachedImages(Context c,Store.Chapter ch){if(DeviceProfile.images(c)&&available(c)&&Store.get(c).missingImages(ch.id)>0)scheduleImages(c,ch,0);}
  private static void scheduleImages(Context c,Store.Chapter ch,int attempt){
-  if(!DeviceProfile.images(c)||attempt>=12||repairing.size()>=16||!repairing.add(ch.id))return;Context app=c.getApplicationContext();images.schedule(()->{boolean retry=false;try{if(!preferred(app)||Repository.downloadCancelled()||(Repository.pocketPaused&&!ch.book.equals(Repository.activeBook)))return;JSONObject doc=request(app,"POST","/v2/pocket/chapter",new JSONObject().put("url",ch.url).put("eink",DeviceProfile.eink(app)).put("text_only",!DeviceProfile.images(app)));if(doc.has("html")){retry=!save(app,ch,doc);if(!retry)app.sendBroadcast(new Intent(Repository.EVENT).setPackage(app.getPackageName()).putExtra("server_images_changed",ch.id));}else retry=true;}catch(Exception e){retry=true;}finally{repairing.remove(ch.id);if(retry)scheduleImages(app,ch,attempt+1);}},3,TimeUnit.SECONDS);
+  if(!DeviceProfile.images(c)||attempt>=12||repairing.size()>=16||!repairing.add(ch.id))return;Context app=c.getApplicationContext();images.schedule(()->{boolean retry=false;try{if(!preferred(app)||Repository.downloadCancelled()||(Repository.pocketPaused&&!ch.book.equals(Repository.activeBook)))return;JSONObject doc=request(app,"POST","/v3/pocket/images",new JSONObject().put("url",ch.url).put("eink",DeviceProfile.eink(app)));if(doc.has("images")){retry=!repairOnly(app,ch,doc);if(!retry)app.sendBroadcast(new Intent(Repository.EVENT).setPackage(app.getPackageName()).putExtra("server_images_changed",ch.id));}else retry=true;}catch(Exception e){retry=true;}finally{repairing.remove(ch.id);if(retry)scheduleImages(app,ch,attempt+1);}},3,TimeUnit.SECONDS);
  }
  public static boolean pack(Context c,List<Store.Chapter> chapters)throws Exception{
   if(chapters.isEmpty()||!available(c))return false;Store store=Store.get(c);

@@ -40,6 +40,7 @@ public class ChargeJob extends JobService {
                 retry = false;
                 Repository.notify(this, "Tải khi sạc: " + e.getMessage());
               }
+              try{CacheMaintenance.run(this);ContentUpload.kick(this);}catch(Exception ignored){}
               running.set(false);jobFinished(p, retry);
             },
             "Hako charging")
