@@ -53,7 +53,7 @@ public final class UiLibrarySnapshot {
   return new UiLibrarySnapshot(books,out,android.os.SystemClock.elapsedRealtime()-started,prefs.getLong("lastShelfSync",0),revision);
  }
  static Summary summarize(Store store,SharedPreferences prefs,Store.Book b){
-   Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);
+   Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);chapters.removeIf(ch->store.isHidden(b.id,ch.id));
    s.total=0;s.full=store.isKeepFull(b.id);boolean afterCurrent=false;
    Set<String> read=store.readingIds(b.id,chapters);
    List<String> ids=new ArrayList<>();Set<String> images=new HashSet<>();for(Store.Chapter ch:chapters){ids.add(ch.id);if(store.ignoredForReading(ch))images.add(ch.id);}

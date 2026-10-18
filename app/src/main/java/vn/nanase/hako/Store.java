@@ -123,7 +123,7 @@ public final class Store extends SQLiteOpenHelper {
     if((old==null||ch.ord>=old.ord)&&!chapter.equals(context.getSharedPreferences("settings",0).getString("read_tip_"+book,""))){context.getSharedPreferences("settings",0).edit().putString("read_tip_"+book,chapter).commit();readingRevision.incrementAndGet();}
     readChapter(chapter);queueIfAllRead(book);ServerBridge.completed(context,book);
   }finally{OperationTrace.end(trace,"closed",0);}}
-  public int unread(String id){List<Chapter> all=chapters(id);Chapter tip=chapter(id,completedTip(id));int end=tip==null?-1:tip.ord;Set<String> read=readIds(id);int count=0;for(Chapter ch:all)if(!ignoredForReading(ch)&&ch.ord>end&&!read.contains(ch.id))count++;return count;}
+  public int unread(String id){List<Chapter> all=chapters(id);Chapter tip=chapter(id,completedTip(id));int end=tip==null?-1:tip.ord;Set<String> read=readIds(id);int count=0;for(Chapter ch:all)if(!isHidden(id,ch.id)&&!ignoredForReading(ch)&&ch.ord>end&&!read.contains(ch.id))count++;return count;}
   public static final class ReadCounts {
     public int textUnread,illustrationsUnseen,pendingReview;
     public String label(){return textUnread+" chương chưa đọc";}
@@ -512,8 +512,8 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public synchronized void resetDerived(){chapterCache.clear();chapterLookup.clear();chapterTitles.clear();validatedFiles.clear();validatedImages.clear();imageCounts.clear();imageCountStamps.clear();validationLoaded=false;TocState.resetForImport();}
-  public boolean downloadsSuppressed(String book){return context.getSharedPreferences("settings",0).getBoolean("cache_deleted_"+book,false);}
-  public void allowDownloads(String book){context.getSharedPreferences("settings",0).edit().remove("cache_deleted_"+book).apply();}
+  public boolean downloadsSuppressed(String book){return context.getSharedPreferences("settings",0).getBoolean("cache_deleted_"+book,false)||context.getSharedPreferences("settings",0).getBoolean("remote_metadata_only_"+book,false);}
+  public void allowDownloads(String book){context.getSharedPreferences("settings",0).edit().remove("cache_deleted_"+book).remove("remote_metadata_only_"+book).apply();}
   public void clearDownloaded(String book)throws Exception{OperationTrace.Span trace=OperationTrace.begin("book.clear_files");Repository.contentLock.writeLock().lock();try{
     if(book==null||!book.matches("[a-z0-9-]+"))throw new IllegalArgumentException();
     synchronized(Repository.class){List<Chapter> all;
