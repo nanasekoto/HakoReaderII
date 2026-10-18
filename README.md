@@ -1,4 +1,4 @@
-# Hako Pocket 0.12.0 — bản ứng viên đang nghiệm thu
+# Hako Pocket 0.12.1 — bản ứng viên đang nghiệm thu
 
 Chưa phát hành, chưa kết luận hoàn tất. Bổ sung upload nội dung local, thử gửi lại khi có mạng, sửa thanh đọc và nhãn S4, tách sửa ảnh khỏi chữ và bảo vệ cache. Phạm vi nghiệm thu gồm toàn bộ yêu cầu đã chốt, không chỉ các mục vừa sửa.
 
