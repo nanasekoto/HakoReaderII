@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
   private boolean libraryLoading=false,libraryReloadAgain=false;
   private Runnable libraryLoaded;
   private long libraryLoadStarted;
-  private TextView listLoadStatus, libraryMetadata, homeBookTitle, homeBookHint, homeSummary;
+  private TextView listLoadStatus, libraryMetadata, homeBookTitle, homeBookHint, homeSummary, homeSyncState;
   private List<Store.Book> activeLibraryBooks;
   private ArrayAdapter<Store.Book> activeLibraryAdapter;
   private final Runnable libraryClock=new Runnable(){public void run(){
@@ -78,7 +78,7 @@ public class MainActivity extends Activity {
     List<Store.Book> indexed=readyLibrary.index(mode==1&&prefs.getBoolean("unreadOnly",false)?6:mode);if(indexed!=null)return new ArrayList<>(indexed);
     for(Store.Book b:readyLibrary.books){
       if(mode==1?b.followed&&(!prefs.getBoolean("unreadOnly",false)||hasNew(b)):
-         mode==4?b.stamp>0:!b.id.equals("demo")&&(mode==3?readyLibrary.summary(b).completedOffline:store.favorite(b)))result.add(b);
+         mode==4?b.stamp>0:!b.id.equals("demo")&&(mode==3?(readyLibrary.summary(b).completedOffline||readyLibrary.summary(b).sharedComplete):store.favorite(b)))result.add(b);
     }
     if(mode==1)result.sort(readyLibrary::compareShelf);
     if(mode==4)result.sort((a,b)->{int n=Long.compare(b.stamp,a.stamp);return n!=0?n:a.id.compareTo(b.id);});
@@ -91,7 +91,7 @@ public class MainActivity extends Activity {
       long stamp=readyLibrary==null?0:readyLibrary.lastShelfSync;
       return (stamp>0?"Đã cập nhật lúc "+formatVnDate(stamp,"HH:mm dd/MM/yyyy"):"Chưa cập nhật tủ sách")+" · "+count+" bộ";
     }
-    if(mode==4)return "Lịch sử đọc trên máy · "+count+" bộ";
+    if(mode==4)return "Lịch sử đọc dùng chung · "+count+" bộ";
     return (mode==3?"Bạn đánh dấu hoàn thành · Đã tải đủ · ":"Đọc nhiều trước · Truyện ghim để dễ tìm · ")+count+" bộ";
   }
   private void refreshLibraryView(){
@@ -193,6 +193,7 @@ public class MainActivity extends Activity {
         new BroadcastReceiver() {
           public void onReceive(Context c, Intent i) {
             if(i.hasExtra("diagnostic_status")){if(Diagnostics.foreground)Toast.makeText(MainActivity.this,i.getStringExtra("diagnostic_status"),Toast.LENGTH_LONG).show();return;}
+            if(i.getBooleanExtra("position_sync",false)&&homeSyncState!=null)homeSyncState.setText(ServerBridge.visibleStatus(c));
             String text = i.getStringExtra("text");
             if(nativeReader!=null&&chapterId.equals(i.getStringExtra("server_images_changed"))){final String bid=bookId,cid=chapterId;saveThen(()->showReader(bid,cid));return;}
             if(i.hasExtra("read_sync_book")){if(text!=null&&bookId.equals(i.getStringExtra("read_sync_book")))showActionFeedback(text);return;}
@@ -278,7 +279,7 @@ public class MainActivity extends Activity {
     generation++;
     caughtUpPrompt=false; caughtUpBook=null;
     cancelLockKey();
-    homeBookTitle=null;homeBookHint=null;homeSummary=null;homeSourceBadge=null;
+    homeBookTitle=null;homeBookHint=null;homeSummary=null;homeSyncState=null;homeSourceBadge=null;
     currentList=null; currentScroll=null; status=null;listLoadStatus=null;libraryMetadata=null;activeLibraryAdapter=null;activeLibraryBooks=null;libraryListMode=0;
     nativeReader=null;ServerBridge.activeBook="";
     readerReady = false;
@@ -345,6 +346,7 @@ public class MainActivity extends Activity {
 
   private void leaveReader(){if(nativeReader!=null)nativeReader.checkpoint();flushReaderSave();visitSession="";String old=Repository.activeBook;Repository.activeBook="";if(!old.isEmpty())io.execute(()->store.clearTemporary(old));}
   private void exitApp(){isSyncingShelf=false;saveThen(()->{leaveReader();Repository.cancel.set(true);stopService(new Intent(this,DownloadService.class));finishAndRemoveTask();});}
+  private void continueLatest(){final String fallback=prefs.getString("lastBook","");final String[] selected={fallback};task("Đang nhận vị trí đọc mới nhất…",()->{selected[0]=ServerBridge.resumeLatest(this,fallback);return null;},()->{navStack.push(this::library);if(selected[0].isEmpty()){bookList(false);return;}openChapter(selected[0],"");});}
   private void library() {
     navStack.clear();
     leaveReader();reset();bookId="";chapterId="";
@@ -353,7 +355,7 @@ public class MainActivity extends Activity {
     heading.addView(text("HAKO POCKET",20),new LinearLayout.LayoutParams(0,-2,1));
     Button report=button("Báo cáo",this::reportDialog);report.setTextSize(13);report.setPadding(dp(4),0,dp(4),0);report.setContentDescription("Gửi báo cáo");heading.addView(report,new LinearLayout.LayoutParams(dp(82),dp(36)));root.addView(heading);
     Button sourceBadge=button(sourceLabel(),this::connectionSettings);homeSourceBadge=sourceBadge;sourceBadge.setTextSize(12);sourceBadge.setSingleLine(true);sourceBadge.setEllipsize(android.text.TextUtils.TruncateAt.END);root.addView(sourceBadge,new LinearLayout.LayoutParams(-1,dp(36)));
-    root.addView(text("Đọc nhẹ • "+(DeviceProfile.eink(MainActivity.this)?"Xteink S4":"Android WebView")+" • v"+appVersion(),11));
+    homeSyncState=text(ServerBridge.visibleStatus(this),12);homeSyncState.setMaxLines(2);homeSyncState.setEllipsize(android.text.TextUtils.TruncateAt.END);homeSyncState.setOnClickListener(v->ServerBridge.settings(this));root.addView(homeSyncState,new LinearLayout.LayoutParams(-1,dp(42)));
     LinearLayout grid=new LinearLayout(this);
     grid.setOrientation(1);
     boolean paused=prefs.getBoolean("sync_paused",false);
@@ -365,7 +367,7 @@ public class MainActivity extends Activity {
     };
     int[] iconKinds={12,7,9,1,8,17,8,paused?12:20,10,11,13,6};
     Runnable[] actions={
-      ()->{Store.Book b=displayBook(prefs.getString("lastBook",""));if(b!=null){navStack.push(this::library);openBook(b);}else bookList(false);},
+      this::continueLatest,
       ()->{navStack.push(this::library);bookList(false);},
       ()->{navStack.push(this::library);frequentList();},
       ()->{navStack.push(this::library);bookList(true);},
@@ -678,7 +680,7 @@ public class MainActivity extends Activity {
         subView.setMaxLines(1);
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
-        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+subView.getText()+" · "+summary.readLabel());
+        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+subView.getText()+" · "+summary.readLabel()+summary.sharedLabel());
         if(shelf)card.addView(subView);
         else {
           LinearLayout controls=new LinearLayout(MainActivity.this);controls.setGravity(Gravity.CENTER_VERTICAL);
@@ -816,7 +818,7 @@ public class MainActivity extends Activity {
         subView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         subView.setPadding(0, dp(1), 0, 0);
         int storedAll=summary.stored;
-        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+"Đã tải "+storedAll+"/"+totalChs+" chương"+(summary.newCount>0?" · "+summary.newCount+" mới":""));
+        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+"Máy này "+storedAll+"/"+totalChs+" chương"+summary.sharedLabel()+(summary.newCount>0?" · "+summary.newCount+" mới":""));
         android.graphics.drawable.GradientDrawable badgeBg=new android.graphics.drawable.GradientDrawable();badgeBg.setColor(Color.BLACK);badgeBg.setCornerRadius(dp(5));badge.setBackground(badgeBg);badge.setPadding(dp(5),dp(2),dp(5),dp(2));badge.setText(totalChs==0?"Chưa rõ":summary.unread+" chưa đọc");badge.setTextSize(15f);
         LinearLayout meta=new LinearLayout(MainActivity.this);meta.setGravity(Gravity.CENTER_VERTICAL);meta.addView(subView,new LinearLayout.LayoutParams(0,-2,1));meta.addView(badge);card.addView(meta);
 
