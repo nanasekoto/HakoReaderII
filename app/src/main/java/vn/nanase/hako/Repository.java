@@ -286,13 +286,14 @@ public final class Repository {
   }
   private static void downloadChapter(Context ctx,Store.Chapter c,boolean force,boolean imagesOnly) throws Exception {
     Store s = Store.get(ctx);
+    if(imagesOnly&&!DeviceProfile.images(ctx))return;
     boolean cachedContent=s.readable(c.id);
     if(!force&&s.cachedIllustration(c.id)){UpdateReport.log(ctx,c.title+": giữ minh họa đã lưu · không tải lại trang");return;}
     if(!CachePolicy.shouldFetch(cachedContent,force)){if(!c.ready)s.state(c.id,true,c.error);ServerSource.repairCachedImages(ctx,c);return;}
     allowed(ctx);
     if(ServerSource.available(ctx)){try{ServerSource.download(ctx,c,force,imagesOnly);return;}catch(ServerSource.PendingImages e){throw e;}catch(InterruptedIOException e){throw e;}catch(Exception e){ServerSource.failed(ctx,e);}}
     long pause=Math.max(0,1500-(android.os.SystemClock.elapsedRealtime()-lastNetwork));
-    if(pause>0)Thread.sleep(pause);
+    if(pause>0&&!c.book.equals(activeBook))Thread.sleep(pause);
     lastNetwork=android.os.SystemClock.elapsedRealtime();
     File dir = s.dir(c.id);
     dir.mkdirs();
@@ -318,6 +319,7 @@ public final class Repository {
     Document d = Jsoup.parseBodyFragment(content);
     int errors = 0, index = 0;
     String error = "";
+    if(!DeviceProfile.images(ctx))d.select("img").remove();
     for (Element img : d.select("img[src]")) {
       String src = HakoParser.imageFetchUrl(img.hasAttr("data-hako-src")?img.attr("data-hako-src"):img.attr("src"));
       img.attr("data-hako-src",src);

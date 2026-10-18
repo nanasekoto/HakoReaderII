@@ -1,3 +1,7 @@
+# Hako Pocket 0.10.0 — giao diện riêng S4/K60
+
+[Bản thay đổi và phạm vi kiểm tra](docs/UNIFIED_POCKET_0100.md). Giữ dữ liệu khi cài đè. Server cần bản cập nhật xử lý đồng thời và text-only.
+
 # Hako Pocket 0.9.2 — Đọc tiếp và thư viện dùng chung
 
 Rời chương và đợi **Đã gửi vị trí**, rồi bấm **Đọc tiếp** ở máy kia. App hỏi truyện mới nhất trên Ubuntu, nhận cả metadata của truyện chưa có trên máy. Lịch sử, chương đã đọc, yêu thích/hoàn thành và trạng thái lưu được chia sẻ; nhãn **Máy này / Nơi khác lưu** phân biệt nội dung offline thật. [Phạm vi và kiểm tra 0.9.2](docs/SHARED_RESUME_092.md).

@@ -68,11 +68,12 @@ public final class NativeReader extends View {
    PreparedImage image=new PreparedImage(file);float scale=Math.min(1f,Math.min((float)Math.max(80,screenWidth-40)/o.outWidth,(float)Math.max(80,screenHeight-180)/o.outHeight));image.setBounds(0,0,Math.max(1,(int)(o.outWidth*scale)),Math.max(1,(int)(o.outHeight*scale)));return image;
   }catch(Exception error){return null;}
  }
- public static Prepared prepare(String html,File dir,float density,int screenWidth,int screenHeight,int paraSpaceDp,int indentDp){OperationTrace.Span trace=OperationTrace.begin("read.prepare");try{
+ public static Prepared prepare(String html,File dir,float density,int screenWidth,int screenHeight,int paraSpaceDp,int indentDp){return prepare(html,dir,density,screenWidth,screenHeight,paraSpaceDp,indentDp,true);}
+ public static Prepared prepare(String html,File dir,float density,int screenWidth,int screenHeight,int paraSpaceDp,int indentDp,boolean allowImages){OperationTrace.Span trace=OperationTrace.begin("read.prepare");try{
   long begun=Diagnostics.now();Diagnostics.count("reader.parse");
   Diagnostics.count(android.os.Looper.myLooper()==android.os.Looper.getMainLooper()?"reader.parse_ui":"reader.parse_worker");
   SpannableStringBuilder text=new SpannableStringBuilder();ArrayList<Integer> anchors=new ArrayList<>();Map<String,String> notes=new HashMap<>();
-  Element body=Jsoup.parseBodyFragment(html).body();int note=0;
+  Element body=Jsoup.parseBodyFragment(html).body();if(!allowImages)body.select("img").remove();int note=0;
   for(Element e:new ArrayList<Element>(body.select("details"))){String key="hako-note:"+(note++);Element summary=e.selectFirst("summary");if(summary!=null)summary.remove();notes.put(key,e.text());e.replaceWith(new Element("a").attr("href",key).text(" [✎] "));}
   // Stable block anchors are rebuilt from the same sanitized chapter on each opening.
   // Html offsets differ from markup offsets: convert block by block to retain actual character anchors.
@@ -142,11 +143,11 @@ public final class NativeReader extends View {
   for(ImageSpan span:text.getSpans(0,text.length(),ImageSpan.class))if(span.getDrawable() instanceof PreparedImage){PreparedImage original=(PreparedImage)span.getDrawable();Drawable image=new LocalImage(original.file);image.setBounds(original.getBounds());int a=text.getSpanStart(span),b=text.getSpanEnd(span),flags=text.getSpanFlags(span);text.removeSpan(span);text.setSpan(new ImageSpan(image,span.getSource(),span.getVerticalAlignment()),a,b,flags);}
   if(getWidth()>0&&getHeight()>0)reflow();else requestLayout();
  }
- public void content(String html,int paragraph,float fraction){prepared(prepare(html,chapterDir,getResources().getDisplayMetrics().density,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels,paraSpaceDp,indentDp),paragraph,fraction);}
+ public void content(String html,int paragraph,float fraction){prepared(prepare(html,chapterDir,getResources().getDisplayMetrics().density,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels,paraSpaceDp,indentDp,DeviceProfile.images(getContext())),paragraph,fraction);}
  private void reformatAsync(){
   final int request=++formatRequest,p=pendingParagraph,para=paraSpaceDp,indent=indentDp;final float f=pendingFraction,density=getResources().getDisplayMetrics().density;final int width=getResources().getDisplayMetrics().widthPixels,height=getResources().getDisplayMetrics().heightPixels;final String html=rawHtml;
   if(formatWork!=null)formatWork.cancel(true);
-  formatWork=formatPool.submit(()->{try{Prepared result=prepare(html,chapterDir,density,width,height,para,indent);post(()->{if(request==formatRequest)prepared(result,p,f);});}catch(java.util.concurrent.CancellationException ignored){}});
+  formatWork=formatPool.submit(()->{try{Prepared result=prepare(html,chapterDir,density,width,height,para,indent,DeviceProfile.images(getContext()));post(()->{if(request==formatRequest)prepared(result,p,f);});}catch(java.util.concurrent.CancellationException ignored){}});
  }
  private static final class SoftEmphasis extends MetricAffectingSpan {
   private final boolean italic;
@@ -185,7 +186,7 @@ public final class NativeReader extends View {
   }catch(Exception e){return null;}
  }
  private static class Note extends CharacterStyle {final String value;Note(String s){value=s;}public void updateDrawState(TextPaint p){p.setUnderlineText(true);}}
- public void style(float sp,int marginDp,float spacing,int pSpaceDp,int indDp,Typeface face,boolean tap){capture();android.content.SharedPreferences settings=getContext().getSharedPreferences("settings",0);scrolling=!DeviceProfile.eink(getContext())&&settings.getBoolean("reader_scroll",false);swipePaging=settings.getBoolean("reader_swipes",true);paint.setTextSize(sp*getResources().getDisplayMetrics().scaledDensity);paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;boolean reformat=(paraSpaceDp!=pSpaceDp)||(indentDp!=indDp);paraSpaceDp=pSpaceDp;indentDp=indDp;taps=tap;if(reformat&&!rawHtml.isEmpty()){reformatAsync();}else{reflow();}}
+ public void style(float sp,int marginDp,float spacing,int pSpaceDp,int indDp,Typeface face,boolean tap){capture();android.content.SharedPreferences settings=getContext().getSharedPreferences("settings",0);scrolling=!DeviceProfile.eink(getContext())&&settings.getBoolean("reader_scroll",false);swipePaging=settings.getBoolean("reader_swipes",true);paint.setTextSize(DeviceProfile.sp(getContext(),sp));paint.setTypeface(face);margin=(int)(marginDp*getResources().getDisplayMetrics().density);line=spacing;boolean reformat=(paraSpaceDp!=pSpaceDp)||(indentDp!=indDp);paraSpaceDp=pSpaceDp;indentDp=indDp;taps=tap;if(reformat&&!rawHtml.isEmpty()){reformatAsync();}else{reflow();}}
  public void taps(boolean on){taps=on;}public int getPageCount(){return pages.size();}
  private int offset(){return layout==null||pages.isEmpty()?0:layout.getLineStart(scrolling?layout.getLineForVertical(scrollOffset):pages.get(page));}
  private void capture(){if(layout==null||pages.isEmpty())return;int off=offset(),p=0;int found=Collections.binarySearch(anchors,off);p=Math.max(0,found>=0?found:-found-2);pendingParagraph=p;int end=p+1<anchors.size()?anchors.get(p+1):text.length();pendingFraction=(float)(off-anchors.get(p))/Math.max(1,end-anchors.get(p));}

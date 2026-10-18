@@ -144,6 +144,7 @@ public final class Store extends SQLiteOpenHelper {
   public boolean cachedIllustration(String id){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);return illustration(id)&&html(id).isFile()&&fileStamp(html(id)).equals(p.getString("illustration_cached_"+id,""));}
   public int unreadIllustrations(String book){return 0;}
   public int missingImages(String id){
+    if(!DeviceProfile.images(context))return 0;
     try{String stamp=contentStamp(id,html(id));Integer cached=imageCounts.get(id);if(cached!=null&&stamp.equals(imageCountStamps.get(id)))return cached;int n=0;for(String src:HakoParser.offlineContent(read(html(id))).images){String name=HakoParser.offlineImageName(id,src);if(name.isEmpty()||!imageFileReadable(new File(dir(id),name)))n++;}if(stamp.equals(contentStamp(id,html(id)))){imageCounts.put(id,n);imageCountStamps.put(id,stamp);}return n;}catch(Exception e){return 0;}
   }
   public boolean autoIllustration(Chapter ch){android.content.SharedPreferences p=context.getSharedPreferences("settings",0);if(illustration(ch.id)&&fileStamp(html(ch.id)).equals(p.getString("illustration_cached_"+ch.id,""))){UpdateReport.log(context,ch.title+": dùng khung minh họa đã lưu · ảnh thiếu chỉ tải lại khi yêu cầu");return false;}return IllustrationPolicy.shouldAttempt(illustrationHint(ch),p.getBoolean("illustration_attempted_"+ch.id,false),false);}
@@ -555,6 +556,9 @@ public final class Store extends SQLiteOpenHelper {
 
   public synchronized void prune(Book b) {
     if (b == null) return;
+    // Default retention is conservative. Leaving a book never authorizes deletion.
+    int days=context.getSharedPreferences("settings",0).getInt("cache_retention_days",0);
+    if(days<=0||b.id.equals(Repository.activeBook)||unread(b.id)>0||context.getSharedPreferences("server_bridge",0).contains("pending:"+b.id)||System.currentTimeMillis()-b.stamp<days*86400000L)return;
     if (isKeepFull(b.id)) return; // Never prune books selected for full offline
     Chapter current = chapter(b.id, b.current);
     if (current == null) return;
@@ -622,7 +626,7 @@ public final class Store extends SQLiteOpenHelper {
       return ok;
     }catch(Exception e){validatedFiles.remove(cid);validatedImages.remove(cid);reconcileReady(cid,false);return false;}finally{Diagnostics.elapsed("cache.validation",begun);OperationTrace.cache(parsed,Diagnostics.now()-begun);}
   }
-  public synchronized void clearTemporary(String id){Book b=book(id);if(b!=null&&!b.followed&&b.stamp==0&&b.visits==0&&!isKeepFull(id))for(Chapter c:chapters(id)){delete(dir(c.id));state(c.id,false,"");}}
+  public synchronized void clearTemporary(String id){ /* Kept for compatibility: only explicit cleanup may remove cached chapters. */ }
   public void cleanStartup(){
     // Disk validation happens outside Store's monitor and outside SQLite transactions.
     Map<String,String> invalid=new LinkedHashMap<>();
