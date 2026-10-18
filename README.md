@@ -1,3 +1,7 @@
+# Hako Pocket 0.9.2 — Đọc tiếp và thư viện dùng chung
+
+Rời chương và đợi **Đã gửi vị trí**, rồi bấm **Đọc tiếp** ở máy kia. App hỏi truyện mới nhất trên Ubuntu, nhận cả metadata của truyện chưa có trên máy. Lịch sử, chương đã đọc, yêu thích/hoàn thành và trạng thái lưu được chia sẻ; nhãn **Máy này / Nơi khác lưu** phân biệt nội dung offline thật. [Phạm vi và kiểm tra 0.9.2](docs/SHARED_RESUME_092.md).
+
 # Hako Pocket 0.9.1 — đồng bộ qua Ubuntu
 
 Bản hợp nhất dùng Ubuntu làm nơi đồng bộ duy nhất, không kết nối Cloudflare. Khi Ubuntu tắt, đọc cache và lưu tiến độ trên từng máy; nhận tiến độ của máy kia khi Ubuntu hoạt động lại. Giữ package, chữ ký và dữ liệu khi cài đè. [Phạm vi và trạng thái kiểm tra](docs/UNIFIED_POCKET_091.md).
