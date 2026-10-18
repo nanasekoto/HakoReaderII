@@ -2095,10 +2095,10 @@ public class MainActivity extends Activity {
       LinearLayout labels=new LinearLayout(MainActivity.this);labels.setOrientation(1);labels.setPadding(eink?0:dp(12),0,0,0);labels.addView(BookUi.text(MainActivity.this,row.optString("title"),18,true));
       LinearLayout secondary=new LinearLayout(MainActivity.this);secondary.setGravity(Gravity.CENTER_VERTICAL);TextView category=BookUi.text(MainActivity.this,row.optString("category")+(row.optString("status").isEmpty()?"":" · "+row.optString("status")),14,false);secondary.addView(category,new LinearLayout.LayoutParams(0,-2,1));
       BookUi.Flow actions=BookUi.flow(MainActivity.this);Button favorite=button(row.optBoolean("favorite")?"♥":"♡",()->discoveryAction(row,false));favorite.setContentDescription(row.optBoolean("favorite")?"Bỏ yêu thích":"Thêm yêu thích");favorite.setTextSize(20);Button download=button("↓",()->discoveryAction(row,true));download.setContentDescription(eink?"Tải chữ":"Tải truyện");download.setTextSize(20);actions.addView(favorite,new ViewGroup.LayoutParams(dp(48),dp(48)));actions.addView(download,new ViewGroup.LayoutParams(dp(48),dp(48)));
-      if(eink){labels.addView(secondary);labels.addView(actions,new LinearLayout.LayoutParams(-1,-2));}else{secondary.removeView(category);labels.addView(category);labels.addView(actions,new LinearLayout.LayoutParams(-1,-2));}
+      if(eink){labels.addView(secondary);labels.addView(actions,new LinearLayout.LayoutParams(-1,-2));}else{secondary.removeView(category);labels.addView(category,new LinearLayout.LayoutParams(-1,-2));labels.addView(actions,new LinearLayout.LayoutParams(-1,-2));}
       JSONArray tags=row.optJSONArray("tags");if(tags!=null&&tags.length()>0)labels.addView(BookUi.text(MainActivity.this,android.text.TextUtils.join(" · ",jsonStrings(tags)),13,false));
       identity.addView(labels,new LinearLayout.LayoutParams(0,-2,1));card.addView(identity);
-      if(eink){labels.removeView(actions);secondary.addView(actions,new LinearLayout.LayoutParams(dp(104),-2));}
+      if(eink){labels.removeView(actions);secondary.addView(actions,new LinearLayout.LayoutParams(dp(108),-2));}
       String latest=row.optString("latest_chapter",row.optString("info")).replace(row.optString("title"),"").trim();if(!latest.isEmpty())card.addView(BookUi.text(MainActivity.this,latest,14,false));if(!row.optString("updated_text").isEmpty())card.addView(BookUi.text(MainActivity.this,row.optString("updated_text"),13,false));
       card.setOnClickListener(v->openDiscovery(row,list,title,url));return card;
     }});
