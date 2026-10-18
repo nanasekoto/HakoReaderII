@@ -26,3 +26,5 @@ Mã chức năng gốc: `7237d2abbfb2a3cd499ef119e804541c415528aa` (Pocket0.12.1
 ## Tái kiểm
 
 Chạy BUILDING và fixture trên cả hai máy. Sau đó kiểm mạng thật riêng: hai chiều Đọc tiếp có/không có file; ACK vị trí; upload local và tải lại; offline/reconnect; đọc hết Hako; ảnh K60/no-image S4; tải/pause/full/xóa; layout phím/gesture; backup/restore và hash APK tải công khai. Mỗi ca ghi phiên bản, điều kiện, quan sát và lỗi còn mở.
+
+Hồ sơ từng mục: [86 yêu cầu và19 hành trình](ACCEPTANCE_SCOPE.json). Trạng thái trong hồ sơ là phần kiểm chứng còn mở, không phải danh sách đã đạt.

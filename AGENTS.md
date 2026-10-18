@@ -1,6 +1,6 @@
 # Hako Pocket maintenance instructions
 
-Read README.md, docs/OPERATING_RULES.md and docs/ARCHITECTURE_INVARIANTS.md before changing behavior. Current main consolidates the accepted 0.7.15 Gecko implementation.
+Read README.md, docs/OPERATING_RULES.md and docs/ARCHITECTURE_INVARIANTS.md before changing behavior. The 1.0 baseline consolidates Pocket/Reader II with an Ubuntu-first source and synchronization path. Follow current guides; docs/history and versioned notes are historical.
 
 - Preserve vn.nanase.hako, the existing signing identity, SQLite schema v3 and chapter cache IDs/paths. Do not remove user data as a fix.
 - Keep Gecko isolated; native offline reading must not initialize a browser engine.
