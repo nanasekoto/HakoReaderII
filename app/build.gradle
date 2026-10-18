@@ -7,12 +7,23 @@ android {
     compileSdk 36
 
     defaultConfig {
-        applicationId 'vn.nanase.hako'
+        applicationId(project.findProperty('qa')?.toString()?.toBoolean() ? 'vn.nanase.hako.qa' : 'vn.nanase.hako')
+        manifestPlaceholders = [appLabel: project.findProperty('qa')?.toString()?.toBoolean() ? 'Hako Kiểm thử' : 'Hako Pocket']
         minSdk 26
         targetSdk 34
         ndk { abiFilters(project.findProperty("abi") ?: "armeabi-v7a") }
         versionCode 25
         versionName '0.7.9-Gecko'
+    }
+
+    sourceSets {
+        main {
+            if (project.findProperty('qa')?.toString()?.toBoolean()) {
+                java.srcDir 'src/qa/java'
+                assets.srcDir 'src/qa/assets'
+                manifest.srcFile 'src/qa/AndroidManifest.xml'
+            }
+        }
     }
 
     compileOptions {

@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -34,7 +34,7 @@ jobs:
         run: |
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-          timeout 180 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'platforms;android-36' 'build-tools;35.0.0' 'emulator' 'system-images;android-30;default;x86_64'
+          timeout 180 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'platforms;android-36' 'build-tools;35.0.0' 'emulator' 'system-images;android-30;default;x86_64' 'system-images;android-34;google_apis;x86_64'
       - name: Compile debug for targeted Android tests
         run: |
           gradle assembleDebug -Pabi=x86_64 --no-daemon
@@ -44,21 +44,35 @@ jobs:
         run: |
           sudo chmod a+rw /dev/kvm
           bash scripts/reading-state-check.sh
+      - name: Isolated fixture library on S4 and phone emulators
+        run: |
+          gradle assembleDebug -Pqa=true -Pabi=x86_64 --no-daemon
+          jar cf build/classes.jar -C app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes .
+          HAKO_TEST_PACKAGE=vn.nanase.hako.qa bash test-android.sh
+          bash scripts/fixture-journey-check.sh
       - name: Release ARM32 after gates pass
         run: |
-          timeout 600 gradle --no-daemon assembleRelease -Pabi=armeabi-v7a --stacktrace
+          timeout 600 gradle --no-daemon assembleDebug -Pqa=true -Pabi=armeabi-v7a --stacktrace
+          mkdir -p build/deliver
+          cp app/build/outputs/apk/debug/app-debug.apk build/deliver/Hako-Pocket-Lab.apk
+          cp build/test-android/tests.apk build/deliver/Hako-Pocket-Lab-tests.apk
+          timeout 600 gradle --no-daemon assembleRelease -Pqa=false -Pabi=armeabi-v7a --stacktrace
           version=$(sed -n 's/^VERSION_NAME=//p' version.properties | tr -d '\r')
           mkdir -p build/deliver
           cp app/build/outputs/apk/release/app-release.apk "build/deliver/Hako-Pocket-${version}.apk"
           cp -r backend/apps-script build/deliver/reporting-service
       - name: Verify final APK
         run: |
-          python3 scripts/verify-apk.py build/deliver/*.apk
+          python3 scripts/verify-apk.py app/build/outputs/apk/release/app-release.apk
           version=$(sed -n 's/^VERSION_NAME=//p' version.properties | tr -d '\r')
           code=$(sed -n 's/^VERSION_CODE=//p' version.properties | tr -d '\r')
           badging=$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release.apk)
           [[ "$badging" == *"package: name='vn.nanase.hako' versionCode='$code' versionName='$version'"* ]]
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+          qa_badging=$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/deliver/Hako-Pocket-Lab.apk)
+          [[ "$qa_badging" == *"package: name='vn.nanase.hako.qa'"* ]]
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions build/deliver/Hako-Pocket-Lab.apk | grep -q android.permission.INTERNET
+          ! unzip -l app/build/outputs/apk/release/app-release.apk | grep -q library-fixture.json
           sha256sum build/deliver/*.apk > build/deliver/SHA256.txt
           cp version.properties gecko-version.txt build/deliver/
       - uses: actions/upload-artifact@v4

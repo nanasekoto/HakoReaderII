@@ -1,3 +1,7 @@
+# Hako Pocket 0.11.0 — bộ mẫu và nghiệm thu theo đợt
+
+[Phạm vi, môi trường kiểm thử và cách xóa](docs/FIXTURE_LAB_0110.md). Đang chuẩn bị; chưa công bố APK đạt trước khi kiểm xong.
+
 # Hako Pocket 0.10.0 — giao diện riêng S4/K60
 
 [Bản thay đổi và phạm vi kiểm tra](docs/UNIFIED_POCKET_0100.md). Giữ dữ liệu khi cài đè. Server cần bản cập nhật xử lý đồng thời và text-only.
