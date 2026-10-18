@@ -78,9 +78,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Hako-0.7.41-validation
+          name: Hako-validation-${{ github.run_number }}
           path: build/evidence/
       - uses: actions/upload-artifact@v4
         with:
-          name: Hako-Pocket-0.7.41-ARM32-tested
+          name: Hako-Pocket-ARM32-${{ github.run_number }}
           path: build/deliver/

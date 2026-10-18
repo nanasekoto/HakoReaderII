@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Hako 0.7.39 — Event-driven Read-all queue
 
 Baseline: source 964be490429f2d129479a18ea89e642b16003f02, PR #8, version .38/code54. Audit input: BAO_CAO_KIEM_TOAN_HANG_CHO_DOC_HET_0.7.38.md (Gemini, real S4 report e5015213). New version .39/code55.

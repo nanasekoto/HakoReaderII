@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Pocket 0.9.2 — Đọc tiếp dùng chung
 
 Nút Đọc tiếp trên trang chủ hỏi Ubuntu truyện vừa đọc mới nhất, nhập metadata/mục lục nếu máy chưa có, rồi mở neo đọc. Không tự chuyển nội dung khi đang đọc một chương. Vị trí chưa gửi vẫn được giữ và ưu tiên gửi trước khi nhận từ server.

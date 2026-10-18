@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Bản vá chương chỉ có ảnh — 0.7.16 Gecko
 
 ## Bằng chứng trên main 0.7.15

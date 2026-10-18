@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Pocket 0.9.0 — cache trước, server chuẩn bị, thao tác theo thiết bị
 
 - Giữ package/chữ ký/schema/cache và dữ liệu đọc hiện có.

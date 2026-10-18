@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Bản vá 0.7.18
 - Xét cả tên tập/tên chương, chuẩn hóa dấu Việt, hỗ trợ Minh họa/Minh hoạ/Illustration/Fanart/Artbook; không dùng từ ảnh đơn độc.
 - Chỉ ảnh có nội dung hợp lệ: xác nhận minh họa. Ảnh kèm tối đa 24 từ và nhãn minh họa: ứng viên, KHÔNG coi là đã đọc hoặc loại khỏi kiểm chứng Đọc hết. Mốc 24 là quy tắc gợi ý thận trọng, không khẳng định chuẩn chung của Hako.

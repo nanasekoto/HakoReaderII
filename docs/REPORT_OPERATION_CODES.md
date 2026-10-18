@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Report provenance — 0.7.29
 
 Report root `version` and `commit` identify the exact source. `operations.sourceRoot` is the repository prefix; `definitions` maps each recorded code to its responsible class/method. Source: OperationTrace, taskOp, Store.traceQuery, Store.readable. No SQL text, title, URL or novel content is emitted.

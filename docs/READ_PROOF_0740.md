@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # 0.7.40 — Read-all proof by chapter IDs
 
 Baseline: dc30111acfe5668886fe91b69d3e14d9ada7e6b2 (.39/code55). Version .40/code56. Input: TONG_HOP_LOI_0.7.39_GUI_GPT.md. No UI layout or download-scope change.

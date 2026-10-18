@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Hako Pocket 0.7.37 — read-all recovery and origin verification
 
 Baseline: main ee5031807cf9d7034badb8bd6c2f9d29af58e94d, tested .36 program 057b4f6. Keep docln.sbs as default; no assumed domain outage and no speculative origin migration.

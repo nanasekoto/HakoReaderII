@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Cập nhật 0.7.42
 
 Rời chương/flush checkpoint tự gửi vị trí. Sự kiện mới được nơi đồng bộ nhận sau cùng cập nhật vị trí, kể cả đọc lại chương cũ; retry cùng sự kiện không thay sự kiện đã nhận sau đó. Không còn bước chọn bên có tiến độ cao hơn. Khi Cloudflare lỗi, gửi và nhận qua Ubuntu; giữ gói chờ đám mây đến khi giao được hoặc vị trí của máy khác đã thay thế. Pocket đang đọc chỉ lấy snapshot của truyện đó.

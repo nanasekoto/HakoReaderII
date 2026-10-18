@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Hako Pocket 0.7.19 — sửa vị trí đọc và tải ngoài ý muốn
 
 Nguồn nền: 0.7.18-Gecko, nhánh fix/illustration-cache-0718, commit bcf5976376da09195358774c28643d7c0504748f. Phiên bản mới: versionCode 35, 0.7.19-Gecko.

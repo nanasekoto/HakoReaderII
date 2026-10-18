@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Pocket 0.11.0 — kiểm thử theo đợt
 
 ## Hai ứng dụng, hai kho

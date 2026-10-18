@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Pocket 0.8.3: ứng dụng chung, ưu tiên server
 
 Giữ package `vn.nanase.hako`, khóa ký, SQLite v3, mã chương và cache của Pocket. Cài đè để giữ dữ liệu.

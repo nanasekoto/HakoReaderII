@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Hoàn thiện .38 theo báo cáo Gemini — 16/10/2026
 
 Nền476dfa05662cb47d7f026468575fe868297a35ee, PR8. Báo cáo là đầu vào thẩm định, không áp dụng nguyên code mẫu.

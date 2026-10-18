@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Hako Pocket 0.9.1 — S4 dùng phím, K60 cuộn và đổi chương
 
 ## Phạm vi
