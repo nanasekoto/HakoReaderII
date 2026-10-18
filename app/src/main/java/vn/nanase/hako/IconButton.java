@@ -5,10 +5,11 @@ public final class IconButton extends View {
  private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);private final int kind;
  private final boolean squircle;
  public IconButton(Context c,int k,String label,Runnable action){this(c,k,label,false,action);}
- public IconButton(Context c,int k,String label,boolean sq,Runnable action){super(c);kind=k;squircle=sq;setContentDescription(label);setTooltipText(label);setFocusable(true);setClickable(true);android.graphics.drawable.GradientDrawable frame=new android.graphics.drawable.GradientDrawable();frame.setColor(Color.WHITE);frame.setStroke(Math.max(1,(int)getResources().getDisplayMetrics().density),Color.BLACK);frame.setCornerRadius(6*getResources().getDisplayMetrics().density);setBackground(frame);setStateListAnimator(null);setOnClickListener(v->action.run());}
+ protected void onMeasure(int widthSpec,int heightSpec){int target=Math.round(48*getResources().getDisplayMetrics().density);setMeasuredDimension(resolveSize(Math.max(target,getSuggestedMinimumWidth()),widthSpec),resolveSize(Math.max(target,getSuggestedMinimumHeight()),heightSpec));}
+ public IconButton(Context c,int k,String label,boolean sq,Runnable action){super(c);kind=k;squircle=sq;setContentDescription(label);setTooltipText(label);setFocusable(true);setClickable(true);android.graphics.drawable.GradientDrawable frame=new android.graphics.drawable.GradientDrawable();frame.setColor(Color.WHITE);frame.setStroke(Math.max(1,(int)getResources().getDisplayMetrics().density),DeviceProfile.eink(c)?Color.BLACK:Color.rgb(220,225,228));frame.setCornerRadius(6*getResources().getDisplayMetrics().density);setBackground(frame);setStateListAnimator(null);setOnClickListener(v->action.run());}
  protected void onDraw(Canvas c){
   super.onDraw(c);
-  float size=Math.min(getWidth(),getHeight())*(squircle?0.74f:0.64f);
+  float size=Math.min(Math.min(getWidth(),getHeight())*.64f,24*getResources().getDisplayMetrics().density);
   c.save();c.translate((getWidth()-size)/2,(getHeight()-size)/2);c.scale(size/24,size/24);p.setColor(Color.BLACK);p.setStrokeWidth(1.35f);p.setStyle(Paint.Style.STROKE);
   if(kind==0){Path q=new Path();q.moveTo(2,11);q.lineTo(12,2);q.lineTo(22,11);q.moveTo(5,9);q.lineTo(5,22);q.lineTo(19,22);q.lineTo(19,9);c.drawPath(q,p);}
   else if(kind==1){for(int y=5;y<=19;y+=7){c.drawLine(3,y,5,y,p);c.drawLine(9,y,22,y,p);}}

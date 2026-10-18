@@ -12,6 +12,7 @@ import org.json.*;
 /** Durable display metadata. No chapter HTML or image decoding belongs here. */
 public final class LibraryState {
  private static volatile UiLibrarySnapshot current;
+ private static final java.util.concurrent.locks.ReentrantLock stateLock=new java.util.concurrent.locks.ReentrantLock();
  private static final Object restoreLock=new Object();
  private static final ConcurrentHashMap<String,Boolean> dirty=new ConcurrentHashMap<>();
  private static final ScheduledExecutorService writer=Executors.newSingleThreadScheduledExecutor();
@@ -20,10 +21,11 @@ public final class LibraryState {
  private static final Map<String,JSONObject> deltaRecords=new LinkedHashMap<>();
  private static AtomicFile file(Context c){return new AtomicFile(new File(c.getFilesDir(),"library-state.json"));}
  private static AtomicFile deltaFile(Context c){return new AtomicFile(new File(c.getFilesDir(),"library-delta.json"));}
- public static synchronized void resetForImport(){current=null;dirty.clear();positions.clear();baseGeneration="";reconciledPosition=false;deltaRecords.clear();}
+ public static void resetForImport(){stateLock.lock();try{current=null;dirty.clear();positions.clear();baseGeneration="";reconciledPosition=false;deltaRecords.clear();}finally{stateLock.unlock();}}
  private static final ConcurrentHashMap<String,Store.Book> positions=new ConcurrentHashMap<>();
  public static void positionChanged(Store.Book book){positions.put(book.id,book);}
- public static synchronized UiLibrarySnapshot peek(){applyPositions();return current;}
+ // Rendering must never wait for a refresh that is itself waiting for Store.
+ public static UiLibrarySnapshot peek(){if(!stateLock.tryLock())return current;try{applyPositions();return current;}finally{stateLock.unlock();}}
  private static void applyPositions(){if(current==null||positions.isEmpty())return;UiLibrarySnapshot prior=current;List<Store.Book> books=new ArrayList<>(prior.books);Set<String> changed=new HashSet<>();for(int n=0;n<books.size();n++){Store.Book old=books.get(n),latest=positions.remove(old.id);if(latest!=null){books.set(n,latest);changed.add(old.id);}}if(changed.isEmpty())return;current=new UiLibrarySnapshot(books,new HashMap<>(prior.summaries),0,prior.lastShelfSync,prior.readingRevision);current.prepareIndices(prior,changed);}
  public static boolean hasDirty(){return !dirty.isEmpty();}
  public static UiLibrarySnapshot restore(Context c){
@@ -56,9 +58,9 @@ public final class LibraryState {
    writer.schedule(()->{scheduled.set(false);if(dirty.isEmpty())return;try{refresh(app);app.sendBroadcast(new Intent(Repository.EVENT).setPackage(app.getPackageName()).putExtra("snapshot_changed",true));}catch(Exception e){android.util.Log.w("LibraryState","Keep previous display state",e);}},150,TimeUnit.MILLISECONDS);
   }
  }
- public static synchronized UiLibrarySnapshot refresh(Context c)throws Exception{OperationTrace.Span trace=OperationTrace.begin("library.refresh");try{
+ public static UiLibrarySnapshot refresh(Context c)throws Exception{stateLock.lock();OperationTrace.Span trace=OperationTrace.begin("library.refresh");try{
   try{return refreshInternal(c);}catch(Exception error){dirty.put("*",true);throw error;}
- }finally{OperationTrace.end(trace,"closed",0);}}
+ }finally{OperationTrace.end(trace,"closed",0);stateLock.unlock();}}
  private static UiLibrarySnapshot refreshInternal(Context c)throws Exception{
   restore(c);Store store=Store.get(c);SharedPreferences prefs=c.getSharedPreferences("settings",0);if(!reconciledPosition){String last=prefs.getString("lastBook","");if(!last.isEmpty()){Store.Book latest=store.book(last);if(latest!=null)positionChanged(latest);}reconciledPosition=true;}applyPositions();
   Map<String,Boolean> changes=new HashMap<>();

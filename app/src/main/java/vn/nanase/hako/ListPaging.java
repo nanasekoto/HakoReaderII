@@ -1,30 +1,13 @@
 package vn.nanase.hako;
-
 import android.view.View;
 import android.widget.ListView;
-import java.util.ArrayDeque;
-import java.util.WeakHashMap;
-
-/** Page through the measured viewport; never skip a partially visible row. */
+import java.util.*;
+/** Whole measured rows, with exact offset history for a row taller than a page. */
 final class ListPaging {
-  private final WeakHashMap<ListView, ArrayDeque<Integer>> previous = new WeakHashMap<>();
-  void turn(ListView list, int direction) {
-    if (list.getCount() == 0 || list.getChildCount() == 0) return;
-    int first = list.getFirstVisiblePosition();
-    ArrayDeque<Integer> history = previous.get(list);
-    if (history == null) { history = new ArrayDeque<>(); previous.put(list, history); }
-    int target;
-    if (direction > 0) {
-      int last = list.getLastVisiblePosition();
-      View bottom = list.getChildAt(list.getChildCount() - 1);
-      target = bottom.getBottom() > list.getHeight() - list.getPaddingBottom() ? last : last + 1;
-      if (target >= list.getCount()) return;
-      if (target <= first) { list.scrollListBy(Math.max(1, list.getHeight() / 2)); return; }
-      history.push(first);
-    } else {
-      while (!history.isEmpty() && history.peek() >= first) history.pop();
-      target = history.isEmpty() ? Math.max(0, first - Math.max(1, list.getChildCount() - 1)) : history.pop();
-    }
-    list.setSelectionFromTop(target, list.getPaddingTop());
-  }
+ private final WeakHashMap<ListView,ArrayDeque<int[]>> previous=new WeakHashMap<>();
+ void turn(ListView list,int direction){if(list.getCount()==0||list.getChildCount()==0)return;int first=list.getFirstVisiblePosition(),padding=list.getPaddingTop(),offset=padding-list.getChildAt(0).getTop(),height=list.getHeight()-padding-list.getPaddingBottom();ArrayDeque<int[]> history=previous.get(list);if(history==null){history=new ArrayDeque<>();previous.put(list,history);}
+  if(direction<0){while(!history.isEmpty()&&(history.peek()[0]>first||history.peek()[0]==first&&history.peek()[1]>=offset))history.pop();if(!history.isEmpty()){int[] point=history.pop();list.setSelectionFromTop(point[0],padding-point[1]);return;}if(offset>0){list.setSelectionFromTop(first,padding);return;}list.setSelectionFromTop(Math.max(0,first-Math.max(1,list.getChildCount()-1)),padding);return;}
+  int last=list.getLastVisiblePosition();View bottom=list.getChildAt(list.getChildCount()-1);int target=bottom.getBottom()>list.getHeight()-list.getPaddingBottom()?last:last+1;if(target>=list.getCount())return;history.push(new int[]{first,offset});
+  if(target<=first){View row=list.getChildAt(0);TreeSet<Integer> edges=new TreeSet<>();EinkScrollView.boundaries(row,0,height,edges);Integer stop=edges.floor(offset+height);int next=stop==null||stop<=offset?offset+height:stop;list.setSelectionFromTop(first,padding-next);}else list.setSelectionFromTop(target,padding);
+ }
 }

@@ -1,0 +1,614 @@
+{
+  "baseline": "0.11.0/code69",
+  "complete": false,
+  "requirements": [
+    {
+      "id": "A01",
+      "requirement": "Pocket/Reader II là nền chính; một dữ liệu và một cơ chế đọc",
+      "acceptance": "Giữ/kiểm lại; không xây lại bản server Android làm mất chức năng Pocket",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A02",
+      "requirement": "Server lấy web, trích xuất, chuẩn hóa tìm kiếm/list/detail/TOC/chương",
+      "acceptance": "Giữ/kiểm lại; máy chỉ nhận cấu trúc, render và lưu",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A03",
+      "requirement": "Server tăng tốc cả yêu cầu chưa cache",
+      "acceptance": "Sửa; không chỉ giải thích nhanh nhờ tải trước",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A04",
+      "requirement": "Yêu cầu tương tác xử lý song song có giới hạn",
+      "acceptance": "Sửa E01/E02; phiên browser dùng lại, tab độc lập; không khóa chung toàn request",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A05",
+      "requirement": "Delay 2 giây chỉ hàng loạt, kể cả tải từ cập nhật",
+      "acceptance": "Sửa; thao tác trực tiếp không thừa kế thời gian ngủ của batch",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A06",
+      "requirement": "Mở chương có suất xử lý riêng; tiến độ không đi chung hàng cào web",
+      "acceptance": "Nghiệm thu; background không chiếm hết tài nguyên",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A07",
+      "requirement": "Gộp request trùng theo truyện/chương/phiên bản",
+      "acceptance": "Mở rộng cần thiết; hai máy không cào cùng nội dung hai lần",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A08",
+      "requirement": "JSON nén/gói pack, delta; dùng lại nội dung hợp lệ",
+      "acceptance": "Giữ/kiểm lại; S4 nhận chữ, không ảnh; đo số request thực",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A09",
+      "requirement": "Có cache trả ngay, cập nhật nền; không tự nhảy danh sách",
+      "acceptance": "Giữ/kiểm lại; cache lỗi có đường khôi phục, không xóa dữ liệu tốt",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A10",
+      "requirement": "Cold request hiện khung và metadata đã biết trước",
+      "acceptance": "Sửa; không chờ toàn TOC/ảnh mới hiển thị tên/loại truyện",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A11",
+      "requirement": "CPU/RAM/I/O thấp, không scan toàn kho khi mở danh sách/lật trang",
+      "acceptance": "Giữ/kiểm lại; changed-ID, snapshot, bounded cache, no-op không rebuild",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A12",
+      "requirement": "Đo từng chặng để chứng minh tốc độ",
+      "acceptance": "Mở rộng cần thiết; hàng đợi, nguồn, parse, DB, truyền, render; elapsed khác CPU",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "A13",
+      "requirement": "Không polling vô hạn; lỗi truy cập dừng đúng lượt",
+      "acceptance": "Giữ/kiểm lại; giới hạn nguồn thật xử lý riêng, không khóa mọi thao tác 30 phút",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B01",
+      "requirement": "Điện thoại giữ dữ liệu đọc; không phải vỏ online mất mạng là vô dụng",
+      "acceptance": "Giữ/kiểm lại; chương đã lưu mở được khi tắt server",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B02",
+      "requirement": "Thoát chương chỉ checkpoint và sync, không dọn chương ngay",
+      "acceptance": "Sửa E10; đọc thử/không favorite vẫn giữ",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B03",
+      "requirement": "Tải chủ động giữ đến khi xóa/bỏ lưu rõ ràng",
+      "acceptance": "Giữ/kiểm lại; không bị cleaner TTL dọn nhầm",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B04",
+      "requirement": "Dữ liệu tạm dọn theo thời gian và ngân sách dung lượng",
+      "acceptance": "Sửa E11; không tự coi cửa sổ 3 chương là quyền xóa ngay",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B05",
+      "requirement": "Bảo vệ truyện đọc dở, vị trí/bookmark và hàng sync chưa ACK",
+      "acceptance": "Mở rộng cần thiết; không mất dữ liệu vì thiếu mạng",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B06",
+      "requirement": "Kiểm cache lúc lập hàng và ngay trước tải",
+      "acceptance": "Giữ/kiểm lại; không chỉ ready/file-exists/file-size",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B07",
+      "requirement": "Thiếu ảnh không tải lại chữ; sửa riêng ảnh thiếu/hỏng trên K60",
+      "acceptance": "Giữ/kiểm lại; ảnh tốt không tải lại để đổi định dạng",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B08",
+      "requirement": "Xóa tải giữ metadata, lịch sử, vị trí, yêu thích",
+      "acceptance": "Giữ/kiểm lại; không tự tải lại ngay; explicit mở đọc được phép tải lại",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B09",
+      "requirement": "Cache list/detail/search có TTL nhưng vẫn mở bản lưu khi offline",
+      "acceptance": "Giữ/kiểm lại; hết TTL là stale, không bắt buộc xóa lập tức",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B10",
+      "requirement": "SSD giữ metadata/tiến độ và chữ hay dùng; ảnh ở HDD 3TB, full backup HDD",
+      "acceptance": "Đã có triển khai theo SSD_HDD_STORAGE.md; nghiệm thu restore/mất mount; không dùng HDD 500GB lỗi",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "B11",
+      "requirement": "Ghi gói và tiến độ an toàn khi app bị kill, mạng đứt hoặc hết ổ",
+      "acceptance": "Mở rộng; ghi tạm/commit, giới hạn giải nén, retry không nhân bản",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C01",
+      "requirement": "Ubuntu duy nhất, Cloudflare không còn phụ thuộc chạy",
+      "acceptance": "Giữ/kiểm lại; server tắt thì sync chờ bền trên máy",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C02",
+      "requirement": "Rời chương gửi vị trí nhỏ trước, metadata/chương đi sau",
+      "acceptance": "Giữ/kiểm lại; ACK đúng sự kiện mới nhất; không hiển thị gửi thành công từ việc xếp hàng",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C03",
+      "requirement": "Máy kia chỉ bấm Đọc tiếp, kể cả chưa có truyện đó",
+      "acceptance": "Đã có bằng chứng .92; kiểm lại cold/offline/reconnect",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C04",
+      "requirement": "Neo nội dung dùng chung giữa cuộn K60 và trang S4",
+      "acceptance": "Giữ/kiểm lại; ID chương + đoạn/ký tự, version/fallback; không đồng bộ số trang vật lý",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C05",
+      "requirement": "Chung Vừa đọc/Yêu thích/Tủ sách/đã đọc/còn lại/đã lưu",
+      "acceptance": "Nghiệm thu đầy đủ; snapshot tượng trưng không giả có file offline",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C06",
+      "requirement": "Phân biệt Máy này / Nơi khác / Server",
+      "acceptance": "Giữ/kiểm lại; đã lưu ở máy khác không có nghĩa máy này đọc offline được",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C07",
+      "requirement": "Phiên tài khoản Hako thuộc server khi dùng server",
+      "acceptance": "Giữ/kiểm lại; mở kệ không chờ đăng nhập Gecko/WebView trên máy",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C08",
+      "requirement": "Host nguồn nhập thủ công; ID không phụ thuộc docln.sbs/top/slug",
+      "acceptance": "Giữ/kiểm lại; cookie riêng từng origin, không sao chép phiên trái cơ chế",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C09",
+      "requirement": "Auto/Server/Web có trạng thái và chuyển thủ công dễ tìm",
+      "acceptance": "Giữ/kiểm lại; đổi nguồn không tắt sync, giữ vị trí và cache",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C10",
+      "requirement": "QR/mã 6 số liên kết riêng tư; /hako không lộ thư viện khi chưa xác thực",
+      "acceptance": "Nghiệm thu; mã hết hạn, dùng một lần, chủ duyệt/thu hồi",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C11",
+      "requirement": "Outbox bền, gửi lặp không nhân đôi, ACK cũ không ghi đè mới",
+      "acceptance": "Mở rộng cần thiết; đồng hồ hai máy lệch, đọc lùi có chủ ý, hai máy cùng offline",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C12",
+      "requirement": "Không tự kéo vị trí khi người dùng đang đọc",
+      "acceptance": "Giữ/kiểm lại; refresh khi về Home/resume, tránh mất chỗ đang đọc",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D01",
+      "requirement": "Hai layout độc lập S4 và K60",
+      "acceptance": "Sửa; chung model dữ liệu, không chung bố cục rồi bỏ ảnh",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D02",
+      "requirement": "Mọi màn đều kiểm geometry, không chỉ reader",
+      "acceptance": "Sửa; Home/list/detail/TOC/search/settings/menu/download/pair/error",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D03",
+      "requirement": "S4 không tải/hiện/giải mã bìa hoặc minh họa",
+      "acceptance": "Sửa; không giữ placeholder hoặc nhãn thiếu ảnh; không xóa dữ liệu ảnh cũ vô cớ",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D04",
+      "requirement": "K60 ảnh màu đúng tỷ lệ, không áp nén 480px của S4 cũ",
+      "acceptance": "Nghiệm thu list/detail/reader, ảnh lỗi không chặn chữ, zoom riêng",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D05",
+      "requirement": "Không tìm kiếm trùng trong Mới cập nhật",
+      "acceptance": "Chốt; truy cập tìm kiếm qua entry đã có",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D06",
+      "requirement": "Phân biệt Mới cập nhật và Truyện mới",
+      "acceptance": "Sửa; ưu tiên chương/thời gian so với giới thiệu/ngày thêm; Hoàn thành là bộ lọc trạng thái",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D07",
+      "requirement": "Tên truyện/tập/chương là trường riêng",
+      "acceptance": "Sửa E07; không ghép/lặp tên, thiếu dữ liệu không bịa",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D08",
+      "requirement": "Loại dịch/AI/sáng tác, trạng thái, tag gần tên",
+      "acceptance": "Sửa; tag wrap, full info truy cập được, không giấu ở cuối",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D09",
+      "requirement": "Dàn ngang thống kê ngắn, trường dài xuống dòng",
+      "acceptance": "Sửa E09; K60 2–3 cột theo đo thực; S4 tối đa vừa chiều rộng chữ",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D10",
+      "requirement": "Tên đầy đủ, chữ đọc được; không ép nhỏ/cắt để nhét",
+      "acceptance": "Sửa; layout theo fontScale và vùng nhìn thật",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D11",
+      "requirement": "Đọc tiếp nổi bật, yêu thích/tải dễ tìm",
+      "acceptance": "Giữ và bố trí lại; trạng thái nút phản ánh dữ liệu chung",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D12",
+      "requirement": "S4 phím volume phân màn nguyên hàng/khối",
+      "acceptance": "Sửa E06/E08; mọi màn dài không bị cắt, có số màn rõ",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D13",
+      "requirement": "K60 cuộn tự nhiên, không hàng/đường kẻ e-ink khổng lồ",
+      "acceptance": "Sửa; vị trí cuộn và bộ lọc được giữ khi Back",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D14",
+      "requirement": "TOC nhóm tập, sort một chạm, tới chương đang đọc",
+      "acceptance": "Giữ/kiểm lại; sort chỉ đổi hiển thị, không đổi thứ tự đọc gốc",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D15",
+      "requirement": "Phản hồi thao tác không bị tải nền/status màn khác ghi đè",
+      "acceptance": "Giữ/kiểm lại; source/sync/download/action có chủ sở hữu riêng",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "D16",
+      "requirement": "Home sync đủ hai dòng, không cắt hoặc làm lưới nhảy khi đổi chữ",
+      "acceptance": "Source sửa E05; cần APK cuối kiểm thật cả hai máy",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R01",
+      "requirement": "Resume từ vị trí bền mới nhất, không Book snapshot cũ",
+      "acceptance": "Giữ/kiểm lại; không quay chương 1; callback cũ không kéo sang truyện khác",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R02",
+      "requirement": "Chương cuối không vòng về đầu; chương mới lấy đúng khi có",
+      "acceptance": "Giữ/kiểm lại; không backfill cả bộ khi chỉ mở đọc",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R03",
+      "requirement": "Phân loại text/illustration/unknown theo tập+tên+nội dung",
+      "acceptance": "Giữ/kiểm lại; không bỏ chương ngắn/thông báo/ngoại truyện",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R04",
+      "requirement": "Minh họa xác nhận không tính unread/batch, không chiếm neo đọc chữ",
+      "acceptance": "Giữ; S4 không tải ảnh, K60 giữ lối xem ảnh riêng",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R05",
+      "requirement": "K60 cuộn dọc hoặc phân trang, vuốt ngang chuyển chương",
+      "acceptance": "Nghiệm thu; hướng chốt vuốt sang phải cho chương kế; không nuốt cuộn, zoom hoặc Back hệ thống",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R06",
+      "requirement": "S4 volume lật trang; giữ phím khóa cảm ứng",
+      "acceptance": "Giữ/kiểm lại ngưỡng giữ, autorepeat, thả không lật thêm; mọi màn dài có phím phù hợp",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R07",
+      "requirement": "Toolbar lớp phủ, không làm reflow chữ",
+      "acceptance": "Giữ/kiểm lại; mở/đóng công cụ giữ neo; vùng chạm không trùng",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R08",
+      "requirement": "Font đọc chỉ chứa font/cỡ/giãn dòng/lề/màu/thao tác",
+      "acceptance": "Sửa nơi còn lẫn tải/nguồn/app settings; nhập font và preview/apply giữ đúng lựa chọn",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R09",
+      "requirement": "Bookmark/chú thích/tìm trong nội dung có lối vào và quay lại đúng",
+      "acceptance": "Nghiệm thu đầy đủ; không chỉ có code mà thiếu nút; giữ dữ liệu khi đổi font/nguồn",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R10",
+      "requirement": "Checkpoint nhẹ theo sự kiện, flush khi rời/đổi chương",
+      "acceptance": "Giữ/kiểm lại; không DB/JSON/network trên mỗi khung vẽ; kill/reopen không về đầu",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "E-R11",
+      "requirement": "Footer phân biệt còn bao nhiêu chương/trang và tải",
+      "acceptance": "Giữ/kiểm lại; không lấy % offline thay % lượt tải hoặc % đọc",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F01",
+      "requirement": "Đợt tự động 15 chương chữ, tới chương thứ 14 xét đợt tiếp",
+      "acceptance": "Giữ/kiểm lại; gồm chương bắt đầu; favorite/follow không tự đổi thành tải hết",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F02",
+      "requirement": "Nhập kệ không cấp quyền tải mọi truyện",
+      "acceptance": "Giữ/kiểm lại; Home cập nhật cá nhân khác cập nhật toàn kệ",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F03",
+      "requirement": "Kiểm chương mới/neo từng tựa, không quét mọi file",
+      "acceptance": "Giữ/kiểm lại; số unread cũ không phải bằng chứng kệ không đổi",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F04",
+      "requirement": "Pause giữ ý định tải; Resume đúng scope; Stop dọn yêu cầu tải dở",
+      "acceptance": "Giữ/kiểm lại; không xóa nội dung/tiến độ/read-sync; mở đọc không âm thầm bật nền",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F05",
+      "requirement": "Full chủ động khác tự tải; reset unread là hành vi lịch sử phải hiện rõ",
+      "acceptance": "Giữ/kiểm lại trước triển khai; không reset tiến độ chỉ vì đánh dấu truyện kết thúc hoặc tải metadata",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F06",
+      "requirement": "% tải tính chương thiếu của lượt hiện tại, mỗi ID một lần",
+      "acceptance": "Giữ/kiểm lại; 100% không đồng nghĩa hết thư viện/đã đọc/đủ ảnh K60",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F07",
+      "requirement": "Tự cập nhật đúng lựa chọn sạc+Wi-Fi; S4 không vòng nền liên tục",
+      "acceptance": "Giữ/kiểm lại; K60 ưu tiên nhanh nhưng có ngân sách hữu hạn",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F08",
+      "requirement": "Đọc hết local khác thao tác Đọc hết website",
+      "acceptance": "Giữ; không suy từ unread=0 hoặc chương cuối hiện trên màn",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F09",
+      "requirement": "Gửi Hako cần catalog tươi, ID đã đọc, snapshot, generation và ACK thật",
+      "acceptance": "Giữ/kiểm lại; ngoại truyện đã đọc bên dưới không cản; chương mới/chèn giữa chưa đọc phải chặn",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F10",
+      "requirement": "Hàng đọc hết sống qua offline, busy, auth return, pause/resume",
+      "acceptance": "Giữ/kiểm lại theo .39/.40; event-driven, không tự retry vô hạn dữ liệu không đổi",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "F11",
+      "requirement": "Không có nút chỉ kết luận từ đúng hàng kệ đã đăng nhập",
+      "acceptance": "Giữ/kiểm lại; login/error không phải NO_BUTTON; nút trở lại khôi phục được",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "G01",
+      "requirement": "Settings gọn: đọc/thao tác, tải/lưu, kết nối/nguồn",
+      "acceptance": "Giữ/kiểm lại; bỏ tài khoản/report trùng, quét nhanh/toàn bộ, thông tin engine cũ và chuyển máy thừa",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "G02",
+      "requirement": "Báo cáo ở Home; có toggle log, dừng thu thập được",
+      "acceptance": "Giữ/kiểm lại; log off không tắt lưu vị trí/sync, lỗi thiết yếu vẫn giữ nhẹ",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "G03",
+      "requirement": "Gửi báo cáo thủ công, không tự gửi email lúc mở app",
+      "acceptance": "Giữ; không lộ cookie/token/khóa trong tài liệu hay báo cáo",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "G04",
+      "requirement": "/hako quản lý đăng nhập, thiết bị, trạng thái, tải APK/QR",
+      "acceptance": "Nghiệm thu; K60 tải trực tiếp không chép tay; thao tác quản trị gọn",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "G05",
+      "requirement": "Apache2 dưới nanains.duckdns.org/hako",
+      "acceptance": "Giữ/kiểm lại path prefix, HTTPS, restart; không buộc mở cổng mới chỉ vì app",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "G06",
+      "requirement": "Cài đè cùng package/chữ ký, giữ SQLite/cache/ID và tiến độ",
+      "acceptance": "Bắt buộc; không gỡ app/xóa dữ liệu làm cách sửa",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "G07",
+      "requirement": "Một batch hoàn chỉnh, APK cuối rồi test từng nội dung trên hai máy",
+      "acceptance": "Bắt buộc; compile/static trong lúc sửa được phép; nếu APK thật có lỗi phải ghi rõ và sửa, không giả đạt để tránh build lại",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "G08",
+      "requirement": "Báo cáo kết quả gắn source/version/hash và ca thử",
+      "acceptance": "Bắt buộc; có code/biên dịch không bằng đã chạy trên máy; emulator không chứng minh pin S4",
+      "status": "Chưa nghiệm thu tổng thể"
+    },
+    {
+      "id": "C13",
+      "requirement": "Đồng bộ nội dung tải local ngược lên Ubuntu",
+      "acceptance": "Chương/ảnh tải từ web trên máy A được gửi lên server có xác nhận; máy B lấy được từ server khi nguồn web không dùng được. Không coi báo số chương đã lưu là đã sao lưu file. Giới hạn kích thước, kiểm ID/nội dung, chống trùng; lỗi giữa chừng không ghi đè bản tốt.",
+      "status": "Thiếu triển khai trong 0.11.0"
+    },
+    {
+      "id": "G09",
+      "requirement": "Ảnh nghiệm thu đúng màn sau khi render ổn định",
+      "acceptance": "Chờ đúng màn/cửa sổ và khung hình hoàn tất trước chụp. Tên ảnh khớp màn thật; ảnh đang chuyển màn không được gắn đạt.",
+      "status": "Cần sửa bộ chụp tự động; 0.11.0 mới có ảnh máy thật bổ sung"
+    },
+    {
+      "id": "G10",
+      "requirement": "Tạo, xóa dữ liệu và gỡ môi trường kiểm thử an toàn",
+      "acceptance": "Kho QA riêng, không token thật; thử xóa mẫu, gỡ cả app/runner, xác nhận không còn dữ liệu mẫu/thiết bị giả trên server thật và Pocket thật được giữ.",
+      "status": "Đã có bằng chứng 0.11.0; kiểm lại sau lần nghiệm thu cuối"
+    },
+    {
+      "id": "G11",
+      "requirement": "Cổng kết luận hoàn tất cho toàn bộ phạm vi",
+      "acceptance": "Mỗi mục có bản mã/APK cuối, ca kiểm và bằng chứng. Chưa chạy/lỗi/bị chặn đều không đạt. Chỉ kết luận hoàn tất khi không còn mục bắt buộc chưa đạt.",
+      "status": "Chưa đạt vì danh sách tổng thể còn mở"
+    }
+  ],
+  "journeys": [
+    {
+      "id": "T01",
+      "acceptance": "Mở Home/Vừa đọc/Yêu thích/Tủ sách/Đã lưu khi offline: hiện snapshot, không khởi browser để đọc chữ",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T02",
+      "acceptance": "Tìm và mở truyện chưa cache trong lúc batch tải: timeline chứng minh không chờ delay/khóa batch",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T03",
+      "acceptance": "Nhiều truyện mở đồng thời: log thời điểm bắt đầu/kết thúc chứng minh overlap; request trùng được gộp",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T04",
+      "acceptance": "Detail đầy đủ, tên/tag dài, dữ liệu thiếu; screenshot từng màn S4 và K60, không đè/cắt",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T05",
+      "acceptance": "K60 list/detail/chương có ảnh và zoom; S4 cùng truyện không request/giải mã ảnh",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T06",
+      "acceptance": "S4 volume đi hết Home/list/detail/TOC/settings/menu/error; phần tử nguyên vẹn, không nhảy nút khi status đổi",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T07",
+      "acceptance": "K60 cuộn tới cuối, vuốt ngang sang chương; cử chỉ không phá cuộn/Back/zoom",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T08",
+      "acceptance": "K60 đọc truyện S4 chưa có → thoát → ACK → S4 Đọc tiếp đúng đoạn; làm chiều ngược lại",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T09",
+      "acceptance": "Server tắt và hai máy offline: đọc/lưu được; chạy lại gửi bền; không ACK giả, không vị trí cũ ghi đè",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T10",
+      "acceptance": "Đọc thử → thoát → đóng app → mở lại: file và vị trí còn; chưa tới TTL không tự dọn",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T11",
+      "acceptance": "Tải15/trigger14, chữ tốt không tải lại, ảnh thiếu K60 không chặn, S4 không tính thiếu ảnh",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T12",
+      "acceptance": "Pause/Resume/Stop/Full/Xóa tải chạy đúng scope, không xóa read queue/cache ngoài yêu cầu",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T13",
+      "acceptance": "Đọc hết Hako: có chương mới, ngoại truyện, NO_BUTTON/login, stale generation và offline; ACK thật tách fixture",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T14",
+      "acceptance": "Đổi host nguồn và Server/Web: giữ ID/vị trí/cache, không bắt đăng nhập máy trong chế độ server",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T15",
+      "acceptance": "Full backup + restore thử ở đích riêng, quick_check và sample nội dung; không khôi phục đè dữ liệu sống",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T16",
+      "acceptance": "Cài đè APK, version/hash/signature đúng; QR tải đúng file; không crash/ANR trong các ca đã chạy",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    },
+    {
+      "id": "T17",
+      "acceptance": "Đo cold/warm và batch cạnh tranh trên hai máy: nêu số mẫu, trung vị/p95 khi đủ mẫu; đo CPU/idle riêng, không gọi elapsed là CPU",
+      "status": "Chưa chốt kết quả trên bản cuối"
+    }
+  ],
+  "extra_journeys": [
+    "T18 local file upload and cross-device restore",
+    "T19 isolated fixture data cleanup and app removal"
+  ],
+  "completion_rule": "All mandatory requirements and journeys passed with final-build evidence; no open required failures, unrun or blocked cases"
+}

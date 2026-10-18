@@ -32,9 +32,14 @@ public final class GeckoClient {
  }
  private static final RequestTurn turns=new RequestTurn();private static boolean releaseWanted;
  public static byte[] request(String url,String script,int max)throws Exception{
-  if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");long queued=Diagnostics.now();turns.acquire(RequestTurn.background.get());OperationTrace.Span trace=OperationTrace.begin("net.request",queued);String priorStage=Repository.executionStage;try{Repository.executionStage="NETWORK";Diagnostics.activityEvent();return requestNow(url,script,max);}finally{Repository.executionStage=priorStage;Diagnostics.activityEvent();OperationTrace.end(trace,"closed",0);synchronized(turns){turns.release();if(releaseWanted||!Repository.busy.get()){releaseWanted=false;releaseNow();}}}
+  return request(url,script,max,HakoParser.ORIGIN);
  }
- private static byte[] requestNow(String url,String script,int max)throws Exception{
+ public static byte[] request(String url,String script,int max,String selectedOrigin)throws Exception{
+  selectedOrigin=HakoParser.originOf(selectedOrigin);
+  if(app!=null&&!DeviceProfile.eink(app))return SystemWebClient.request(app,url,script,max,selectedOrigin);
+  if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");long queued=Diagnostics.now();turns.acquire(RequestTurn.background.get());OperationTrace.Span trace=OperationTrace.begin("net.request",queued);String priorStage=Repository.executionStage;try{Repository.executionStage="NETWORK";Diagnostics.activityEvent();return requestNow(url,script,max,selectedOrigin);}finally{Repository.executionStage=priorStage;Diagnostics.activityEvent();OperationTrace.end(trace,"closed",0);synchronized(turns){turns.release();if(releaseWanted||!Repository.busy.get()){releaseWanted=false;releaseNow();}}}
+ }
+ private static byte[] requestNow(String url,String script,int max,String selectedOrigin)throws Exception{
   if(Looper.myLooper()==Looper.getMainLooper())throw new IOException("Không tải trên luồng giao diện");
   if(app==null)throw new IOException("Chưa khởi tạo Gecko");
   if(authenticating)throw new IOException("Đang đăng nhập; tải sẽ tiếp tục sau khi quay về app");
@@ -43,7 +48,7 @@ public final class GeckoClient {
   try{
    OperationTrace.Span binding=OperationTrace.begin("net.bind");try{connect();}finally{OperationTrace.end(binding,"closed",0);}CountDownLatch done=new CountDownLatch(1);AtomicReference<String> error=new AtomicReference<>();
    int id=ids.incrementAndGet();requestId=id;Messenger reply=new Messenger(new Handler(Looper.getMainLooper()){public void handleMessage(Message m){if(m.arg1==id){error.set(m.getData().getString("error"));done.countDown();}}});
-   Bundle b=new Bundle();b.putString("url",url);b.putString("origin",HakoParser.ORIGIN);b.putString("script",script);b.putString("file",output.getAbsolutePath());b.putInt("max",max);
+   Bundle b=new Bundle();b.putString("url",url);b.putString("origin",selectedOrigin);b.putString("script",script);b.putString("file",output.getAbsolutePath());b.putInt("max",max);
    Message msg=Message.obtain(null,1);msg.arg1=id;msg.replyTo=reply;msg.setData(b);server.send(msg);
    long end=SystemClock.elapsedRealtime()+60000;
    while(!done.await(250,TimeUnit.MILLISECONDS)){if(authenticating||(!canceledAtStart&&Repository.cancel.get()))throw new IOException("Đã dừng tải");if(SystemClock.elapsedRealtime()>end)throw new IOException("Gecko quá thời gian chờ");}
@@ -57,4 +62,3 @@ public final class GeckoClient {
   ui.post(()->{if(old!=null)try{app.unbindService(old);}catch(Exception ignored){}ui.removeCallbacks(cleanup);ui.postDelayed(cleanup,8000);});
  }
 }
-

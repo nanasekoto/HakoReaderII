@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Hako Pocket 0.7.20 — sửa số chương chưa đọc
 
 Nền: 0.7.19-Gecko, commit 8e5857be9291fbf176c1137b514090f8f9d4a796. Phiên bản mới 0.7.20-Gecko, versionCode 36.

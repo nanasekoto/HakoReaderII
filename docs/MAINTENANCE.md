@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Bảo trì và dọn source
 
 main là nguồn phát hành, dựa trên 0.7.15 đã được người dùng chấp nhận. Thay đổi tính năng tiếp theo làm trên nhánh riêng; không lấy lại code WebView hoặc policy cũ chỉ vì tên file giống nhau.

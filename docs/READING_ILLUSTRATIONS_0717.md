@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # 0.7.17 Gecko
 - Giữ package/chữ ký/SQLite v3 và các file cũ. Không xóa dữ liệu.
 - Truyện đang đọc nhường lượt sau chương hiện tại; giữ hàng chờ cũ. Chương ưu tiên khác bộ không bị nuốt.

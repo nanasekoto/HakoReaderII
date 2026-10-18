@@ -1,47 +1,30 @@
-# Kiểm chứng và giới hạn
+# Hồ sơ kiểm chứng1.0
 
-## Phiên bản nền
+## Phân biệt phiên bản
 
-Source 0.7.15 Gecko: commit aed36f73bd4d3d13fb8ab0de4e0c77e4098aa3fb.
+Mã chức năng gốc: `7237d2abbfb2a3cd499ef119e804541c415528aa` (Pocket0.12.1/code71), server `91b7fab5fa4647a34e0b2d1ca6f2d464eeb61365`. Mốc1.0.0/code72 giữ chức năng này, chuẩn hóa tên phát hành và tài liệu. Bằng chứng1.0 được ghi bổ sung trong RELEASE_MANIFEST, không tự gắn kết quả0.12.1 cho APK khác.
 
-[GitHub Actions thành công](https://github.com/nanasekoto/HakoReaderII/actions/runs/37932154389) kiểm tra các policy tải/cache/hàng đợi/neo/phân trang, parser, hồi quy và hợp nhất mục lục/đọc hết, rồi build release ARM32. APK đã được kiểm tra chữ ký phù hợp bản trước. Người dùng phản hồi phiên bản này khá ổn trên thiết bị; phản hồi này không thay thế phép đo từng chức năng.
+## Bằng chứng đã có trước mốc1.0
 
-## Kiểm tra bản hợp nhất
-
-[Run hợp nhất thành công](https://github.com/nanasekoto/HakoReaderII/actions/runs/37935805438), commit d9b9f634a524ac6accadeea5ea16d48862092321: toàn bộ 12 lớp test JVM, kiểm tra JS, release Android, chữ ký và 13 thư viện ELF32 ARM đã đạt. Root version được áp dụng trong đường build mới. Chỉnh sửa sau run này giới hạn ở tài liệu, cấu hình trigger/kiểm tra metadata CI và khóa mục tiêu script emulator; main chạy lại đường build chuẩn sau hợp nhất.
-
-## Bộ test hiện hành
-
-bash test.sh chạy tất cả test JVM ở tests/*.java, cùng kiểm tra JavaScript:
-
-| Nhóm | Test |
+| Kiểm tra | Kết quả/phạm vi |
 | --- | --- |
-| Parser, nội dung lỗi, bảo vệ HTML | ParserTest |
-| Phân trang, vị trí, quy tắc hồi quy | FixTest |
-| Thời gian, khóa chương, thứ tự kệ | ShelfFeatureTest, ShelfPagePolicyTest |
-| Cache chữ, ảnh và hàng đợi duy nhất | CachePolicyTest, DownloadLedgerTest |
-| Phạm vi truyện/chương và ưu tiên | DownloadScopeTest, ReadingRangeTest, DownloadPriorityTest |
-| Điều kiện dừng theo neo | ShelfAnchorTest |
-| Giữ phím | HoldKeyTest |
-| Catalog hợp nhất, ID lỗi, điều kiện đọc hết | PolicyIntegrityTest |
+| Server pytest | 87 đạt |
+| CI39134320048 | Thành công: JVM/JS, Android regression,4 cấu hình fixture và APK |
+| S4 thật, QA0.12.1 | 93 kiểm tra,26 ảnh, không ca thất bại |
+| K60 thật, QA0.12.1 | 69 kiểm tra,19 ảnh, không ca thất bại |
+| Cold anchor bằng mẫu | Nhận locator trước file, mở đúng đoạn chữ dù ảnh khác |
+| HTTPS sau deploy | health/library/status/resume trả200; thư viện136 truyện khi đo |
+|10 warm resume trên PC | Trung vị15,5ms elapsed HTTPS, không phải CPU hoặc tốc độ mở chương điện thoại |
+| Restore cô lập trước đó | SQLite integrity OK,134 truyện/104 chương cache/2869 file; không ghi đè dữ liệu sống |
 
-build.yml bổ sung biên dịch Android, đóng gói release, chữ ký APK, ABI/ELF32 ARM và checksum. Không gọi kết quả build là test toàn bộ trên máy thật.
+Ảnh chụp sau render và có window metadata. Fixture dùng QA package riêng. Kiểm thử mẫu không truy cập nguồn thật; không dùng nó chứng minh đăng nhập/ảnh/ghi Hako thật.
 
-## Kiểm chứng Android trước đây
+## Chưa nghiệm thu toàn bộ
 
-[Run emulator lịch sử 0.7.0](https://github.com/nanasekoto/HakoReaderII/actions/runs/37504472355) đã kiểm tra Android 11/API30 ở 480×800 và DPI219/220, reader native, IPC, DOM chương tổng hợp xuất hiện trễ, cookie qua đóng/mở engine và thoát tiến trình. Các kết quả đó chỉ áp dụng source của run, không tự chuyển thành bằng chứng emulator cho 0.7.15.
+[KNOWN_LIMITATIONS](KNOWN_LIMITATIONS.md) liệt kê phần còn mở. Hồ sơ đầy đủ86 yêu cầu và19 hành trình được giữ trong bộ bàn giao; không đánh dấu toàn bộ đạt. Xem `RELEASE_MANIFEST.md` để biết APK/CI cuối cùng.
 
-tests/android và workflow emulator thủ công được giữ để kiểm tra tiếp. Trang web fixture tổng hợp không chứng minh challenge Hako thực tế.
+## Tái kiểm
 
-## Cần kiểm tra trên S4 khi thay đổi liên quan
+Chạy BUILDING và fixture trên cả hai máy. Sau đó kiểm mạng thật riêng: hai chiều Đọc tiếp có/không có file; ACK vị trí; upload local và tải lại; offline/reconnect; đọc hết Hako; ảnh K60/no-image S4; tải/pause/full/xóa; layout phím/gesture; backup/restore và hash APK tải công khai. Mỗi ca ghi phiên bản, điều kiện, quan sát và lỗi còn mở.
 
-- Cài đè vẫn giữ bộ nghìn chương, vị trí đọc và dùng chung cache giữa các danh sách.
-- Truyện chưa đọc trên APK không vào hàng tải chỉ vì có trên web.
-- Phạm vi thường 15 chương, theo dõi/yêu thích đã đọc tải đến cuối, full giữ đủ.
-- Neo không bỏ sót cập nhật khi đọc/mark-read làm thay đổi thứ tự kệ.
-- Hoàn thành có chương thêm không tự bị xác nhận đã đọc.
-- Bố cục không nhảy, không cắt góc/nhãn ở font người dùng; nút phản hồi kèm trạng thái.
-- ReadSync bận thì lệnh Cập nhật vẫn được tiếp tục; pause/resume đúng.
-- Đăng nhập, phiên Gecko, tốc độ, pin/RAM và e-ink/ánh xạ phím thật.
-
-Khoảng cách giữa xác minh mục lục và mark-read server vẫn là giới hạn không nguyên tử. Hako có thể đổi markup hoặc yêu cầu xác minh mới. Không cam kết “không lỗi”, mức tiết kiệm pin hay tỷ lệ challenge thành công nếu chưa đo.
+Hồ sơ từng mục: [86 yêu cầu và19 hành trình](ACCEPTANCE_SCOPE.json). Trạng thái trong hồ sơ là phần kiểm chứng còn mở, không phải danh sách đã đạt.

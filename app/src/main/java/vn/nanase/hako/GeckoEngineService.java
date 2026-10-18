@@ -47,13 +47,13 @@ public final class GeckoEngineService extends Service {
    public GeckoResult<Object> onMessage(String app,Object message,WebExtension.MessageSender sender){
     android.util.Log.i("HakoGecko","Bridge message; current job="+(current==job)+" same session="+(sender.session==target)+" type="+(message==null?"null":message.getClass().getSimpleName()));
     if(current!=job||sender.session!=target||!(message instanceof JSONObject))return null;
-    if(!HakoParser.isOrigin(sender.url)&&!sender.url.equals(b.getString("url")))return null;
+    if(!HakoParser.senderOriginAllowed(sender.url,b.getString("origin")))return null;
     String senderPath=java.net.URI.create(sender.url).getPath();if("/login".equals(senderPath)||senderPath.startsWith("/login/")){finish("Hãy đăng nhập HAKO trước.");return null;}
     if(!HakoParser.pageIdentity(sender.url).equals(HakoParser.pageIdentity(b.getString("url"))))return null;
     JSONObject msg=(JSONObject)message;
     if(msg.has("phase")){android.util.Log.i("HakoGecko","Bridge phase: "+msg.optString("phase")+" ready="+msg.optString("ready")+" hasScript="+msg.optBoolean("hasScript"));return null;}
     if(msg.optBoolean("hello")){
-     boolean approved=HakoParser.isOrigin(sender.url)||b.getString("url").equals(sender.url);
+     boolean approved=HakoParser.senderAllowed(sender.url,b.getString("url"),b.getString("origin"));
      android.util.Log.i("HakoGecko","Bridge hello: approved="+approved+" scriptChars="+b.getString("script","").length());
      if(!approved){finish("Địa chỉ trang trích xuất không khớp yêu cầu");return null;}
      return GeckoResult.fromValue(b.getString("script"));
@@ -68,4 +68,3 @@ public final class GeckoEngineService extends Service {
   if(fresh)target.open(GeckoHost.get(this));target.setActive(true);target.loadUri(b.getString("url"));
  }
 }
-

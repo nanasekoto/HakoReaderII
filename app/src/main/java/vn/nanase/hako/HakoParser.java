@@ -26,30 +26,31 @@ public final class HakoParser {
     }
   }
 
+  public static String originOf(String raw) {
+    URI u=URI.create(raw.trim());
+    if(!"https".equalsIgnoreCase(u.getScheme())||u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443))throw new IllegalArgumentException("Chỉ hỗ trợ tên miền HTTPS hợp lệ");
+    return "https://"+u.getHost().toLowerCase(Locale.ROOT);
+  }
+  public static String sanitizeOrigin(String raw){String value=raw==null?"":raw.trim();if(!value.contains("://"))value="https://"+value;return originOf(value);}
   public static boolean isOrigin(String url) {
-    try {
-      URI u = URI.create(url);
-      if (!"https".equals(u.getScheme()) && !"http".equals(u.getScheme())) return false;
-      String host = u.getHost() == null ? "" : u.getHost().toLowerCase();
-      String originHost = URI.create(ORIGIN).getHost() == null ? "" : URI.create(ORIGIN).getHost().toLowerCase();
+    try {String host=URI.create(originOf(url)).getHost(),originHost=URI.create(ORIGIN).getHost();
       if(host.equalsIgnoreCase(originHost))return true;
       for(String site:new String[]{"hako.vn","hako.vip","docln.sbs","docln.net"})if(host.equals(site)||host.endsWith("."+site))return true;
-      return false;
-    } catch (Exception e) {
-      return false;
-    }
+    }catch(Exception ignored){}return false;
   }
-
+  /** Origin approval and document identity are independent checks. */
+  public static boolean senderAllowed(String sender,String requested,String selectedOrigin){
+    try{return senderOriginAllowed(sender,selectedOrigin)&&pageIdentity(sender).equals(pageIdentity(requested));}catch(Exception ignored){return false;}
+  }
+  /** Automatic migration accepts a site host, never arbitrary asset subdomains. */
+  public static boolean autoSiteOrigin(String url,String selected){try{String origin=originOf(url);if(origin.equals(originOf(selected)))return true;String host=URI.create(origin).getHost();return Arrays.asList("docln.sbs","docln.net","www.docln.sbs","www.docln.net","ln.hako.vn","hako.vn","hako.vip").contains(host);}catch(Exception error){return false;}}
+  public static boolean senderOriginAllowed(String sender,String selectedOrigin){try{return originOf(sender).equals(originOf(selectedOrigin))||isOrigin(sender);}catch(Exception ignored){return false;}}
+  /** Rebase authenticated shared metadata onto this device's explicitly selected source. */
+  public static String sharedUrl(String input) {
+    try{URI u=URI.create(input);if(!"https".equalsIgnoreCase(u.getScheme())||u.getHost()==null||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443))return "";String path=u.getRawPath();if(!STORY.matcher(path).matches()&&!CHAPTER.matcher(path).matches())return "";return ORIGIN+path;}catch(Exception e){return "";}
+  }
   public static String normalize(String input) {
-    try {
-      URI u = URI.create(input.startsWith("/") ? ORIGIN + input : input);
-      if (!"https".equals(u.getScheme())
-          || !URI.create(ORIGIN).getHost().equalsIgnoreCase(u.getHost())
-          || (u.getPort() != -1 && u.getPort() != 443)) return "";
-      return ORIGIN + u.getPath();
-    } catch (Exception e) {
-      return "";
-    }
+    try {URI u=URI.create(input.startsWith("/")?ORIGIN+input:input);if(!isOrigin(u.toString()))return "";return ORIGIN+u.getRawPath();}catch(Exception ignored){return "";}
   }
 
   public static String storyId(String u) {
@@ -376,4 +377,3 @@ public final class HakoParser {
     }
   }
 }
-

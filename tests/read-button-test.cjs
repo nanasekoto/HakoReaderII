@@ -15,9 +15,8 @@ let f=fixture();assert.equal(f.run().html,'NO_READ_BUTTON');assert.equal(f.click
 assert.equal(fixture({login:true}).run().error,'Hãy đăng nhập HAKO trước.');
 assert(fixture({table:false}).run().error);assert.deepEqual(fixture({ready:'loading'}).run(),{});
 f=fixture({book:false,next:true});assert.deepEqual(f.run(),{});assert(f.location.href.includes('page=2'));
-assert.equal(fixture({book:false}).run().html,'NO_READ_BUTTON');
+assert(fixture({book:false}).run().error);
 f=fixture({button:true});assert.deepEqual(f.run(),{});f.run();assert.equal(f.clicks(),1);
 assert.equal(fixture({button:true,unread:0}).run().html,'OK');
 f=fixture({button:true,goneAfterClick:true});f.run();assert.equal(f.run().html,'OK_BUTTON_GONE');assert.equal(f.clicks(),1);
 console.log('Actual read-button script: missing button, login, loading, pagination and single-click checks passed');
-

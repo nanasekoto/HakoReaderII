@@ -1,68 +1,33 @@
-# Hako Pocket — 0.7.30 Gecko (UI, tải theo đợt và ưu tiên)
+# Hako Pocket 1.0
 
-Ứng dụng đọc Hako offline cho Xteink S4: Android 11, ARM 32-bit, màn hình e-ink. `main` là bộ source chính thức, thống nhất từ phiên bản 0.7.15 người dùng đã phản hồi chạy khá ổn.
+Ứng dụng chính kế thừa **Hako Reader II**, dành cho **Xteink S4** và **Redmi K60**. Ubuntu lấy và chuẩn hóa nội dung; điện thoại giữ thư viện, file đọc và giao diện native offline.
 
-Bản vá mới: [quy tắc chữ, minh họa và hàng chờ](docs/ILLUSTRATION_CACHE_0718.md).
+**1.0.0 · code72 · Android 8+ · `vn.nanase.hako`**. Cài đè bằng cùng chữ ký để giữ dữ liệu.
 
-Kiến trúc hiện hành: [CURRENT_ARCHITECTURE](docs/CURRENT_ARCHITECTURE.md). Nút Báo cáo nằm bên phải tiêu đề; gửi email cần dịch vụ Apps Script được kích hoạt riêng.
+- [Tải APK / QR](https://nanains.duckdns.org/hako/download) · [GitHub Releases](https://github.com/nanasekoto/HakoReaderII/releases)
+- [Hướng dẫn sử dụng](docs/USER_GUIDE.md)
+- [Quy tắc vận hành](docs/OPERATING_RULES.md) · [Kiến trúc](docs/CURRENT_ARCHITECTURE.md)
+- [Build và bảo trì](docs/BUILDING.md) · [Kiểm chứng](docs/VALIDATION.md) · [Giới hạn](docs/KNOWN_LIMITATIONS.md)
+- [Ubuntu companion](https://github.com/nanasekoto/HakoReaderServer) · [Thay đổi](CHANGELOG.md)
 
-## Sử dụng
+## Hai thiết bị
 
-1. Cài đè APK cùng package và chữ ký để giữ dữ liệu. Không gỡ app hoặc xóa dữ liệu.
-2. Mở **Tài khoản**, đăng nhập Hako và hoàn tất xác minh trong Gecko; quay về app.
-3. Mở **Tủ sách** hoặc bấm **Cập nhật**. App nhập thông tin kệ sách trước, rồi tải các truyện thuộc phạm vi đã chọn.
-4. Dùng **Đọc tiếp**, **Vừa đọc**, **Yêu thích** để đọc nội dung đã lưu. Trong mục lục có lối đọc tiếp.
-5. Trong **Vừa đọc**, chọn **Tải full** hoặc tự đánh dấu **Hoàn thành** khi muốn lưu cả bộ. **Đã tải xong** chỉ hiển thị bộ được đánh dấu hoàn thành và đã có đủ chữ offline theo mục lục đang biết.
-6. Giữ Vol+/Page Up khoảng 700 ms để khóa hoặc mở cảm ứng. Phím ngắn lật trang; khóa không chặn thanh thông báo Android.
+| | S4 | K60 |
+| --- | --- | --- |
+| Layout | Chữ, tương phản cao, phân màn | Cuộn cảm ứng, ảnh màu |
+| Ảnh | Không yêu cầu/hiển thị trong e-ink | Bìa, minh họa, xem ảnh riêng |
+| Đọc | Volume lật trang; giữ khoảng700ms khóa cảm ứng | Cuộn hoặc phân trang; vuốt ngang chuyển chương |
+| Nguồn trực tiếp | Gecko riêng khi cần web | Android System WebView |
+| Offline | Native từ file đã lưu | Native từ file đã lưu |
 
-## Trang chính
+## Đồng bộ
 
-| Hàng | Ô 1 | Ô 2 | Ô 3 |
-| --- | --- | --- | --- |
-| 1 | Đọc tiếp | Vừa đọc | Yêu thích |
-| 2 | Tủ sách | Mới cập nhật | Đã tải xong |
-| 3 | Cập nhật | Tạm dừng/Tiếp tục | Tìm kiếm |
-| 4 | Tài khoản | Cài đặt | Thoát |
+Ubuntu là điểm đồng bộ duy nhất, **không cần Cloudflare**. Rời chương lưu vị trí local và ưu tiên gửi vị trí trước file. Chờ **Đã gửi vị trí** rồi chuyển máy. Đồng bộ chương và neo nội dung, không lấy số trang vật lý của máy này áp cho máy kia.
 
-Trạng thái tải và tải danh sách có vùng cố định, để thẻ truyện không nhảy khi thông báo thay đổi. Truyện ghim dễ tìm; ghim không đồng nghĩa đọc nhiều hoặc được tải full.
+Thư viện chung metadata; nhãn Máy này/Nơi khác phân biệt file offline thật. Ubuntu tắt vẫn đọc file đã lưu; hai máy nhận tiến độ mới sau khi server trở lại. ACK vị trí khác ACK sao lưu nội dung.
 
-## Những quy tắc quan trọng
+## Mốc1.0
 
-- Đồng bộ tủ sách không tự tải tất cả truyện đang theo dõi trên web.
-- Truyện thực sự đọc trong APK nhưng chưa lưu/theo dõi/yêu thích: tải từ chương hiện tại đến 15 chương phía sau; giữ ba chương phía trước.
-- Truyện theo dõi hoặc yêu thích **và đã đọc trong APK**: tải từ chương hiện tại đến cuối; giữ ba chương phía trước.
-- Tải full/Hoàn thành: tải đủ bộ và giữ toàn bộ. Hoàn thành do người dùng đánh dấu.
-- Chữ offline hợp lệ được dùng chung giữa mọi danh sách. Thiếu ảnh không khiến app tải lại chữ.
-- Quét tủ sách thủ công và tự động đều có thể dừng sớm khi neo đã được đối chiếu; thiếu bằng chứng thì quét đầy đủ.
-- Đọc hết offline không tự xác nhận toàn bộ truyện trên Hako nếu mục lục server còn chương chưa đọc.
+Chủ sở hữu chốt1.0 từ mã chức năng0.12.1. Tên phiên bản không thay thế bằng chứng nghiệm thu. [VALIDATION](docs/VALIDATION.md) ghi riêng kết quả mẫu, máy thật, nguồn thật và phần chưa kiểm đủ.
 
-Chi tiết và ngoại lệ: [quy tắc vận hành](docs/OPERATING_RULES.md).
-
-## Build và kiểm tra
-
-Cần JDK 17, Node.js, Gradle 9.3.1, Android SDK 36 và build-tools 35.0.0.
-
-```sh
-bash test.sh
-bash build.sh
-```
-
-APK nằm trong `build/deliver/`. `version.properties` là nguồn phiên bản duy nhất cho build; `gecko-version.txt` cố định engine. Cấu hình giữ package `vn.nanase.hako`, minSdk 26, targetSdk 34 và SQLite v3.
-
-[Hướng dẫn build](docs/BUILDING.md) · [GitHub Actions](https://github.com/nanasekoto/HakoReaderII/actions)
-
-## Tài liệu source
-
-| Tài liệu | Nội dung |
-| --- | --- |
-| [OPERATING_RULES](docs/OPERATING_RULES.md) | Quy tắc người dùng, phạm vi tải, ưu tiên, cập nhật, đọc hết |
-| [ARCHITECTURE_INVARIANTS](docs/ARCHITECTURE_INVARIANTS.md) | Thành phần, luồng xử lý, cache, dữ liệu, UI, điều phối |
-| [BUILDING](docs/BUILDING.md) | Build local/CI, ký APK, kiểm tra emulator |
-| [VALIDATION](docs/VALIDATION.md) | Bằng chứng đã có và giới hạn kiểm chứng |
-| [MAINTENANCE](docs/MAINTENANCE.md) | Cách sửa tiếp, kiểm tra lỗi, danh mục file đã dọn |
-| [AGENTS](AGENTS.md) | Hướng dẫn dành cho công cụ bảo trì source |
-
-Gecko chạy riêng khi cần truy cập web; đọc offline dùng bộ đọc native. Phiên đăng nhập được giữ trong profile Gecko. Khi Hako yêu cầu xác minh mới, người dùng xử lý trong Tài khoản. Không cam kết mọi thử thách Cloudflare luôn thành công hoặc đưa ra số liệu pin/RAM chưa đo.
-
-Các giấy phép font và jsoup đi kèm được giữ trong source và assets. Khóa ký hiện có được giữ để tương thích cài đè bản cá nhân; đây không phải mô hình phân phối công khai bằng một khóa bí mật.
-
+Tài liệu cũ giữ để truy vết. README và các liên kết hiện hành phía trên thay hướng dẫn Cloudflare/app Android Server riêng trong lịch sử.

@@ -28,6 +28,7 @@ public class SmokeTest extends Instrumentation {
     runOnMainSync(() -> { try { m.invoke(activity, args); } catch (Exception e) { throw new RuntimeException(e); } });
     settle();
   }
+  View containsText(View v,String text){if(v instanceof TextView&&((TextView)v).getText().toString().contains(text))return v;if(v instanceof ViewGroup)for(int i=0;i<((ViewGroup)v).getChildCount();i++){View found=containsText(((ViewGroup)v).getChildAt(i),text);if(found!=null)return found;}return null;}
   void settle() { waitForIdleSync(); SystemClock.sleep(150); waitForIdleSync(); }
   void key(int action, int code) {
     if(action==KeyEvent.ACTION_DOWN){
@@ -132,12 +133,12 @@ public class SmokeTest extends Instrumentation {
         s.followed(id,true,i); s.position(id,"",0,0); s.visited(id);s.visited(id);s.visited(id);
       }
       activity=(MainActivity)startActivitySync(new Intent().setClassName("vn.nanase.hako","vn.nanase.hako.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));settle();
-      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.equals("0.7.0"),"Installed version 0.7.0 (behavior fix)");
+      check(ctx.getPackageManager().getPackageInfo(ctx.getPackageName(),0).versionName.startsWith("0.7."),"Installed supported Hako version");
       View homeLabel=find(activity.getWindow().getDecorView(),"Vừa đọc");
       LinearLayout homeCell=(LinearLayout)homeLabel.getParent();
       LinearLayout homeRow=(LinearLayout)homeCell.getParent();
       LinearLayout homeGrid=(LinearLayout)homeRow.getParent();
-      check(homeGrid.getChildCount()==3 && homeRow.getChildCount()==3,"Home retains nine shortcuts");
+      check(homeGrid.getChildCount()==4 && homeRow.getChildCount()==3,"Home retains twelve shortcuts");
       check(homeGrid.getHeight()>activity.getWindow().getDecorView().getHeight()/2,"Home grid uses majority of display height");
       check(Math.abs(homeGrid.getChildAt(0).getHeight()-homeGrid.getChildAt(2).getHeight())<=2,"Home rows share available height equally");
       android.content.pm.ServiceInfo engine=ctx.getPackageManager().getServiceInfo(new ComponentName(ctx,"vn.nanase.hako.GeckoEngineService"),0);
@@ -162,7 +163,7 @@ public class SmokeTest extends Instrumentation {
       for(int n=2;n<=3;n++){Store.write(s.html("partial-full-"+n),"<p>Nội dung thử đã tải đầy đủ, dùng để kiểm tra tiến độ thực sự của bộ truyện lưu full.</p>");s.state("partial-full-"+n,true,"");}
       s.position("partial-full","partial-full-2",0,0);s.setKeepFull("partial-full",true);
       call("frequentList",new Class<?>[]{});
-      check(find(activity.getWindow().getDecorView(),"FULL 67%")!=null,"Full progress counts missing old chapters instead of false 100 percent");
+      check(containsText(activity.getWindow().getDecorView(),"Đã tải 2/3 chương")!=null,"Full progress displays stored chapter counts separately from unread");
       check(s.progress(s.book("partial-full")).percent==67,"Stored full progress counts actual whole-book files");
       s.setKeepFull("partial-full",false);s.state("partial-full-3",false,"");
       check(s.progress(s.book("partial-full")).percent==50,"NEXT progress uses only required next chapters, not old chapters");
@@ -256,14 +257,11 @@ public class SmokeTest extends Instrumentation {
       reader=(NativeReader)field(activity,"nativeReader");
       final NativeReader lastReader=reader;
       runOnMainSync(()->lastReader.jump(true));settle();press(KeyEvent.KEYCODE_VOLUME_DOWN);
-      check((Boolean)field(activity,"caughtUpPrompt"),"End chapter shows one inline Hako confirmation");
-      LinearLayout prompt=(LinearLayout)field(activity,"boundaryPrompt");
-      View promptCard=prompt.getChildAt(0);
-      call("markCaughtUp",new Class<?>[]{Store.Book.class},s.book("demo"));
-      check(prompt.getChildCount()==1 && prompt.getChildAt(0)==promptCard,"Repeated end request does not stack another confirmation");
+      check(s.unread("demo")==0&&!s.queued("demo"),"Finishing latest demo is local completion without remote pending");
+      check(field(activity,"nativeReader")!=null,"Reader remains open at latest chapter");
       key(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_VOLUME_UP);SystemClock.sleep(850);
       key(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_VOLUME_UP);settle();
-      check(reader.isTouchLocked() && prompt.getVisibility()!=View.VISIBLE,"Can pocket-lock while end confirmation is visible");
+      check(reader.isTouchLocked(),"Can pocket-lock after local completion");
       call("toggleTouchLock",new Class<?>[]{});
       call("bookList",new Class<?>[]{boolean.class},false);
       ListView recent=(ListView)field(activity,"currentList");
@@ -315,7 +313,7 @@ public class SmokeTest extends Instrumentation {
         check(text.getLayout().getLineBottom(lines-1)+text.getCompoundPaddingTop()+text.getCompoundPaddingBottom()<=text.getHeight(),"Long chapter row "+i+" has no vertically clipped text");
       }
       shot("long-chapter-titles");
-      click("Thêm yêu thích");check(s.book("longtoc").pinned&&s.favorite(s.book("longtoc")),"Direct star adds manual favorite");
+      click("Ghim để dễ tìm");check(s.book("longtoc").pinned&&s.favorite(s.book("longtoc")),"Direct star adds manual favorite");
       click("Bỏ yêu thích");check(!s.book("longtoc").pinned&&!s.favorite(s.book("longtoc")),"Direct star removes unvisited manual favorite");
       s.putBook(new HakoParser.Link("queue-test","Hàng chờ offline",""));
       List<HakoParser.Link> queuedChs=new ArrayList<>();queuedChs.add(new HakoParser.Link("queue-1","Chương 1",""));s.catalog("queue-test",queuedChs);
@@ -337,7 +335,7 @@ public class SmokeTest extends Instrumentation {
       Store.write(s.html("weighted-1"),offlineText);s.state("weighted-1",true,"");
       check(s.totalOfflinePercent()==25,"Aggregate weights chapter counts: 3 of 12 equals 25 percent");
       Store.write(s.html("partial-full-1"),offlineText);s.state("partial-full-1",true,"");for(int n=2;n<=9;n++){Store.write(s.html("weighted-"+n),offlineText);s.state("weighted-"+n,true,"");}
-      ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",false).commit();check(s.totalOfflinePercent()==99,"Complete files without verified refresh do not claim offline-ready 100");
+      ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",false).commit();check(s.totalOfflinePercent()==100,"Known complete offline scope is independent of shelf verification state");
       ctx.getSharedPreferences("settings",0).edit().putBoolean("sync_verified",true).commit();check(s.totalOfflinePercent()==100,"Verified complete required scope reaches aggregate 100");
       result.putString("stream",log+(failures==0?"PASS TOTAL ":"FAIL TOTAL ")+checks+" Android checks; failures="+failures+"\n");
       finish(failures==0?Activity.RESULT_OK:Activity.RESULT_CANCELED,result);

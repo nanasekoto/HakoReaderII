@@ -1,3 +1,5 @@
+> Tài liệu lịch sử. Hướng dẫn hiện hành: [Pocket1.0](../README.md). Các mô tả Cloudflare/phiên bản cũ không áp dụng mặc định.
+
 # Hako Pocket 0.7.21 — tiến độ theo mốc đọc, chờ gửi Hako và sắp xếp chương
 
 Quy tắc mới do người dùng chốt ngày 12/10/2026, thay thế cách đếm từng chương và yêu cầu xác nhận minh họa của 0.7.20. Nền: 1e218b06cce33d07f7aebb4bf08456e7b0482c0f. VersionCode 37.

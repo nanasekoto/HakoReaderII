@@ -5,7 +5,9 @@ import java.util.*;
 public final class UiLibrarySnapshot {
  public static final class Summary {
   public int total,stored,unread,newCount,illustrations,missingImages,unseenIllustrations,pendingReview,scopeTotal,scopeStored;
-  public boolean updated,completedOffline,full,currentRead;
+  public boolean updated,completedOffline,full,currentRead,sharedComplete;
+  public int sharedStored,sharedTotal;
+  public String sharedLabel(){return sharedStored>0?" · Nơi khác lưu "+sharedStored+"/"+sharedTotal:"";}
   public long updatedAt;
   public String currentTitle="",latestKey="";
   public int remaining=-1;
@@ -21,7 +23,7 @@ public final class UiLibrarySnapshot {
  }
  private volatile Map<Integer,List<Store.Book>> indices;
  public List<Store.Book> index(int mode){Map<Integer,List<Store.Book>> cache=indices;return cache==null?null:cache.get(mode);}
- private boolean member(Store.Book b,int mode){return mode==1?b.followed:mode==6?b.followed&&shelfCount(b.shelfInfo)>0:mode==4?b.stamp>0:!b.id.equals("demo")&&(mode==2?(b.pinned||b.visits>=3):summary(b).completedOffline);}
+ private boolean member(Store.Book b,int mode){return mode==1?b.followed:mode==6?b.followed&&shelfCount(b.shelfInfo)>0:mode==4?b.stamp>0:!b.id.equals("demo")&&(mode==2?(b.pinned||b.visits>=3):(summary(b).completedOffline||summary(b).sharedComplete));}
  private Comparator<Store.Book> ordering(int mode){return (a,b)->{int n;if(mode==1||mode==6)return compareShelf(a,b);if(mode==4){n=Long.compare(b.stamp,a.stamp);return n!=0?n:a.id.compareTo(b.id);}n=Integer.compare(b.visits,a.visits);if(n==0)n=Long.compare(b.stamp,a.stamp);if(n==0)n=a.title.compareToIgnoreCase(b.title);return n!=0?n:a.id.compareTo(b.id);};}
  public void prepareIndices(){prepareIndices(null,null);}
  public void prepareIndices(UiLibrarySnapshot previous,Set<String> changed){
@@ -51,7 +53,7 @@ public final class UiLibrarySnapshot {
   return new UiLibrarySnapshot(books,out,android.os.SystemClock.elapsedRealtime()-started,prefs.getLong("lastShelfSync",0),revision);
  }
  static Summary summarize(Store store,SharedPreferences prefs,Store.Book b){
-   Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);
+   Summary s=new Summary();List<Store.Chapter> chapters=store.chapters(b.id);chapters.removeIf(ch->store.isHidden(b.id,ch.id));
    s.total=0;s.full=store.isKeepFull(b.id);boolean afterCurrent=false;
    Set<String> read=store.readingIds(b.id,chapters);
    List<String> ids=new ArrayList<>();Set<String> images=new HashSet<>();for(Store.Chapter ch:chapters){ids.add(ch.id);if(store.ignoredForReading(ch))images.add(ch.id);}
@@ -76,6 +78,7 @@ public final class UiLibrarySnapshot {
    boolean changed=prefs.getBoolean("shelf_changed_"+b.id,false)||(!now.isEmpty()&&!now.equals(known));
    s.updated=(b.followed&&changed)||(s.newCount>0&&s.stored<s.total)||(b.followed&&s.total==0&&shelfCount(b.shelfInfo)>0);
    s.updatedAt=prefs.getLong("shelf_updated_at_"+b.id,0);
+   try{org.json.JSONObject remote=new org.json.JSONObject(prefs.getString("shared_availability_"+b.id,"{}"));s.sharedStored=remote.optInt("stored");s.sharedTotal=remote.optInt("total");s.sharedComplete=remote.optBoolean("complete");}catch(Exception ignored){}
    s.completedOffline=store.isCompleted(b.id)&&s.total>0&&s.stored==s.total&&!changed;
    return s;
  }
