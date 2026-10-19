@@ -1979,6 +1979,9 @@ public class MainActivity extends Activity {
 
   @Override public boolean dispatchKeyEvent(KeyEvent event){
     int code = event.getKeyCode();
+    // A persisted lock also blocks Home. Its escape key must precede list,
+    // dialog and phone volume preferences, or those paths swallow the hold.
+    if((touchLocked||lockKey.isPressed())&&isPageUpKey(code))return dispatchLockKey(event);
     if(nativeReader!=null&&!DeviceProfile.eink(this)&&!prefs.getBoolean("reader_volume",true)&&(code==KeyEvent.KEYCODE_VOLUME_UP||code==KeyEvent.KEYCODE_VOLUME_DOWN))return super.dispatchKeyEvent(event);
     int action = event.getAction();
     if(settingsDialog!=null&&settingsDialog.isShowing()&&settingsVolume(code,event))return true;
@@ -2000,15 +2003,7 @@ public class MainActivity extends Activity {
 
     // Hold Volume Up for 700 ms to lock/unlock; consume repeats and the final release.
     if(isPageUpKey(code)){
-      android.util.Log.d("HakoKeys","code="+code+" action="+action+" repeat="+event.getRepeatCount()+" locked="+touchLocked);
-      if(action==KeyEvent.ACTION_DOWN){
-        if(lockKey.down()){lockDownTime=SystemClock.uptimeMillis();lockHandler.postDelayed(lockHold,700);}
-      }else if(action==KeyEvent.ACTION_UP){
-        lockHandler.removeCallbacks(lockHold);
-        if(!event.isCanceled() && SystemClock.uptimeMillis()-lockDownTime>=700 && lockKey.hold())toggleTouchLock();
-        if(lockKey.up(event.isCanceled()))performPageAction(-1);
-      }
-      return true;
+      return dispatchLockKey(event);
     }
     if(touchLocked && code==KeyEvent.KEYCODE_BACK)return true;
 
@@ -2022,6 +2017,18 @@ public class MainActivity extends Activity {
       return true;
     }
     return super.dispatchKeyEvent(event);
+  }
+  private boolean dispatchLockKey(KeyEvent event){
+    int code=event.getKeyCode(),action=event.getAction();
+      android.util.Log.d("HakoKeys","code="+code+" action="+action+" repeat="+event.getRepeatCount()+" locked="+touchLocked);
+      if(action==KeyEvent.ACTION_DOWN){
+        if(lockKey.down()){lockDownTime=SystemClock.uptimeMillis();lockHandler.postDelayed(lockHold,700);}
+      }else if(action==KeyEvent.ACTION_UP){
+        lockHandler.removeCallbacks(lockHold);
+        if(!event.isCanceled() && SystemClock.uptimeMillis()-lockDownTime>=700 && lockKey.hold())toggleTouchLock();
+        if(lockKey.up(event.isCanceled()))performPageAction(-1);
+      }
+      return true;
   }
   public boolean onKeyUp(int key,KeyEvent event){if(nativeReader!=null&&(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN))return true;return super.onKeyUp(key,event);}
   public boolean onKeyDown(int key, KeyEvent event) {
