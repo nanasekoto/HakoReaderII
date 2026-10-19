@@ -1,5 +1,11 @@
 # Thay đổi
 
+## 1.0.1 — khôi phục khóa cảm ứng
+
+- Giữ Volume Up mở khóa cả khi khóa còn lưu ở Home, trước xử lý phím của danh sách.
+- Đường thoát khóa không phụ thuộc tùy chọn volume lật trang; xử lý đủ sự kiện thả để giữ lần tiếp theo vẫn hoạt động.
+- Có ca QA khởi động lại khi khóa và hồi quy chuỗi giữ/thả.
+
 ## 1.0.0 — mốc chốt đầu tiên
 
 - Pocket/Reader II là app chính, ưu tiên Ubuntu; không phụ thuộc Cloudflare.
