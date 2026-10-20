@@ -1,3 +1,7 @@
+# 1.0.2 · S4 layout
+
+Điều chỉnh theo 9 ảnh của chủ sở hữu: badge chưa đọc bên phải, dòng Vừa đọc gọn, khám phá gọn và bộ đếm nhỏ, các nút chi tiết chung hàng, giới thiệu phân màn riêng. Sửa nhận thứ tự kệ từ server. Build-only; không chạy test, chủ sở hữu kiểm tra. [Chi tiết](docs/S4_LAYOUT_102.md).
+
 # Thay đổi
 
 ## 1.0.1 — khôi phục khóa cảm ứng

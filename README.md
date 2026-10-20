@@ -2,7 +2,7 @@
 
 Ứng dụng chính kế thừa **Hako Reader II**, dành cho **Xteink S4** và **Redmi K60**. Ubuntu lấy và chuẩn hóa nội dung; điện thoại giữ thư viện, file đọc và giao diện native offline.
 
-**1.0.1 · code73 · Android 8+ · `vn.nanase.hako`**. Cài đè bằng cùng chữ ký để giữ dữ liệu.
+**1.0.2 · code74 · Android 8+ · `vn.nanase.hako`**. Cài đè bằng cùng chữ ký để giữ dữ liệu.
 
 - [Tải APK / QR](https://nanains.duckdns.org/hako/download) · [GitHub Releases](https://github.com/nanasekoto/HakoReaderII/releases)
 - [Hướng dẫn sử dụng](docs/USER_GUIDE.md)
@@ -11,6 +11,8 @@
 - [Ubuntu companion](https://github.com/nanasekoto/HakoReaderServer) · [Thay đổi](CHANGELOG.md)
 
 Bản vá1.0.1 sửa kẹt khóa cảm ứng khi Home còn lưu trạng thái khóa; [chi tiết và kiểm tra](docs/TOUCH_LOCK_101.md).
+
+Bản chỉnh giao diện S4 [1.0.2](docs/S4_LAYOUT_102.md): build theo yêu cầu, chủ sở hữu kiểm tra hiển thị; không chạy test/giả lập trong đợt này.
 
 ## Hai thiết bị
 

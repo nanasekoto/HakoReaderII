@@ -42,7 +42,7 @@ public final class ServerSource {
  public static JSONObject view(Context c,String url,boolean refresh)throws Exception{return request(c,"GET","/v3/pocket/view?url="+URLEncoder.encode(url,"UTF-8")+"&refresh="+refresh,null);}
  public static void shelf(Context c,boolean refresh)throws Exception{
   JSONObject data=request(c,"GET","/v3/pocket/shelf?refresh="+refresh,null);JSONArray books=data.getJSONArray("books");List<HakoParser.Link> rows=new ArrayList<>();
-  for(int n=0;n<books.length();n++){JSONObject b=books.getJSONObject(n);HakoParser.Link row=new HakoParser.Link(b.getString("id"),b.getString("title"),HakoParser.sharedUrl(b.getString("url")));row.info=b.optString("info",b.optString("unread")+" chương chưa đọc");row.updatedAt=(long)(b.optDouble("updated",0)*1000);row.latestKey=b.optString("latest_key");rows.add(row);}
+  for(int n=0;n<books.length();n++){JSONObject b=books.getJSONObject(n);HakoParser.Link row=new HakoParser.Link(b.getString("id"),b.getString("title"),HakoParser.sharedUrl(b.getString("url")));row.info=b.optString("info",b.optString("unread")+" chương chưa đọc");row.updatedAt=(long)(b.optDouble("shelf_updated",0)*1000);row.latestKey=b.optString("latest_key");rows.add(row);}
   Store store=Store.get(c);if(data.optBoolean("ready"))store.replaceShelf(rows);else store.mergeShelf(rows,0);
   for(HakoParser.Link row:rows)c.getSharedPreferences("settings",0).edit().putString("shelf_key_"+row.id,row.latestKey).putLong("shelf_updated_at_"+row.id,row.updatedAt).apply();
   if(data.optDouble("updated_at")>0)c.getSharedPreferences("settings",0).edit().putLong("lastShelfSync",(long)(data.optDouble("updated_at")*1000)).apply();
