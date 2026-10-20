@@ -18,6 +18,8 @@ final class PagedBookList extends ListView {
     setOverScrollMode(View.OVER_SCROLL_NEVER);
   }
   int rowHeight(int position){return -2;}
-  void turn(int direction){measuredPaging.turn(this,direction);}
+  private Runnable before,after;
+  void atEdges(Runnable before,Runnable after){this.before=before;this.after=after;}
+  void turn(int direction){if(getChildCount()>0){if(direction<0&&before!=null&&getFirstVisiblePosition()==0&&getChildAt(0).getTop()>=getPaddingTop()){before.run();return;}if(direction>0&&after!=null&&getLastVisiblePosition()==getCount()-1&&getChildAt(getChildCount()-1).getBottom()<=getHeight()-getPaddingBottom()){after.run();return;}}measuredPaging.turn(this,direction);}
   @Override protected void dispatchDraw(android.graphics.Canvas canvas){int saved=canvas.save();if(DeviceProfile.eink(getContext())&&getChildCount()>0){int limit=getHeight()-getPaddingBottom();View last=getChildAt(getChildCount()-1);if(last.getBottom()>limit){if(getChildCount()>1)limit=last.getTop();else{java.util.TreeSet<Integer> edges=new java.util.TreeSet<>();EinkScrollView.boundaries(last,last.getTop(),limit,edges);Integer edge=edges.floor(limit);if(edge!=null&&edge>getPaddingTop())limit=edge;}}canvas.clipRect(0,getPaddingTop(),getWidth(),limit);}super.dispatchDraw(canvas);canvas.restoreToCount(saved);}
 }

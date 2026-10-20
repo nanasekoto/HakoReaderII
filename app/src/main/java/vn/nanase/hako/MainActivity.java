@@ -495,7 +495,7 @@ public class MainActivity extends Activity {
           HakoParser.Link item = getItem(p);
           LinearLayout card = new LinearLayout(MainActivity.this);
           card.setOrientation(LinearLayout.VERTICAL);
-          card.setGravity(Gravity.CENTER_VERTICAL);
+          card.setGravity(Gravity.TOP);
           card.setLayoutParams(new AbsListView.LayoutParams(-1, list.rowHeight(p)));
           card.setMinimumHeight(dp(52));
 
@@ -642,7 +642,7 @@ public class MainActivity extends Activity {
           bookMenu(b);
           return true;
         });
-        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setGravity(Gravity.TOP);
         card.setLayoutParams(new AbsListView.LayoutParams(-1, list.rowHeight(p)));
 
         android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
@@ -668,7 +668,7 @@ public class MainActivity extends Activity {
 
         UiLibrarySnapshot.Summary summary=readyLibrary.summary(b);
         int newCount = summary.newCount;
-        if (newCount > 0) {
+        if (shelf && newCount > 0) {
           TextView badge = new TextView(MainActivity.this);
           badge.setText("+" + newCount + " mới");
           badge.setTextSize(10f);
@@ -690,7 +690,7 @@ public class MainActivity extends Activity {
         subView.setMaxLines(Integer.MAX_VALUE);
         subView.setEllipsize(null);
         subView.setPadding(0, dp(1), 0, 0);
-        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+subView.getText()+" · "+summary.readLabel()+summary.sharedLabel());
+        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+summary.readLabel());
         if(shelf)card.addView(subView);
         else {
           LinearLayout controls=new LinearLayout(MainActivity.this);controls.setGravity(Gravity.CENTER_VERTICAL);
@@ -771,7 +771,7 @@ public class MainActivity extends Activity {
         Store.Book b = getItem(p);
         LinearLayout card = new LinearLayout(MainActivity.this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setGravity(Gravity.TOP);
         card.setLayoutParams(new AbsListView.LayoutParams(-1, list.rowHeight(p)));
 
         android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
@@ -790,6 +790,7 @@ public class MainActivity extends Activity {
         titleView.setTextSize(16f);
         titleView.setTypeface(UI_MEDIUM);
         titleView.setTextColor(Color.BLACK);
+        titleView.setIncludeFontPadding(false);
         titleView.setMaxLines(Integer.MAX_VALUE);
         titleView.setEllipsize(null);
         top.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -828,13 +829,12 @@ public class MainActivity extends Activity {
         subView.setEllipsize(null);
         subView.setPadding(0, dp(1), 0, 0);
         int storedAll=summary.stored;
-        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+"Máy này "+storedAll+"/"+totalChs+" chương"+summary.sharedLabel()+(summary.newCount>0?" · "+summary.newCount+" mới":""));
+        subView.setText((summary.missingImages>0?"Thiếu "+summary.missingImages+" ảnh · ":"")+"Máy này "+storedAll+"/"+totalChs+" chương"+(summary.newCount>0?" · "+summary.newCount+" mới":""));
         android.graphics.drawable.GradientDrawable badgeBg=new android.graphics.drawable.GradientDrawable();badgeBg.setColor(Color.BLACK);badgeBg.setCornerRadius(dp(5));badge.setBackground(badgeBg);badge.setPadding(dp(5),dp(2),dp(5),dp(2));badge.setText(totalChs==0?"Chưa rõ":summary.unread+" chưa đọc");badge.setTextSize(15f);
-        LinearLayout meta=new LinearLayout(MainActivity.this);boolean stack=DeviceProfile.eink(MainActivity.this)||getResources().getConfiguration().fontScale>1.25f;meta.setOrientation(stack?1:0);meta.setGravity(Gravity.CENTER_VERTICAL);meta.addView(subView,stack?new LinearLayout.LayoutParams(-1,-2):new LinearLayout.LayoutParams(0,-2,1));if(DeviceProfile.eink(MainActivity.this)){
-          badge.setBackground(null);badge.setTextColor(INK);badge.setPadding(0,dp(2),0,0);badge.setTextSize(14);
-          badge.setText(totalChs==0?"Chưa rõ số chương":"Chưa đọc: "+summary.unread);
-        }
-        meta.addView(badge,new LinearLayout.LayoutParams(-2,-2));card.addView(meta);
+        LinearLayout meta=new LinearLayout(MainActivity.this);meta.setGravity(Gravity.CENTER_VERTICAL);boolean stack=!DeviceProfile.eink(MainActivity.this)&&getResources().getConfiguration().fontScale>1.25f;meta.setOrientation(stack?1:0);
+        meta.addView(subView,stack?new LinearLayout.LayoutParams(-1,-2):new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout.LayoutParams unreadBadge=new LinearLayout.LayoutParams(-2,-2);unreadBadge.setMargins(dp(6),0,0,0);
+        meta.addView(badge,unreadBadge);card.addView(meta);
 
         list.fitCard(card);return card;
       }
@@ -952,9 +952,9 @@ public class MainActivity extends Activity {
     header.addView(BookUi.text(this,"Thông tin truyện",18,true),new LinearLayout.LayoutParams(0,-2,1));
     if(b!=null)header.addView(new IconButton(this,15,"Menu truyện",()->bookMenu(b)),new LinearLayout.LayoutParams(dp(48),dp(48)));root.addView(header);
     status=BookUi.text(this,SystemClock.elapsedRealtime()<libraryActionUntil?libraryActionText:"",13,false);status.setMinLines(1);status.setPadding(dp(12),0,dp(12),0);root.addView(status);
-    if(eink&&info.fetchedAt>=0)root.addView(button(storySection+" ▾",()->new ReaderDialogBuilder(this).setItems(new String[]{"Tổng quan","Giới thiệu","Mục lục"},(d,n)->{if(n==2&&b!=null){navStack.push(()->renderStoryInfo(info,b));contents(b);}else showStorySection(n==1?"Giới thiệu":"Tổng quan");}).show()));
+
     LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(eink?12:16),dp(8),dp(eink?12:16),dp(16));
-    if(!eink||!storySection.equals("Giới thiệu")){
+    {
       if(eink){body.addView(BookUi.text(this,info.title,20,true));}
       else{LinearLayout identity=new LinearLayout(this);boolean narrow=getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density<360||getResources().getConfiguration().fontScale>1.25f;identity.setOrientation(narrow?1:0);if(narrow)identity.setGravity(Gravity.CENTER_HORIZONTAL);ImageView cover=new ImageView(this);cover.setScaleType(ImageView.ScaleType.FIT_CENTER);cover.setContentDescription("Ảnh bìa "+info.title);identity.addView(cover,new LinearLayout.LayoutParams(dp(88),dp(126)));loadCover(cover,info.cover,info.coverRemote);LinearLayout labels=new LinearLayout(this);labels.setOrientation(1);labels.setPadding(narrow?0:dp(12),0,0,0);labels.addView(BookUi.text(this,info.title,22,true));if(!info.author.isEmpty())labels.addView(BookUi.text(this,"Tác giả: "+info.author,14,false));if(!info.artist.isEmpty())labels.addView(BookUi.text(this,"Họa sĩ: "+info.artist,14,false));identity.addView(labels,narrow?new LinearLayout.LayoutParams(-1,-2):new LinearLayout.LayoutParams(0,-2,1));body.addView(identity);}
       BookUi.gap(body,6);body.addView(BookUi.text(this,info.category+(info.status.isEmpty()?"":" · "+info.status),14,false));
@@ -966,15 +966,21 @@ public class MainActivity extends Activity {
       if(!eink)body.addView(metadata);
       BookUi.divider(body);
       if(b!=null){Button read=button(b.current.isEmpty()?"Đọc ngay":"Đọc tiếp",()->{navStack.push(()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),false));openChapter(b.id,"");});android.graphics.drawable.GradientDrawable primary=new android.graphics.drawable.GradientDrawable();primary.setColor(eink?Color.BLACK:Color.rgb(34,79,66));primary.setCornerRadius(dp(eink?6:12));read.setBackground(primary);read.setTextColor(Color.WHITE);body.addView(read,new LinearLayout.LayoutParams(-1,-2));
-        BookUi.gap(body,8);BookUi.Flow actions=BookUi.flow(this);Button favorite=button(b.pinned?"♥ Đã yêu thích":"♡ Yêu thích",()->{});favorite.setOnClickListener(v->libraryAction("Đang lưu yêu thích…",()->{Store.Book fresh=store.book(b.id);if(fresh!=null){boolean value=!fresh.pinned;store.pin(b.id,value);runOnUiThread(()->favorite.setText(value?"♥ Đã yêu thích":"♡ Yêu thích"));}return null;},"Đã lưu yêu thích"));actions.addView(favorite);actions.addView(button(eink?"↓ Tải chữ":"↓ Tải xuống",()->bookMenu(b)));body.addView(actions,new LinearLayout.LayoutParams(-1,-2));
-        body.addView(button("Mục lục · chọn tập / chương",()->{navStack.push(()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),false));contents(b);}));
+        BookUi.gap(body,8);BookUi.Flow actions=BookUi.flow(this);Button favorite=button(b.pinned?"♥ Đã yêu thích":"♡ Yêu thích",()->{});favorite.setOnClickListener(v->libraryAction("Đang lưu yêu thích…",()->{Store.Book fresh=store.book(b.id);if(fresh!=null){boolean value=!fresh.pinned;store.pin(b.id,value);runOnUiThread(()->favorite.setText(value?(eink?"♥ Đã thích":"♥ Đã yêu thích"):"♡ Yêu thích"));}return null;},"Đã lưu yêu thích"));if(eink){
+          favorite.setText(b.pinned?"♥ Đã thích":"♡ Yêu thích");favorite.setTextSize(13);
+          LinearLayout tools=new LinearLayout(this);
+          tools.addView(favorite,new LinearLayout.LayoutParams(0,dp(48),1));
+          Button toc=button("Mục lục",()->{navStack.push(()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),false));contents(b);});toc.setTextSize(13);tools.addView(toc,new LinearLayout.LayoutParams(0,dp(48),1));
+          Button download=button("↓ Tải chữ",()->bookMenu(b));download.setTextSize(13);tools.addView(download,new LinearLayout.LayoutParams(0,dp(48),1));body.addView(tools);
+        }else{actions.addView(favorite);actions.addView(button("↓ Tải xuống",()->bookMenu(b)));body.addView(actions,new LinearLayout.LayoutParams(-1,-2));
+          body.addView(button("Mục lục · chọn tập / chương",()->{navStack.push(()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),false));contents(b);}));}
       }
       if(eink){BookUi.divider(body);body.addView(metadata);}
     }
-    if(!eink||storySection.equals("Giới thiệu")){BookUi.gap(body,12);body.addView(BookUi.text(this,"Giới thiệu",18,true));body.addView(BookUi.text(this,info.summary.isEmpty()?"Chưa có giới thiệu đã lưu.":info.summary,eink?16:17,false));}
+    {if(!eink)BookUi.gap(body,12);TextView synopsisTitle=BookUi.text(this,"Giới thiệu",18,true);if(eink)synopsisTitle.setTag("page_start");body.addView(synopsisTitle);body.addView(BookUi.text(this,info.summary.isEmpty()?"Chưa có giới thiệu đã lưu.":info.summary,eink?16:17,false));}
     if(!eink&&b!=null&&tocGroups!=null&&!tocGroups.isEmpty()){BookUi.divider(body);body.addView(BookUi.text(this,"Mục lục theo tập",18,true));for(VolumeGroup group:tocGroups)addPhoneVolume(body,info,b,group,tocEntry==null?Collections.emptySet():tocEntry.read);}
     BookUi.gap(body,12);body.addView(button("Làm mới thông tin",()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),true)));
-    if(eink){SettingsPages pages=new SettingsPages(this,body);currentScroll=pages.viewport();root.addView(pages,new LinearLayout.LayoutParams(-1,0,1));}
+    if(eink){SettingsPages pages=new SettingsPages(this,body,true);currentScroll=pages.viewport();root.addView(pages,new LinearLayout.LayoutParams(-1,0,1));}
     else{ScrollView scroll=profileScroll();scroll.addView(body);currentScroll=scroll;root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
     currentScroll.setFocusableInTouchMode(true);
     if(restoreDetailY>=0&&b!=null){final int saved=restoreDetailY;restoreDetailY=-1;currentScroll.post(()->{if(currentScroll!=null)currentScroll.scrollTo(0,saved);});}
@@ -2086,8 +2092,8 @@ public class MainActivity extends Activity {
     }
     TextView state=BookUi.text(this,"Đang mở dữ liệu đã lưu…",13,false);state.setPadding(dp(12),dp(4),dp(12),dp(4));state.setMinLines(1);listLoadStatus=state;root.addView(state);
     ListView list=eink?new PagedBookList(this):new ListView(this);currentList=list;list.setDivider(new android.graphics.drawable.ColorDrawable(eink?Color.BLACK:Color.rgb(225,230,228)));list.setDividerHeight(1);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));TextView empty=BookUi.text(this,"Đang mở dữ liệu đã lưu…",16,false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(16),dp(16),dp(16),dp(16));root.addView(empty,new LinearLayout.LayoutParams(-1,0,1));list.setEmptyView(empty);
-    int page=1;try{page=Integer.parseInt(android.net.Uri.parse(url).getQueryParameter("page"));}catch(Exception ignored){}final int sourcePage=page;LinearLayout paging=new LinearLayout(this);Button previous=button("‹ Trước",()->{if(eink&&hasPreviousScreen(list))((PagedBookList)list).turn(-1);else if(sourcePage>1)onlineList(title,sourcePageUrl(url,sourcePage-1));});Button next=button("Sau ›",()->{if(eink&&hasNextScreen(list))((PagedBookList)list).turn(1);else onlineList(title,sourcePageUrl(url,sourcePage+1));});paging.addView(previous,new LinearLayout.LayoutParams(0,-2,1));TextView range=BookUi.text(this,"Kết quả "+sourcePage,13,false);range.setGravity(Gravity.CENTER);paging.addView(range,new LinearLayout.LayoutParams(0,-1,1));paging.addView(next,new LinearLayout.LayoutParams(0,-2,1));if(eink)root.addView(paging);else list.addFooterView(paging,null,false);
-    list.setOnScrollListener(new AbsListView.OnScrollListener(){public void onScrollStateChanged(AbsListView v,int state){}public void onScroll(AbsListView v,int first,int visible,int total){int count=Math.max(0,total-(eink?0:1)),last=first;for(int child=0;child<list.getChildCount();child++)if(list.getChildAt(child).getBottom()<=list.getHeight()-list.getPaddingBottom())last=first+child+1;String label=count==0?"Chưa có dữ liệu":(first+1)+"–"+Math.min(count,Math.max(first+1,last));if(!label.contentEquals(range.getText()))range.setText(label);previous.setEnabled(hasPreviousScreen(list)||sourcePage>1);}});
+    int page=1;try{page=Integer.parseInt(android.net.Uri.parse(url).getQueryParameter("page"));}catch(Exception ignored){}final int sourcePage=page;LinearLayout paging=new LinearLayout(this);Button previous=button("‹ Trước",()->{if(eink&&hasPreviousScreen(list))((PagedBookList)list).turn(-1);else if(sourcePage>1)onlineList(title,sourcePageUrl(url,sourcePage-1));});Button next=button("Sau ›",()->{if(eink&&hasNextScreen(list))((PagedBookList)list).turn(1);else onlineList(title,sourcePageUrl(url,sourcePage+1));});paging.addView(previous,new LinearLayout.LayoutParams(0,-2,1));TextView range=BookUi.text(this,"Kết quả "+sourcePage,13,false);range.setGravity(Gravity.CENTER);paging.addView(range,new LinearLayout.LayoutParams(0,-1,1));paging.addView(next,new LinearLayout.LayoutParams(0,-2,1));if(eink){paging.removeView(range);range.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);range.setPadding(dp(8),0,dp(10),0);root.addView(range,new LinearLayout.LayoutParams(-1,dp(22)));range.setContentDescription("Trang kết quả; dùng phím âm lượng để chuyển trang");range.setOnClickListener(v->new ReaderDialogBuilder(this).setItems(new String[]{"Trang trước","Trang sau"},(d,n)->{if(n==0)previous.performClick();else next.performClick();}).show());((PagedBookList)list).atEdges(()->{if(sourcePage>1)onlineList(title,sourcePageUrl(url,sourcePage-1));},()->onlineList(title,sourcePageUrl(url,sourcePage+1)));}else list.addFooterView(paging,null,false);
+    list.setOnScrollListener(new AbsListView.OnScrollListener(){public void onScrollStateChanged(AbsListView v,int state){}public void onScroll(AbsListView v,int first,int visible,int total){int count=Math.max(0,total-(eink?0:1)),last=first;for(int child=0;child<list.getChildCount();child++)if(list.getChildAt(child).getBottom()<=list.getHeight()-list.getPaddingBottom())last=first+child+1;String label=count==0?"Chưa có dữ liệu":(eink?"Trang "+sourcePage+" · ":"")+(first+1)+"–"+Math.min(count,Math.max(first+1,last));if(!label.contentEquals(range.getText()))range.setText(label);previous.setEnabled(hasPreviousScreen(list)||sourcePage>1);}});
     final int token=generation;final boolean[] shown={false};
     viewCacheIo.execute(()->{JSONObject cached=PreparedViews.load(this,url);boolean conserve=DeviceProfile.eink(this)&&cached!=null;if(cached!=null)runOnUiThread(()->{if(token!=generation)return;showPreparedStories(list,cached,title,url);shown[0]=true;state.setText(conserve?"Bản đã lưu · Chạm để cập nhật":"Danh sách đã lưu · Đang cập nhật nền");if(conserve)state.setOnClickListener(v->{viewCacheIo.execute(()->{try{JSONObject fresh=refreshView(url);runOnUiThread(()->{if(token==generation){showPreparedStories(list,fresh,title,url);state.setText("Đã cập nhật");}});}catch(Exception error){runOnUiThread(()->state.setText("Chưa cập nhật được · Giữ bản đã lưu"));}});});});if(conserve)return;if(!ReadSync.connected(this)){runOnUiThread(()->{if(token!=generation)return;state.setText(cached==null?"Đang offline · Chưa có bản lưu":"Đang offline · Dùng bản đã lưu");if(cached==null)empty.setText("Chưa có nội dung trên máy. Kết nối mạng rồi chạm để thử lại.");state.setOnClickListener(v->onlineList(title,url));});return;}preparedIo.execute(()->{try{JSONObject fresh=refreshView(url);runOnUiThread(()->{if(token!=generation)return;if(shown[0]){state.setText("Có bản dữ liệu cập nhật · Chạm để xem");state.setOnClickListener(v->{showPreparedStories(list,fresh,title,url);state.setText("Đã cập nhật");});}else{showPreparedStories(list,fresh,title,url);state.setText("Đã nhận từ server");}});}catch(Exception e){try{ServerSource.failed(this,e);}catch(Exception ignored){}runOnUiThread(()->{if(token==generation){if(!shown[0])empty.setText("Chưa lấy được danh sách. Chạm trạng thái phía trên để thử lại hoặc đổi nguồn.");if(!shown[0]&&ServerSource.mode(this).equals("auto")){state.setText("Server chưa sẵn sàng · Chạm để lấy Hako trực tiếp");state.setOnClickListener(v->{prefs.edit().putString("content_source","web").apply();onlineList(title,url);});return;}state.setText(shown[0]?"Đang dùng bản đã lưu · Không lấy được bản mới":"Server chưa có dữ liệu · Kiểm tra đăng nhập trong /hako");state.setOnClickListener(v->connectionSettings());}});}});});
   }
@@ -2106,17 +2112,17 @@ public class MainActivity extends Activity {
     List<JSONObject> rows=new ArrayList<>();JSONArray items=data.optJSONArray("books");Map<String,Boolean> favorites=new HashMap<>();if(readyLibrary!=null)for(Store.Book b:readyLibrary.books)favorites.put(b.id,b.pinned);
     if(items!=null)for(int n=0;n<items.length();n++){JSONObject row=items.optJSONObject(n);if(row!=null){if(favorites.containsKey(row.optString("id")))try{row.put("favorite",favorites.get(row.optString("id")));}catch(Exception ignored){}rows.add(row);}}
     list.setAdapter(new ArrayAdapter<JSONObject>(this,0,rows){public View getView(int n,View recycled,ViewGroup parent){
-      JSONObject row=getItem(n);boolean eink=DeviceProfile.eink(MainActivity.this);LinearLayout card=new LinearLayout(MainActivity.this);card.setOrientation(1);card.setPadding(dp(eink?12:16),dp(10),dp(eink?12:16),dp(10));
+      JSONObject row=getItem(n);boolean eink=DeviceProfile.eink(MainActivity.this);LinearLayout card=new LinearLayout(MainActivity.this);card.setOrientation(1);card.setPadding(dp(eink?12:16),dp(eink?5:10),dp(eink?12:16),dp(eink?5:10));
       LinearLayout identity=new LinearLayout(MainActivity.this);
       if(!eink){ImageView cover=new ImageView(MainActivity.this);cover.setScaleType(ImageView.ScaleType.FIT_CENTER);cover.setContentDescription("Ảnh bìa "+row.optString("title"));identity.addView(cover,new LinearLayout.LayoutParams(dp(64),dp(96)));loadCover(cover,row.optString("cover_asset"),row.optString("cover_url"));}
-      LinearLayout labels=new LinearLayout(MainActivity.this);labels.setOrientation(1);labels.setPadding(eink?0:dp(12),0,0,0);labels.addView(BookUi.text(MainActivity.this,row.optString("title"),18,true));
+      LinearLayout labels=new LinearLayout(MainActivity.this);labels.setOrientation(1);labels.setPadding(eink?0:dp(12),0,0,0);labels.addView(BookUi.text(MainActivity.this,row.optString("title"),eink?16:18,true));
       LinearLayout secondary=new LinearLayout(MainActivity.this);secondary.setGravity(Gravity.CENTER_VERTICAL);TextView category=BookUi.text(MainActivity.this,row.optString("category")+(row.optString("status").isEmpty()?"":" · "+row.optString("status")),14,false);secondary.addView(category,new LinearLayout.LayoutParams(0,-2,1));
       BookUi.Flow actions=BookUi.flow(MainActivity.this);Button favorite=button(row.optBoolean("favorite")?"♥":"♡",()->discoveryAction(row,false));favorite.setContentDescription(row.optBoolean("favorite")?"Bỏ yêu thích":"Thêm yêu thích");favorite.setTextSize(20);Button download=button("↓",()->discoveryAction(row,true));download.setContentDescription(eink?"Tải chữ":"Tải truyện");download.setTextSize(20);actions.addView(favorite,new ViewGroup.LayoutParams(dp(48),dp(48)));actions.addView(download,new ViewGroup.LayoutParams(dp(48),dp(48)));
-      if(eink){labels.addView(secondary);labels.addView(actions,new LinearLayout.LayoutParams(-1,-2));}else{secondary.removeView(category);labels.addView(category,new LinearLayout.LayoutParams(-1,-2));labels.addView(actions,new LinearLayout.LayoutParams(-1,-2));}
-      JSONArray tags=row.optJSONArray("tags");if(tags!=null&&tags.length()>0)labels.addView(BookUi.text(MainActivity.this,android.text.TextUtils.join(" · ",jsonStrings(tags)),13,false));
+      if(eink){category.setText(row.optString("status"));if(category.length()==0)category.setVisibility(View.GONE);}else{secondary.removeView(category);labels.addView(category,new LinearLayout.LayoutParams(-1,-2));labels.addView(actions,new LinearLayout.LayoutParams(-1,-2));}
+      JSONArray tags=row.optJSONArray("tags");if(!eink&&tags!=null&&tags.length()>0)labels.addView(BookUi.text(MainActivity.this,android.text.TextUtils.join(" · ",jsonStrings(tags)),13,false));
       identity.addView(labels,new LinearLayout.LayoutParams(0,-2,1));card.addView(identity);
-      if(eink){labels.removeView(actions);secondary.addView(actions,new LinearLayout.LayoutParams(dp(108),-2));}
-      String latest=row.optString("latest_chapter",row.optString("info")).replace(row.optString("title"),"").trim();if(!latest.isEmpty())card.addView(BookUi.text(MainActivity.this,latest,14,false));if(!row.optString("updated_text").isEmpty())card.addView(BookUi.text(MainActivity.this,row.optString("updated_text"),13,false));
+      if(eink){secondary.addView(actions,new LinearLayout.LayoutParams(dp(108),-2));card.addView(secondary);}
+      String latest=row.optString("latest_chapter",row.optString("info")).replace(row.optString("title"),"").trim();if(!latest.isEmpty()){TextView chapter=BookUi.text(MainActivity.this,latest,14,false);if(eink){secondary.removeView(category);secondary.addView(chapter,0,new LinearLayout.LayoutParams(0,-2,1));}else card.addView(chapter);}if(!row.optString("updated_text").isEmpty())card.addView(BookUi.text(MainActivity.this,row.optString("updated_text"),13,false));
       card.setOnClickListener(v->openDiscovery(row,list,title,url));return card;
     }});
     if(rows.isEmpty()&&list.getEmptyView() instanceof TextView)((TextView)list.getEmptyView()).setText(android.net.Uri.parse(url).getPath().equals("/tim-kiem")?"Không tìm thấy truyện phù hợp. Hãy thử từ khóa khác.":"Danh sách hiện chưa có truyện phù hợp với bộ lọc.");

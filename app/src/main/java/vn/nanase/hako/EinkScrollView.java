@@ -27,8 +27,8 @@ final class EinkScrollView extends ScrollView {
   if(height<=0||content.getWidth()<=0)return;
   if(measuredWidth==getWidth()&&measuredHeight==height&&contentHeight==naturalHeight)return;
   measuredWidth=getWidth();measuredHeight=height;contentHeight=naturalHeight;
-  TreeSet<Integer> edges=new TreeSet<>();boundaries(content,0,height,edges);pages.clear();pages.add(0);int start=0;
-  while(start+height<naturalHeight){Integer end=edges.floor(start+height);if(end==null||end<=start)end=Math.min(naturalHeight,start+height);pages.add(end);start=end;}
+  TreeSet<Integer> edges=new TreeSet<>(),breaks=new TreeSet<>();boundaries(content,0,height,edges);if(content instanceof ViewGroup){ViewGroup group=(ViewGroup)content;for(int n=0;n<group.getChildCount();n++){View child=group.getChildAt(n);if("page_start".equals(child.getTag())){breaks.add(child.getTop());edges.add(child.getTop());}}}pages.clear();pages.add(0);int start=0;
+  while(start+height<naturalHeight||breaks.higher(start)!=null){Integer end=edges.floor(start+height);Integer forced=breaks.higher(start);if(forced!=null&&forced<=start+height)end=forced;if(end==null||end<=start)end=Math.min(naturalHeight,start+height);pages.add(end);start=end;}
   int minimum=Math.max(naturalHeight,start+height);if(frame.getMinimumHeight()!=minimum)frame.setMinimumHeight(minimum);
  }
  int page(){prepare();int index=Collections.binarySearch(pages,getScrollY());return Math.min(Math.max(0,pages.size()-1),Math.max(0,index>=0?index:-index-2));}
