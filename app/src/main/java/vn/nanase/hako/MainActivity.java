@@ -959,9 +959,9 @@ public class MainActivity extends Activity {
       else{LinearLayout identity=new LinearLayout(this);boolean narrow=getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density<360||getResources().getConfiguration().fontScale>1.25f;identity.setOrientation(narrow?1:0);if(narrow)identity.setGravity(Gravity.CENTER_HORIZONTAL);ImageView cover=new ImageView(this);cover.setScaleType(ImageView.ScaleType.FIT_CENTER);cover.setContentDescription("Ảnh bìa "+info.title);identity.addView(cover,new LinearLayout.LayoutParams(dp(88),dp(126)));loadCover(cover,info.cover,info.coverRemote);LinearLayout labels=new LinearLayout(this);labels.setOrientation(1);labels.setPadding(narrow?0:dp(12),0,0,0);labels.addView(BookUi.text(this,info.title,22,true));if(!info.author.isEmpty())labels.addView(BookUi.text(this,"Tác giả: "+info.author,14,false));if(!info.artist.isEmpty())labels.addView(BookUi.text(this,"Họa sĩ: "+info.artist,14,false));identity.addView(labels,narrow?new LinearLayout.LayoutParams(-1,-2):new LinearLayout.LayoutParams(0,-2,1));body.addView(identity);}
       BookUi.gap(body,6);body.addView(BookUi.text(this,info.category+(info.status.isEmpty()?"":" · "+info.status),14,false));
       if(eink&&!info.author.isEmpty())body.addView(BookUi.text(this,"Tác giả: "+info.author,14,false));
-      BookUi.Flow tags=BookUi.flow(this);for(String tag:jsonStrings(info.tags))BookUi.tag(tags,tag);body.addView(tags,new LinearLayout.LayoutParams(-1,-2));
+      BookUi.Flow tags=eink?new BookUi.Flow(this,dp(6),dp(3)):BookUi.flow(this);for(String tag:jsonStrings(info.tags))BookUi.tag(tags,tag);if(eink)for(int n=0;n<tags.getChildCount();n++){View tag=tags.getChildAt(n);tag.setPadding(dp(5),dp(1),dp(5),dp(1));}body.addView(tags,new LinearLayout.LayoutParams(-1,-2));
       BookUi.gap(body,8);LinearLayout metadata=new LinearLayout(this);metadata.setOrientation(1);BookUi.Flow stats=BookUi.flow(this);if(info.chapters>0)BookUi.statistic(stats,"Chương",String.valueOf(info.chapters));BookUi.statistic(stats,"Lượt xem",info.views);BookUi.statistic(stats,"Đánh giá",info.rating);BookUi.statistic(stats,"Cập nhật",info.updatedText);metadata.addView(stats,new LinearLayout.LayoutParams(-1,-2));
-      for(String line:jsonStrings(info.details))if(!line.isEmpty()&&!line.contains(info.status)&&!line.startsWith("Tác giả")&&!line.startsWith("Họa sĩ"))metadata.addView(BookUi.text(this,line,14,false));
+      for(String line:jsonStrings(info.details))if(!eink&&!line.isEmpty()&&!line.contains(info.status)&&!line.startsWith("Tác giả")&&!line.startsWith("Họa sĩ"))metadata.addView(BookUi.text(this,line,14,false));
       for(String line:jsonStrings(info.statistics))if(!line.isEmpty())metadata.addView(BookUi.text(this,line,14,false));
       if(!eink)body.addView(metadata);
       BookUi.divider(body);
@@ -977,10 +977,20 @@ public class MainActivity extends Activity {
       }
       if(eink){BookUi.divider(body);body.addView(metadata);}
     }
-    {if(!eink)BookUi.gap(body,12);TextView synopsisTitle=BookUi.text(this,"Giới thiệu",18,true);if(eink)synopsisTitle.setTag("page_start");body.addView(synopsisTitle);body.addView(BookUi.text(this,info.summary.isEmpty()?"Chưa có giới thiệu đã lưu.":info.summary,eink?16:17,false));}
+    {if(!eink)BookUi.gap(body,12);TextView synopsisTitle=BookUi.text(this,"Giới thiệu",18,true);if(eink)synopsisTitle.setTag("page_start");body.addView(synopsisTitle);if(eink)for(String line:jsonStrings(info.details))if(!line.isEmpty()&&!line.contains(info.status)&&!line.startsWith("Tác giả")&&!line.startsWith("Họa sĩ"))body.addView(BookUi.text(this,line,14,false));body.addView(BookUi.text(this,info.summary.isEmpty()?"Chưa có giới thiệu đã lưu.":info.summary,eink?16:17,false));}
     if(!eink&&b!=null&&tocGroups!=null&&!tocGroups.isEmpty()){BookUi.divider(body);body.addView(BookUi.text(this,"Mục lục theo tập",18,true));for(VolumeGroup group:tocGroups)addPhoneVolume(body,info,b,group,tocEntry==null?Collections.emptySet():tocEntry.read);}
     BookUi.gap(body,12);body.addView(button("Làm mới thông tin",()->openStoryInfo(new HakoParser.Link(info.id,info.title,info.url),true)));
-    if(eink){SettingsPages pages=new SettingsPages(this,body,true);currentScroll=pages.viewport();root.addView(pages,new LinearLayout.LayoutParams(-1,0,1));}
+    if(eink){
+      // Fit the first-screen identity, actions and statistics by removing padding,
+      // never by truncating the title/tags or reducing the reading text size.
+      body.setPadding(dp(12),dp(4),dp(12),dp(4));
+      for(int n=0;n<body.getChildCount();n++){
+        View child=body.getChildAt(n);
+        if(child.getClass()==View.class){LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)child.getLayoutParams();if(lp.height>1)lp.height=dp(2);lp.topMargin=dp(2);lp.bottomMargin=dp(2);child.setLayoutParams(lp);}
+        else if(child instanceof TextView&&!(child instanceof Button)){TextView text=(TextView)child;text.setPadding(0,0,0,0);text.setIncludeFontPadding(false);text.setLineSpacing(0,1);}
+        else if(child instanceof Button){child.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(48)));}
+      }
+      SettingsPages pages=new SettingsPages(this,body,true);currentScroll=pages.viewport();root.addView(pages,new LinearLayout.LayoutParams(-1,0,1));}
     else{ScrollView scroll=profileScroll();scroll.addView(body);currentScroll=scroll;root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
     currentScroll.setFocusableInTouchMode(true);
     if(restoreDetailY>=0&&b!=null){final int saved=restoreDetailY;restoreDetailY=-1;currentScroll.post(()->{if(currentScroll!=null)currentScroll.scrollTo(0,saved);});}
