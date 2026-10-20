@@ -1,3 +1,7 @@
+# 1.0.3 · S4 navigation
+
+Nút làm mới ở góc phải Khám phá/Mới cập nhật; lấy chi tiết trước khi rời danh sách. Chi tiết S4 có chữ lớn hơn và phân bổ khoảng trống, giữ đủ tên/tag; giới thiệu dùng font/cỡ chữ/giãn dòng đang chọn của trình đọc. Bỏ nút làm mới thông tin. Danh sách S4 có đuôi trắng để trang cuối giữ truyện ở đầu màn hình, thêm bộ đếm trang/dải truyện và nhãn Cuối. Build-only và cài đè S4 theo yêu cầu; không test/giả lập. [Chi tiết](docs/S4_NAVIGATION_103.md).
+
 # 1.0.2 · S4 layout
 
 Điều chỉnh theo 9 ảnh của chủ sở hữu: badge chưa đọc bên phải, dòng Vừa đọc gọn, khám phá gọn và bộ đếm nhỏ, các nút chi tiết chung hàng, giới thiệu phân màn riêng. Sửa nhận thứ tự kệ từ server. Build-only; không chạy test, chủ sở hữu kiểm tra. [Chi tiết](docs/S4_LAYOUT_102.md).
